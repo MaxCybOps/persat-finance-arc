@@ -1,0 +1,261 @@
+{"level":"debug","message":"[vite] connected.","timestamp":1792703542159}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703547670}
+{"level":"debug","message":"[vite] hot updated: /src/App.tsx","timestamp":1792703691383}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703691383}
+{"level":"error","message":"Warning: Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:\n1. You might have mismatching versions of React and the renderer (such as React DOM)\n2. You might be breaking the Rules of Hooks\n3. You might have more than one copy of React in the same app\nSee https://reactjs.org/link/invalid-hook-call for tips about how to debug and fix this problem.","timestamp":1792703691620}
+{"level":"error","message":"(previous line repeated 1× more)","timestamp":1792703691622}
+{"level":"error","message":"Uncaught TypeError: Cannot read properties of null (reading 'useRef')","timestamp":1792703691622,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29","stack":"TypeError: Cannot read properties of null (reading 'useRef')\n    at Object.useRef (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29)\n    at BrowserRouter (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/react-router-dom.js?v=d78e3936:10984:28)\n    at renderWithHooks (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:18474:26)\n    at mountIndeterminateComponent (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:21852:21)\n    at beginWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:22840:22)\n    at HTMLUnknownElement.callCallback2 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10558:22)\n    at Object.invokeGuardedCallbackDev (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10583:24)\n    at invokeGuardedCallback (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10617:39)\n    at beginWork$1 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26696:15)\n    at performUnitOfWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26129:20)"}
+{"level":"error","message":"(previous line repeated 2× more)","timestamp":1792703691650}
+{"level":"error","message":"Uncaught TypeError: Cannot read properties of null (reading 'useRef')","timestamp":1792703691650,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29","stack":"TypeError: Cannot read properties of null (reading 'useRef')\n    at Object.useRef (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29)\n    at BrowserRouter (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/react-router-dom.js?v=d78e3936:10984:28)\n    at renderWithHooks (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:18474:26)\n    at mountIndeterminateComponent (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:21852:21)\n    at beginWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:22840:22)\n    at HTMLUnknownElement.callCallback2 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10558:22)\n    at Object.invokeGuardedCallbackDev (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10583:24)\n    at invokeGuardedCallback (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:10617:39)\n    at beginWork$1 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26696:15)\n    at performUnitOfWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26129:20)"}
+{"level":"error","message":"The above error occurred in the <BrowserRouter> component:\n\n    at BrowserRouter (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/react-router-dom.js?v=d78e3936:10979:3)\n    at App\n    at Le (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/connectkit.js?v=ed645da4:18793:42)\n    at Web3ContextProvider (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/connectkit.js?v=ed645da4:34420:30)\n    at ConnectKitProvider (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/connectkit.js?v=ed645da4:37910:29)\n    at QueryClientProvider (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-WZEH4STI.js?v=ed645da4:39:30)\n    at Hydrate (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-WPFSLU33.js?v=ed645da4:392:11)\n    at WagmiProvider (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-WPFSLU33.js?v=ed645da4:414:11)\n\nConsider adding an error boundary to your tree to customize error handling behavior.\nVisit https://reactjs.org/link/error-boundaries to learn more about error boundaries.","timestamp":1792703691651}
+{"level":"error","message":"Unhandled promise rejection: TypeError: Cannot read properties of null (reading 'useRef')\n    at Object.useRef (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29)\n    at BrowserRouter (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/react-router-dom.js?v=d78e3936:10984:28)\n    at renderWithHooks (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:18474:26)\n    at mountIndeterminateComponent (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:21852:21)\n    at beginWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:22840:22)\n    at beginWork$1 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26684:22)\n    at performUnitOfWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26129:20)\n    at workLoopSync (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26068:13)\n    at renderRootSync (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26047:15)\n    at recoverFromConcurrentError (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:25664:28)","timestamp":1792703691658,"stack":"TypeError: Cannot read properties of null (reading 'useRef')\n    at Object.useRef (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-TWJ6NINL.js?v=9ade0532:1359:29)\n    at BrowserRouter (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/react-router-dom.js?v=d78e3936:10984:28)\n    at renderWithHooks (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:18474:26)\n    at mountIndeterminateComponent (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:21852:21)\n    at beginWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:22840:22)\n    at beginWork$1 (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26684:22)\n    at performUnitOfWork (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26129:20)\n    at workLoopSync (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26068:13)\n    at renderRootSync (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:26047:15)\n    at recoverFromConcurrentError (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-YI6NTZAD.js?v=ed645da4:25664:28)"}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703703949}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703703950}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703706066}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703706066}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703708411}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703708411}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703710384}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703710384}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703714348}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703714349}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703717059}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703717059}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703719360}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703719360}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703721490}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703721490}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792703723888}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792703723888}
+{"level":"debug","message":"[vite] connected.","timestamp":1792704069917}
+{"level":"debug","message":"[vite] connected.","timestamp":1792704076879}
+{"level":"debug","message":"[vite] connected.","timestamp":1792704108220}
+{"level":"debug","message":"[vite] connected.","timestamp":1792709308380}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792711501447}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1792711501448}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792711501449}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1792711501449}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792711501449}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1792711501449}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792711501450}
+{"level":"debug","message":"[vite] connected.","timestamp":1792711581324}
+{"level":"debug","message":"[vite] connected.","timestamp":1792711581803}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792711608475}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792711608475}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1792711608475}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1792711608475}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792711608475}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1792711608475}
+{"level":"debug","message":"[vite] connected.","timestamp":1792711611028}
+{"level":"debug","message":"[vite] connected.","timestamp":1792711611722}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792711756704}
+{"level":"debug","message":"[vite] connected.","timestamp":1792711769521}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792712188541}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792712314363}
+{"level":"debug","message":"[vite] connected.","timestamp":1792712318551}
+{"level":"debug","message":"[vite] connected.","timestamp":1792712621373}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792713252650}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792723972626}
+{"level":"debug","message":"[vite] connected.","timestamp":1792723979249}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792724135067}
+{"level":"debug","message":"[vite] connected.","timestamp":1792724139434}
+{"level":"debug","message":"[vite] connected.","timestamp":1792724156384}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792724371387}
+{"level":"debug","message":"[vite] connected.","timestamp":1792724375972}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792724469608}
+{"level":"debug","message":"[vite] connected.","timestamp":1792724473827}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792724963709}
+{"level":"debug","message":"[vite] connected.","timestamp":1792724975691}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792724990955}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792724990955}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1792724990956}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1792724990956}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1792724990956}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1792724990956}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792724990957}
+{"level":"debug","message":"[vite] hot updated: /src/components/ui.tsx","timestamp":1792724990957}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792724996445}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792724996446}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792724996473}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792724996473}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792724999325}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792724999325}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792724999326}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792724999326}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792725007688}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725007688}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792725007690}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725007690}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725013255}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725013255}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725013301}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725013301}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725017322}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725017323}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725017506}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725017506}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725019653}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725019654}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725019668}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725019668}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725023980}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725023980}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725024152}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725024152}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725030427}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725030427}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725030429}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725030429}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725033432}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725033433}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792725033439}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792725033439}
+{"level":"debug","message":"[vite] connected.","timestamp":1792725053397}
+{"level":"debug","message":"[vite] connected.","timestamp":1792726779930}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792726830372}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792726946985}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727214933}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727367066}
+{"level":"debug","message":"[vite] connected.","timestamp":1792727372099}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727433887}
+{"level":"debug","message":"[vite] connected.","timestamp":1792727437217}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727566336}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727592226}
+{"level":"debug","message":"[vite] connected.","timestamp":1792727595922}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727709048}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792727763171}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747258092}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747262545}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747312948}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747315698}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747628283}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747630524}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747631856}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747654931}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747668493}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747695899}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747698309}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747700252}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747811888}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747813242}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747815535}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747816845}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747823690}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792747823691}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747827885}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747828316}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747833155}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747833794}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747835891}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747963310}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747963952}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747995595}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747996203}
+{"level":"debug","message":"[vite] connected.","timestamp":1792747996618}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748032171}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748032951}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748033300}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792748045323}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748048659}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748048970}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792748168497}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748171276}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748172514}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748193029}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748193718}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748194431}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792748958011}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748960654}
+{"level":"debug","message":"[vite] connected.","timestamp":1792748961643}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792749039348}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749041592}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749043104}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792749082136}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792749212927}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749216496}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792749585793}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1792749585794}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1792749585794}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1792749585794}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1792749585794}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1792749585795}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749588119}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749618914}
+{"level":"debug","message":"[vite] connected.","timestamp":1792749940645}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792750476531}
+{"level":"debug","message":"[vite] connected.","timestamp":1792750511519}
+{"level":"debug","message":"[vite] hot updated: /src/App.tsx","timestamp":1792750513320}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792750513321}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792750515240}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792750515240}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792750515246}
+{"level":"debug","message":"[vite] connected.","timestamp":1792750527850}
+{"level":"debug","message":"[vite] connected.","timestamp":1792750529217}
+{"level":"debug","message":"[vite] connected.","timestamp":1792750530512}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792750740979}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792751058139}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792751504307}
+{"level":"debug","message":"[vite] connected.","timestamp":1792751849388}
+{"level":"debug","message":"[vite] connected.","timestamp":1792751850330}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792752451921}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792752451925}
+{"level":"debug","message":"[vite] connected.","timestamp":1792752714015}
+{"level":"debug","message":"[vite] connected.","timestamp":1792754067049}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792754628096}
+{"level":"debug","message":"[vite] connected.","timestamp":1792754655732}
+{"level":"debug","message":"[vite] connected.","timestamp":1792754656421}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792755031676}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755043657}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755043657}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755043676}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755043676}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755045801}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755045801}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755045886}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755045886}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755048085}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755048085}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755048241}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755048242}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755050455}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755050455}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755050487}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755050487}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755052238}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755052239}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792755052253}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792755052253}
+{"level":"debug","message":"[vite] connected.","timestamp":1792755062304}
+{"level":"debug","message":"[vite] connected.","timestamp":1792755063060}
+{"level":"debug","message":"[vite] connected.","timestamp":1792755065017}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792755644382}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792755644383}
+{"level":"debug","message":"[vite] connected.","timestamp":1792755683600}
+{"level":"debug","message":"[vite] connected.","timestamp":1792755684228}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792756333874}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792756333882}
+{"level":"debug","message":"[vite] connected.","timestamp":1792756733754}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792756821579}
+{"level":"debug","message":"[vite] connected.","timestamp":1792756823915}
+{"level":"debug","message":"[vite] connected.","timestamp":1792756825093}
+{"level":"debug","message":"[vite] connected.","timestamp":1792756839119}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792757042204}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757046572}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792757069791}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792757069791}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792757077638}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792757077638}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1792757077654}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1792757077654}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757087353}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757089510}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757251007}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792757513555}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757516091}
+{"level":"debug","message":"[vite] connected.","timestamp":1792757517558}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792758841158}
+{"level":"debug","message":"[vite] connected.","timestamp":1792761082134}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792761115181}
+{"level":"debug","message":"[vite] connected.","timestamp":1792761119081}
+{"level":"debug","message":"[vite] connected.","timestamp":1792778516394}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1792778915310}

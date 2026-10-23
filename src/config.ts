@@ -1,0 +1,41 @@
+/**
+ * wagmi + ConnectKit configuration for Persat Finance
+ * Built with Arc Studio — https://studio.arc.io
+ */
+
+import { http, createConfig } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
+import { arcTestnet } from 'viem/chains'
+import { injected, walletConnect } from 'wagmi/connectors'
+import { registerChain } from './tracing'
+
+// Pre-register chain RPC URLs so trace events show correct chain names immediately
+registerChain(arcTestnet.id, arcTestnet.rpcUrls.default.http[0])
+
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined
+
+const connectors = [
+  injected(),
+  ...(projectId
+    ? [
+        walletConnect({
+          projectId,
+          metadata: {
+            name: 'Persat Finance',
+            description: 'Trust-minimized BTC-collateralised lending on Arc',
+            url: 'https://persat.finance',
+            icons: [],
+          },
+        }),
+      ]
+    : []),
+]
+
+export const config = createConfig({
+  chains: [arcTestnet, mainnet],
+  connectors,
+  transports: {
+    [arcTestnet.id]: http(),
+    [mainnet.id]: http(),
+  },
+})
