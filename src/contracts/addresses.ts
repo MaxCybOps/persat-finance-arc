@@ -12,6 +12,8 @@ export const VAULT_ADDRESS = (
   import.meta.env.VITE_VAULT_ADDRESS ?? '0x59241023610c71c56154e5c6d56821a750ff2e76'
 ) as `0x${string}`
 
+export const ESCROW_VAULT_ADDRESS = VAULT_ADDRESS
+
 export const CIRBTC_ADDRESS = (
   import.meta.env.VITE_CIRBTC_ADDRESS ?? '0x52c0757272713869f2a34827386c301a5c3af744'
 ) as `0x${string}`
