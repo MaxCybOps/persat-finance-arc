@@ -19,6 +19,8 @@ import {
   shortAddr,
   DealState,
   parseOnchainError,
+  normalizeDealId,
+  isValidDealId,
 } from '../lib/utils'
 import { REGISTRY_ABI, VAULT_ABI, ERC20_APPROVE_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
@@ -29,37 +31,40 @@ const PAGE_LOAD_SEC = Math.floor(new Date().valueOf() / 1000)
 type Action = 'activateLoan' | 'claimPrincipal' | 'repayLoan' | 'liquidate' | 'markDefault'
 
 export default function ManageDeal() {
-  const { id: dealId } = useParams<{ id: string }>()
+  const { id: dealIdParam } = useParams<{ id: string }>()
   const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
 
-  const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
-  const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
+  const hasValidId = isValidDealId(dealIdParam)
+  const normalizedDealId = normalizeDealId(dealIdParam)
 
-  const { data: deal, isLoading, refetch } = useReadContract({
+  const { data: deal, isLoading, refetch, error: readError } = useReadContract({
     address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
-    args: [safeDealId],
+    args: [normalizedDealId],
     chainId,
-    query: { enabled: isValidHexId },
+    query: {
+      enabled: hasValidId,
+      retry: false,
+    },
   })
 
   const { data: lockedCollateral } = useReadContract({
     address: addresses.vault,
     abi: VAULT_ABI,
     functionName: 'lockedCollateral',
-    args: [safeDealId],
+    args: [normalizedDealId],
     chainId,
-    query: { enabled: isValidHexId && deal?.state === DealState.Active },
+    query: { enabled: hasValidId && deal?.state === DealState.Active },
   })
 
   const { data: claimableUsdc } = useReadContract({
     address: addresses.vault,
     abi: VAULT_ABI,
     functionName: 'claimableUsdc',
-    args: [safeDealId],
+    args: [normalizedDealId],
     chainId,
-    query: { enabled: isValidHexId && deal?.state === DealState.Active },
+    query: { enabled: hasValidId && deal?.state === DealState.Active },
   })
 
   // cirBTC allowance check (borrower needs to approve vault before activating)
@@ -87,9 +92,9 @@ export default function ManageDeal() {
     address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getCounterOffers',
-    args: [dealId as `0x${string}`],
+    args: [normalizedDealId],
     chainId,
-    query: { enabled: !!dealId && deal?.state === DealState.Proposed },
+    query: { enabled: hasValidId && deal?.state === DealState.Proposed },
   })
 
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
@@ -103,7 +108,7 @@ export default function ManageDeal() {
     }
   }, [isSuccess, refetch, refetchOffers])
 
-  if (!dealId || !isValidHexId) {
+  if (!dealIdParam || !hasValidId) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <AlertTriangle size={36} className="mx-auto mb-4 text-[#ff8a00]" />
@@ -111,7 +116,7 @@ export default function ManageDeal() {
           Invalid Deal Identifier
         </h2>
         <p className="text-sm text-[#ddc1ae] max-w-md mx-auto mb-6">
-          The requested Deal ID (<code className="mono text-[#ff8a00]">{dealId || 'empty'}</code>) is not a 32-byte cryptographic hash. On Arc, deal identifiers are 66-character hashes (e.g. <code>0x8f9024a...</code>).
+          The requested Deal ID (<code className="mono text-[#ff8a00]">{dealIdParam || 'empty'}</code>) is not a valid 16-byte deal identifier. On Arc, deal identifiers are 34-character hexadecimal hashes (e.g. <code>0x8f9024a...</code>).
         </p>
         <div className="flex justify-center gap-3">
           <Link to="/dashboard" className="px-5 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold no-underline">
@@ -133,11 +138,11 @@ export default function ManageDeal() {
     )
   }
 
-  if (!deal) {
+  if (!deal || readError) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <AlertTriangle size={32} className="mx-auto mb-3 text-[#ff8a00]" />
-        <p className="text-sm text-[#ddc1ae] mb-4">No deal found on Arc Testnet for ID: <code className="mono text-[#ff8a00]">{dealId}</code></p>
+        <p className="text-sm text-[#ddc1ae] mb-4">No deal found on {chain?.name ?? 'Arc'} for ID: <code className="mono text-[#ff8a00]">{dealIdParam}</code></p>
         <Link to="/dashboard" className="px-4 py-2 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 no-underline">
           Return to Dashboard
         </Link>
@@ -156,37 +161,37 @@ export default function ManageDeal() {
     (usdcAllowance === undefined || usdcAllowance < deal.principal)
 
   function dispatch(action: Action) {
-    if (!dealId || !address) return
+    if (!hasValidId || !address) return
     reset()
     writeContract({
       address: addresses.vault,
       abi: VAULT_ABI,
       functionName: action,
-      args: [dealId as `0x${string}`],
+      args: [normalizedDealId],
       chainId,
     })
   }
 
   function cancelDeal() {
-    if (!dealId || !address) return
+    if (!hasValidId || !address) return
     reset()
     writeContract({
       address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'cancelDeal',
-      args: [dealId as `0x${string}`],
+      args: [normalizedDealId],
       chainId,
     })
   }
 
   function acceptOffer(offerId: bigint) {
-    if (!dealId || !address) return
+    if (!hasValidId || !address) return
     reset()
     writeContract({
       address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'acceptCounterOffer',
-      args: [dealId as `0x${string}`, offerId],
+      args: [normalizedDealId, offerId],
       chainId,
     })
   }
@@ -217,7 +222,7 @@ export default function ManageDeal() {
             Manage Loan
           </h1>
           <code className="mono text-xs" style={{ color: 'var(--subtle)' }}>
-            {dealId}
+            {normalizedDealId}
           </code>
         </div>
         <Badge className={dealStateColor(deal.state)}>

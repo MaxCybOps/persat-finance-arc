@@ -128,6 +128,31 @@ export function randomDealId(): `0x${string}` {
     .join('')}`
 }
 
+/** Empty 16-byte deal ID (0x + 32 zeros) */
+export const EMPTY_DEAL_ID = '0x00000000000000000000000000000000' as `0x${string}`
+
+/** Check if string is a valid hexadecimal deal ID (either 16-byte or 32-byte hash) */
+export function isValidDealId(id?: string | null): boolean {
+  if (!id) return false
+  const clean = id.trim().toLowerCase()
+  if (!clean.startsWith('0x')) return false
+  const hexPart = clean.slice(2)
+  if (!/^[0-9a-f]+$/.test(hexPart)) return false
+  return hexPart.length === 32 || hexPart.length === 64
+}
+
+/** Normalize any incoming deal ID into a valid bytes16 (34-character hex string) */
+export function normalizeDealId(id?: string | null): `0x${string}` {
+  if (!id) return EMPTY_DEAL_ID
+  let clean = id.trim().toLowerCase()
+  if (!clean.startsWith('0x')) clean = `0x${clean}`
+  const hexPart = clean.slice(2)
+  if (!/^[0-9a-f]+$/.test(hexPart)) return EMPTY_DEAL_ID
+  if (clean.length === 34) return clean as `0x${string}`
+  if (clean.length >= 34) return clean.slice(0, 34) as `0x${string}`
+  return clean.padEnd(34, '0') as `0x${string}`
+}
+
 export function parseOnchainError(error: unknown): string {
   const msg = (error as { message?: string })?.message?.toLowerCase() ?? ''
   if (msg.includes('user rejected') || msg.includes('user denied')) return 'Transaction cancelled.'
@@ -139,7 +164,11 @@ export function parseOnchainError(error: unknown): string {
   if (msg.includes('ltvhealthy')) return 'LTV is healthy — liquidation not available.'
   if (msg.includes('oraclestale')) return 'Price oracle is stale. Try again shortly.'
   if (msg.includes('invalidclaimtoken')) return 'This claim link is invalid or already used.'
+  if (msg.includes('dealnotfound')) return 'Deal not found on this network.'
+  if (msg.includes('dealalreadyexists')) return 'A deal with this ID already exists. Refresh to generate a new one.'
+  if (msg.includes('invalidterms')) return 'Invalid deal terms. Please check amounts and duration.'
   if (msg.includes('reverted')) return 'Transaction failed. Check your balances and approvals.'
-  if (msg.includes('network') || msg.includes('timeout')) return 'Network error. Please try again.'
+  if (msg.includes('network') || msg.includes('timeout') || msg.includes('unable to fetch'))
+    return 'Network/RPC issue. Please verify your wallet network is Arc Testnet or Arc Mainnet.'
   return 'Something went wrong. Please try again.'
 }

@@ -18,27 +18,32 @@ import {
   shortAddr,
   DealState,
   parseOnchainError,
+  normalizeDealId,
+  isValidDealId,
 } from '../lib/utils'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 
 export default function ClaimDeal() {
-  const { token: dealId } = useParams<{ token: string }>()
+  const { token: dealIdParam } = useParams<{ token: string }>()
   const [searchParams] = useSearchParams()
   const salt = searchParams.get('salt') as `0x${string}` | null
 
   const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
 
-  const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
-  const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
+  const hasValidId = isValidDealId(dealIdParam)
+  const normalizedDealId = normalizeDealId(dealIdParam)
 
-  const { data: deal, isLoading, refetch } = useReadContract({
+  const { data: deal, isLoading, refetch, error: readError } = useReadContract({
     address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
-    args: [safeDealId],
+    args: [normalizedDealId],
     chainId,
-    query: { enabled: isValidHexId },
+    query: {
+      enabled: hasValidId,
+      retry: false,
+    },
   })
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
@@ -48,7 +53,7 @@ export default function ClaimDeal() {
     if (isSuccess) void refetch()
   }, [isSuccess, refetch])
 
-  if (!dealId || !salt) {
+  if (!dealIdParam || !salt) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <AlertTriangle size={40} className="mx-auto mb-4" style={{ color: 'var(--danger)' }} />
@@ -73,7 +78,7 @@ export default function ClaimDeal() {
     )
   }
 
-  if (!deal) {
+  if (!deal || readError) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <AlertTriangle size={40} className="mx-auto mb-4" style={{ color: 'var(--danger)' }} />
@@ -81,7 +86,7 @@ export default function ClaimDeal() {
           Deal not found
         </h2>
         <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-          No deal exists with this ID. The link may be expired or the deal was cancelled.
+          No active deal was found for ID <code className="mono">{dealIdParam.slice(0, 18)}...</code> on {chain?.name ?? 'Arc'}. The link may be expired, already claimed, or was created on another network.
         </p>
       </div>
     )
@@ -99,12 +104,12 @@ export default function ClaimDeal() {
     address?.toLowerCase() !== deal.reservedFor.toLowerCase()
 
   function claim() {
-    if (!dealId || !salt || !address) return
+    if (!hasValidId || !salt || !address) return
     writeContract({
       address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'claimDeal',
-      args: [dealId as `0x${string}`, salt],
+      args: [normalizedDealId, salt],
       chainId,
     })
   }
@@ -124,7 +129,7 @@ export default function ClaimDeal() {
             Deal Invitation
           </h1>
           <p className="text-xs mono" style={{ color: 'var(--subtle)' }}>
-            {(dealId).slice(0, 18)}...
+            {(normalizedDealId).slice(0, 18)}...
           </p>
         </div>
         <Badge className={`ml-auto ${dealStateColor(deal.state)}`}>

@@ -26,7 +26,7 @@ import {
   RefreshCw,
   Wallet,
 } from 'lucide-react'
-import { shortAddr } from '../lib/utils'
+import { shortAddr, normalizeDealId } from '../lib/utils'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 
 export default function Dashboard() {
@@ -50,9 +50,8 @@ export default function Dashboard() {
   function goToDeal() {
     let id = jumpId.trim()
     if (!id) return
-    if (!id.startsWith('0x')) id = `0x${id}`
-    if (id.length < 66) id = id.padEnd(66, '0')
-    navigate(`/deal/${id}/manage`)
+    const norm = normalizeDealId(id)
+    navigate(`/deal/${norm}/manage`)
   }
 
   const handleCopyAddr = () => {
