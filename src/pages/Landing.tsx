@@ -1,565 +1,1421 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Flame,
+  Link as LinkIcon,
+  Layers,
+  CheckCircle,
+  Copy,
+  Check,
+  Shield,
+  Lock,
+  Zap,
+  TrendingUp,
+  ArrowRight,
+  ExternalLink,
+  ArrowDownUp,
+  Coins,
+  Menu,
+  X,
+  ChevronDown,
+  Sliders,
+  DollarSign,
+  Clock,
+  Sparkles,
+  BarChart3,
+  HelpCircle,
+  Scale,
+} from 'lucide-react'
+import AuthModal from '../components/AuthModal'
 import { REGISTRY_ADDRESS, ESCROW_VAULT_ADDRESS } from '../contracts/addresses'
+
+// 3D Orbital Solar Canvas
+function OrbitalCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const mouse = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let W = 0, H = 0
+    function resize() {
+      if (!canvas) return
+      W = canvas.width = canvas.offsetWidth * window.devicePixelRatio
+      H = canvas.height = canvas.offsetHeight * window.devicePixelRatio
+      ctx!.scale(window.devicePixelRatio, window.devicePixelRatio)
+      W /= window.devicePixelRatio
+      H /= window.devicePixelRatio
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(canvas)
+
+    const onMove = (e: MouseEvent) => {
+      const r = canvas.getBoundingClientRect()
+      mouse.current = {
+        x: (e.clientX - r.left - W / 2) / W,
+        y: (e.clientY - r.top - H / 2) / H,
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+
+    // Star dust particles
+    const stars = Array.from({ length: 40 }, () => ({
+      x: Math.random() * 2000 - 1000,
+      y: Math.random() * 2000 - 1000,
+      r: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.7 + 0.2,
+      speed: Math.random() * 0.002 + 0.001,
+    }))
+
+    let t = 0
+    let animId = 0
+    function draw() {
+      if (!ctx) return
+      ctx.clearRect(0, 0, W, H)
+      t += 0.004
+
+      const cx = W / 2 + mouse.current.x * 24
+      const cy = H / 2 + mouse.current.y * 24
+
+      // 1. Ambient solar haze
+      const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.6)
+      haze.addColorStop(0, 'rgba(255,138,0,0.18)')
+      haze.addColorStop(0.4, 'rgba(204,127,26,0.08)')
+      haze.addColorStop(1, 'rgba(23,18,15,0)')
+      ctx.fillStyle = haze
+      ctx.fillRect(0, 0, W, H)
+
+      // 2. Concentric solar ripple rings
+      for (let i = 1; i <= 5; i++) {
+        const r = Math.min(W, H) * 0.16 * i + Math.sin(t + i) * 6
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, r, r * 0.42, 0, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255,186,105,${0.15 - i * 0.024})`
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+
+      // 3. Rotating solar filament
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(t * 0.25)
+      const filament = ctx.createLinearGradient(-W * 0.4, 0, W * 0.4, 0)
+      filament.addColorStop(0, 'rgba(255,138,0,0)')
+      filament.addColorStop(0.5, 'rgba(255,170,69,0.16)')
+      filament.addColorStop(1, 'rgba(255,138,0,0)')
+      ctx.fillStyle = filament
+      ctx.fillRect(-W * 0.4, -2, W * 0.8, 4)
+      ctx.restore()
+
+      // 4. Drifting particle star dust
+      for (const s of stars) {
+        const px = cx + s.x + Math.sin(t * 2 + s.x) * 12
+        const py = cy + s.y + Math.cos(t * 2 + s.y) * 12
+        ctx.beginPath()
+        ctx.arc(px, py, s.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255,184,107,${s.alpha * (0.6 + 0.4 * Math.sin(t * 3 + s.r))})`
+        ctx.fill()
+      }
+
+      animId = requestAnimationFrame(draw)
+    }
+
+    draw()
+
+    return () => {
+      cancelAnimationFrame(animId)
+      window.removeEventListener('mousemove', onMove)
+      ro.disconnect()
+    }
+  }, [])
+
+  return (
+    <canvas
+      ref={ref}
+      className="absolute inset-0 w-full h-full pointer-events-none z-0"
+    />
+  )
+}
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [copied, setCopied] = useState(false)
+  const [portfolioTab, setPortfolioTab] = useState<'Home' | 'Borrow' | 'Lend' | 'Vote'>('Home')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isAuthOpen, setIsAuthOpen] = useState(false)
+  const [authDestination, setAuthDestination] = useState('/dashboard')
+
+  // Interactive Loan Agreement State
+  const [btcAmount, setBtcAmount] = useState<string>('1.25')
+  const [usdcAmount, setUsdcAmount] = useState<string>('24375.10')
+  const btcPrice = 117290.5
+
+  const parsedBtc = parseFloat(btcAmount) || 0
+  const parsedUsdc = parseFloat(usdcAmount) || 0
+  const collateralUsdValue = parsedBtc * btcPrice
+  const ltv = collateralUsdValue > 0 ? ((parsedUsdc / collateralUsdValue) * 100).toFixed(1) : '0.0'
+  const isSafe = parseFloat(ltv) <= 80
+
+  // Interactive Loan Calculator State
+  const [calcBtc, setCalcBtc] = useState<number>(1.0)
+  const [calcDuration, setCalcDuration] = useState<number>(30)
+  const calcMaxBorrow = (calcBtc * btcPrice * 0.7).toFixed(0)
+  const calcInterest = ((parseFloat(calcMaxBorrow) * 0.082 * calcDuration) / 365).toFixed(0)
+  const calcLiquidationPrice = (parseFloat(calcMaxBorrow) / (calcBtc * 0.8)).toFixed(0)
+
+  // FAQ Accordion State
+  const [openFaq, setOpenFaq] = useState<number | null>(null)
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText('https://persat.finance/deal#8f9024a-arc-testnet')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const openAuth = (dest = '/dashboard') => {
+    setAuthDestination(dest)
+    setIsAuthOpen(true)
+  }
 
   return (
-    <div className="bg-background font-body-md text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen flex flex-col justify-between">
-      <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-[0_1px_8px_rgba(0,0,0,0.5)]"><div className="h-20 max-w-[1280px] mx-auto px-gutter flex items-center justify-between gap-space-md"><div className="flex items-center gap-space-md"><a className="flex items-center gap-space-xs group" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}><span className="material-symbols-outlined text-primary-container group-hover:scale-110 transition-transform">local_fire_department</span><span className="font-headline-md text-headline-md tracking-wider font-bold text-on-surface">PERSAT</span></a><div className="hidden sm:flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container border border-outline-variant/40"><span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span><span className="font-label-caps text-label-caps text-on-surface-variant uppercase">ARC TESTNET LIVE</span></div></div><nav className="hidden xl:flex items-center gap-space-lg" data-active-classes="text-primary font-semibold"><a className="font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors" href="#how-it-works">How It Works</a><a className="font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors" onClick={() => navigate("/deal/new")} style={{ cursor: "pointer" }}>Direct Deals</a><a aria-current="page" className="uppercase transition-colors text-primary font-semibold" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}>Marketplace</a><a className="font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors" href="#security">Security &amp; Escrow</a><a className="font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors" href="https://github.com/MaxCybOps/persat-finance-arc#readme" target="_blank" rel="noopener noreferrer">Docs</a></nav><div className="flex items-center gap-space-md"><a className="relative group inline-flex items-center pl-space-md pr-space-xs py-space-xs rounded-full bg-gradient-to-b from-[#ffaa45] to-primary-container text-on-primary-container font-headline-md text-[13px] font-bold shadow-[0px_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0px_6px_32px_rgba(255,138,0,0.55)] transition-all" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}><span className="font-label-caps text-label-caps uppercase mr-space-sm text-on-primary-container font-bold tracking-wide">Launch App</span><span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-primary-container shadow-sm group-hover:translate-x-0.5 transition-transform"><span className="material-symbols-outlined text-[16px]">arrow_forward</span></span></a><div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span className="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main className="w-full pt-20 bg-background flex-1 flex flex-col"><div className="flex flex-col w-full relative overflow-hidden text-on-surface">
+    <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] selection:bg-[#ff8a00] selection:text-[#17120f] relative overflow-hidden flex flex-col justify-between">
+      {/* 3D Interactive Solar Background */}
+      <OrbitalCanvas />
 
-<div className="pointer-events-none absolute inset-0 -top-24 flex items-center justify-center overflow-hidden z-0">
-<div className="relative w-[1300px] h-[1300px] flex items-center justify-center opacity-75">
+      {/* HEADER */}
+      <header className="fixed top-0 w-full z-50 bg-[#120d0a]/90 backdrop-blur-xl border-b border-[#564334]/30 shadow-[0_1px_12px_rgba(0,0,0,0.6)]">
+        <div className="h-20 max-w-[1280px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
+          {/* Logo & Network Status */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link to="/" className="flex items-center gap-2.5 group no-underline">
+              <div className="w-9 h-9 rounded-xl bg-[#ff8a00]/15 flex items-center justify-center border border-[#ff8a00]/40 group-hover:scale-105 transition-transform shadow-[0_0_16px_rgba(255,138,0,0.25)]">
+                <Flame className="w-5 h-5 text-[#ff8a00]" />
+              </div>
+              <span className="font-['Space_Grotesk'] text-xl font-bold tracking-wider text-[#ebe0d9]">
+                PERSAT
+              </span>
+            </Link>
 
-<div className="absolute w-[680px] h-[680px] rounded-full bg-primary-container/20 blur-[130px]"></div>
-<div className="absolute w-[360px] h-[360px] rounded-full bg-secondary-container/25 blur-[90px]"></div>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#241f1a] border border-[#564334]/40">
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="font-['Space_Grotesk'] text-[11px] font-bold tracking-widest text-[#ddc1ae] uppercase">
+                ARC TESTNET LIVE
+              </span>
+            </div>
+          </div>
 
-<div className="absolute w-[320px] h-[320px] rounded-full border border-primary/20 shadow-[0_0_40px_rgba(255,138,0,0.22)] animate-pulse" style={{ animationDuration: "6s" }}></div>
-<div className="absolute w-[490px] h-[490px] rounded-full border border-primary/15 shadow-[0_0_60px_rgba(255,184,107,0.12)]"></div>
-<div className="absolute w-[680px] h-[680px] rounded-full border border-primary/10"></div>
-<div className="absolute w-[900px] h-[900px] rounded-full border border-primary/5"></div>
-<div className="absolute w-[1140px] h-[1140px] rounded-full border border-outline-variant/30"></div>
-</div>
-</div>
+          {/* Desktop Nav */}
+          <nav className="hidden xl:flex items-center gap-7">
+            <a href="#how-it-works" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              How It Works
+            </a>
+            <Link to="/deal/new" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              Direct Deals
+            </Link>
+            <Link to="/marketplace" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              Marketplace
+            </Link>
+            <a href="#calculator" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              Calculator
+            </a>
+            <a href="#security" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              Security
+            </a>
+            <a href="#faq" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              FAQ
+            </a>
+            <button
+              onClick={() => openAuth('/dashboard')}
+              className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ffb77f] hover:text-[#ff8a00] transition-colors no-underline cursor-pointer"
+            >
+              Dashboard
+            </button>
+          </nav>
 
-<section className="relative z-10 w-full max-w-[1280px] mx-auto px-gutter pt-8 pb-16 flex flex-col items-center text-center">
+          {/* Desktop Right CTA */}
+          <div className="hidden sm:flex items-center gap-3">
+            <button
+              onClick={() => openAuth('/dashboard')}
+              className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors cursor-pointer"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => openAuth('/dashboard')}
+              className="group relative inline-flex items-center pl-4 pr-1.5 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0px_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0px_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
+            >
+              <span className="uppercase mr-2 tracking-wide font-bold">Launch App</span>
+              <span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-0.5 transition-transform">
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </button>
+          </div>
 
-<div className="inline-flex items-center gap-space-xs px-space-md py-1 rounded-full bg-surface-container-high/70 backdrop-blur-md border border-primary-container/30 shadow-[0_0_20px_rgba(255,138,0,0.15)] mb-space-lg">
-<span className="w-1.5 h-1.5 rounded-full bg-primary-container animate-ping"></span>
-<span className="font-label-caps text-label-caps tracking-widest text-primary uppercase">PEER-TO-PEER BITCOIN LENDING • NON-CUSTODIAL ESCROW</span>
-</div>
+          {/* Mobile Hamburger Button */}
+          <div className="flex xl:hidden items-center gap-2">
+            <button
+              onClick={() => openAuth('/dashboard')}
+              className="sm:hidden px-3 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold"
+            >
+              Launch App
+            </button>
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="w-10 h-10 rounded-xl bg-[#241f1a] border border-[#564334]/40 flex items-center justify-center text-[#ebe0d9] hover:text-[#ff8a00] transition-colors cursor-pointer"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
 
-<h1 className="font-display-hero text-display-hero md:text-[68px] md:leading-[1.1] max-w-4xl tracking-tight text-on-surface uppercase font-bold drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
-      WHAT IF YOU COULD <br className="hidden sm:inline"/>
-<span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-primary-fixed to-primary">LEND AND BORROW</span> <br className="hidden sm:inline"/>
-      FROM ANYONE?
-    </h1>
+        {/* Mobile Navigation Drawer */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="xl:hidden bg-[#120d0a]/95 border-b border-[#564334]/30 px-6 py-6 overflow-hidden"
+            >
+              <div className="flex flex-col gap-4">
+                <a
+                  href="#how-it-works"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  How It Works
+                </a>
+                <Link
+                  to="/deal/new"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  Create Direct Deal
+                </Link>
+                <Link
+                  to="/marketplace"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  Open Marketplace
+                </Link>
+                <a
+                  href="#calculator"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  Loan Calculator
+                </a>
+                <a
+                  href="#security"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  Security & Escrow
+                </a>
+                <a
+                  href="#faq"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
+                >
+                  FAQ
+                </a>
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false)
+                    openAuth('/dashboard')
+                  }}
+                  className="w-full py-3 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-lg"
+                >
+                  Enter Dashboard
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
 
-<p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-space-md mb-space-xl">
-      Infrastructure for a world where anyone can lend to anyone, secured by digital assets and enforced by smart contracts—starting with Bitcoin.
-    </p>
+      {/* MAIN BODY */}
+      <main className="w-full pt-20 flex-1 flex flex-col relative z-10">
+        {/* ── SECTION 1: HERO & SIGNATURE CTA ── */}
+        <section className="relative w-full max-w-[1280px] mx-auto px-4 sm:px-6 pt-12 md:pt-20 pb-20 md:pb-28 flex flex-col items-center text-center">
+          {/* Micro Badge Pill */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2f2924]/80 backdrop-blur-md border border-[#ff8a00]/30 shadow-[0_0_20px_rgba(255,138,0,0.15)] mb-6"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#ff8a00] animate-ping" />
+            <span className="font-['Space_Grotesk'] text-[10px] sm:text-[11px] font-bold tracking-widest text-[#ffb77f] uppercase">
+              PEER-TO-PEER BITCOIN LENDING • NON-CUSTODIAL ESCROW ON ARC
+            </span>
+          </motion.div>
 
-<div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-space-md mb-space-xl text-left">
+          {/* Headline */}
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="font-['Space_Grotesk'] text-3xl sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.1] max-w-4xl tracking-tight text-[#ebe0d9] uppercase font-bold drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
+          >
+            WHAT IF YOU COULD <br className="hidden sm:inline" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-[#ffdcc4] to-[#ffb77f]">
+              LEND AND BORROW
+            </span>{' '}
+            <br className="hidden sm:inline" />
+            FROM ANYONE?
+          </motion.h1>
 
-<div className="relative group p-space-lg rounded-lg bg-surface-container-low/85 backdrop-blur-xl border border-outline-variant/40 hover:border-primary-container/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between">
-<div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-primary-container/80 to-transparent"></div>
-<div>
-<div className="flex items-center justify-between mb-space-sm">
-<div className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-primary-container text-[20px]">link</span>
-<span className="font-label-caps text-label-caps uppercase text-primary tracking-wider">Direct Path</span>
-</div>
-<span className="font-label-data-mono text-label-data-mono text-outline">P2P Link</span>
-</div>
-<h3 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Create a Direct Deal</h3>
-<p className="font-body-md text-body-md text-on-surface-variant mb-space-lg">
-            I already have a counterparty. Generate an encrypted, single-use private deal link with atomic settlement.
-          </p>
-</div>
-<a className="group/btn relative inline-flex items-center justify-between w-full px-space-md py-space-sm rounded-full bg-gradient-to-b from-[#ffaa45] to-primary-container text-on-primary-container font-headline-md text-[13px] font-bold shadow-[0_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_32px_rgba(255,138,0,0.55)] transition-all" onClick={() => navigate("/deal/new")} style={{ cursor: "pointer" }}>
-<span className="font-label-caps text-label-caps uppercase tracking-wide">Create Direct Deal</span>
-<span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-primary-container shadow-sm group-hover/btn:translate-x-1 transition-transform">
-<span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-</span>
-</a>
-</div>
+          {/* Subheadline */}
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-base sm:text-lg md:text-xl text-[#ddc1ae] max-w-2xl mt-5 mb-8 leading-relaxed font-normal"
+          >
+            Infrastructure for a world where anyone can lend to anyone, secured by digital assets and enforced by smart contracts, starting with Bitcoin on Circle's Arc L1.
+          </motion.p>
 
-<div className="relative group p-space-lg rounded-lg bg-surface-container-low/85 backdrop-blur-xl border border-outline-variant/40 hover:border-secondary/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between">
-<div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-secondary/70 to-transparent"></div>
-<div>
-<div className="flex items-center justify-between mb-space-sm">
-<div className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-secondary text-[20px]">hub</span>
-<span className="font-label-caps text-label-caps uppercase text-secondary tracking-wider">Public Pool</span>
-</div>
-<span className="font-label-data-mono text-label-data-mono text-outline">Open Books</span>
-</div>
-<h3 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Open Marketplace</h3>
-<p className="font-body-md text-body-md text-on-surface-variant mb-space-lg">
-            Browse verified community requests or post structured, non-negotiable lending terms to match peer liquidity.
-          </p>
-</div>
-<a className="group/btn inline-flex items-center justify-between w-full px-space-md py-space-sm rounded-full bg-surface-container-highest/90 hover:bg-surface-bright text-on-surface font-headline-md text-[13px] font-semibold border border-outline-variant/40 transition-all" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}>
-<span className="font-label-caps text-label-caps uppercase tracking-wide">Explore Marketplace</span>
-<span className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm group-hover/btn:translate-x-1 transition-transform">
-<span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-</span>
-</a>
-</div>
-</div>
+          {/* NEW: Lend with Confidence Signature CTA Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="mb-14 sm:mb-16"
+          >
+            <button
+              onClick={() => openAuth('/deal/new')}
+              className="group relative inline-flex items-center pl-6 sm:pl-8 pr-2.5 py-3 sm:py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm sm:text-base font-bold shadow-[0px_8px_32px_rgba(255,138,0,0.45)] hover:shadow-[0px_10px_40px_rgba(255,138,0,0.7)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <span className="uppercase mr-3 sm:mr-4 font-bold tracking-wide">
+                Lend with Confidence
+              </span>
+              <span className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-md group-hover:translate-x-1 transition-transform">
+                <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5" />
+              </span>
+            </button>
+          </motion.div>
 
-<div className="w-full grid grid-cols-1 md:grid-cols-12 gap-space-md items-center">
-
-<div className="md:col-span-4 rounded-lg bg-surface-container-low/90 backdrop-blur-2xl border border-outline-variant/30 p-space-md shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative overflow-hidden">
-<div className="flex items-center justify-between pb-space-sm border-b border-outline-variant/20 mb-space-sm">
-<span className="font-label-caps text-label-caps uppercase text-on-surface tracking-widest font-bold">MARKETS</span>
-<a className="font-label-caps text-label-caps text-primary uppercase text-[10px] hover:underline" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}>SEE ALL</a>
-</div>
-<div className="flex flex-col gap-space-sm">
-
-<div className="flex items-center justify-between p-space-xs rounded bg-surface-container/60 hover:bg-surface-container transition-colors">
-<div className="flex items-center gap-space-xs">
-<div className="w-8 h-8 rounded-full bg-[#f7931a]/15 text-[#f7931a] flex items-center justify-center font-bold text-xs">₿</div>
-<div>
-<div className="font-headline-md text-[13px] text-on-surface leading-none">BTC</div>
-<div className="font-label-data-mono text-[10px] text-[#10b981]">+1.6%</div>
-</div>
-</div>
-
-<svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
-<path d="M1 15 L12 12 L22 17 L34 8 L46 11 L58 2" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path>
-</svg>
-<div className="text-right">
-<div className="font-label-data-mono text-[12px] text-on-surface font-semibold">$117,290.50</div>
-<div className="font-body-sm text-[10px] text-outline">$1.29T Cap</div>
-</div>
-</div>
-
-<div className="flex items-center justify-between p-space-xs rounded bg-surface-container/60 hover:bg-surface-container transition-colors">
-<div className="flex items-center gap-space-xs">
-<div className="w-8 h-8 rounded-full bg-[#2775ca]/15 text-[#2775ca] flex items-center justify-center font-bold text-xs">$</div>
-<div>
-<div className="font-headline-md text-[13px] text-on-surface leading-none">USDC</div>
-<div className="font-label-data-mono text-[10px] text-[#10b981]">+0.01%</div>
-</div>
-</div>
-
-<svg className="w-16 h-5 stroke-outline" fill="none" viewBox="0 0 60 20">
-<path d="M1 10 L15 10 L25 9.5 L38 10.5 L50 10 L58 10" strokeLinecap="round" strokeWidth="1.5"></path>
-</svg>
-<div className="text-right">
-<div className="font-label-data-mono text-[12px] text-on-surface font-semibold">$1.00</div>
-<div className="font-body-sm text-[10px] text-outline">$315B Supply</div>
-</div>
-</div>
-
-<div className="flex items-center justify-between p-space-xs rounded bg-surface-container/60 hover:bg-surface-container transition-colors">
-<div className="flex items-center gap-space-xs">
-<div className="w-8 h-8 rounded-full bg-[#14f195]/15 text-[#14f195] flex items-center justify-center font-bold text-xs">◎</div>
-<div>
-<div className="font-headline-md text-[13px] text-on-surface leading-none">ARC</div>
-<div className="font-label-data-mono text-[10px] text-[#10b981]">+2.4%</div>
-</div>
-</div>
-
-<svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
-<path d="M1 18 L14 15 L26 12 L36 14 L48 5 L58 3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path>
-</svg>
-<div className="text-right">
-<div className="font-label-data-mono text-[12px] text-on-surface font-semibold">$214.86</div>
-<div className="font-body-sm text-[10px] text-outline">Arc Gas Token</div>
-</div>
-</div>
-</div>
-</div>
-
-<div className="md:col-span-4 rounded-xl bg-surface-container-lowest/95 backdrop-blur-2xl border border-primary/25 p-space-md shadow-[0_20px_50px_rgba(255,138,0,0.18)] text-left relative">
-<div className="flex items-center justify-between pb-space-xs border-b border-outline-variant/20 mb-space-md">
-<div className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-outline text-[18px]">menu</span>
-<span className="font-label-caps text-label-caps text-on-surface font-bold">PORTFOLIO</span>
-</div>
-<div className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-primary-container text-[18px]">card_giftcard</span>
-<span className="material-symbols-outlined text-outline text-[18px]">notifications</span>
-</div>
-</div>
-
-<div className="flex items-center justify-between p-1 rounded-full bg-surface-container mb-space-md border border-outline-variant/30">
-<button className="px-space-sm py-0.5 rounded-full bg-primary-container text-on-primary-container font-label-caps text-label-caps font-bold">Home</button>
-<button className="px-space-sm py-0.5 rounded-full text-on-surface-variant font-label-caps text-label-caps">Borrow</button>
-<button className="px-space-sm py-0.5 rounded-full text-on-surface-variant font-label-caps text-label-caps">Lend</button>
-<button className="px-space-sm py-0.5 rounded-full text-on-surface-variant font-label-caps text-label-caps">Vote</button>
-</div>
-
-<div className="mb-space-md">
-<div className="font-body-sm text-body-sm text-on-surface-variant uppercase tracking-wider">Net Escrow Value</div>
-<div className="flex items-baseline gap-space-xs">
-<span className="font-headline-lg text-headline-lg font-bold text-on-surface">$84,320.55</span>
-<span className="font-label-data-mono text-label-data-mono text-outline">USD</span>
-</div>
-</div>
-
-<div className="relative w-full h-24 mb-space-sm">
-<svg className="w-full h-full overflow-visible" fill="none" viewBox="0 0 280 80">
-<defs>
-<lineargradient id="curveGradient" x1="0" x2="0" y1="0" y2="1">
-<stop offset="0%" stopColor="#ff8a00" stopOpacity="0.35"></stop>
-<stop offset="100%" stopColor="#ff8a00" stopOpacity="0.0"></stop>
-</lineargradient>
-</defs>
-<path d="M0 60 Q 30 10, 70 45 T 140 30 T 210 65 T 280 15 L 280 80 L 0 80 Z" fill="url(#curveGradient)"></path>
-<path d="M0 60 Q 30 10, 70 45 T 140 30 T 210 65 T 280 15" fill="none" stroke="#ffb77f" strokeWidth="2.5"></path>
-
-<circle className="filter drop-shadow-[0_0_8px_#ff8a00]" cx="210" cy="65" fill="#ffffff" r="4.5"></circle>
-</svg>
-</div>
-<div className="flex items-center justify-between pt-space-xs border-t border-outline-variant/20 font-body-sm text-body-sm">
-<span className="text-on-surface-variant">Collateral Yield</span>
-<span className="font-label-data-mono text-[#10b981] font-semibold">+$1,240.49 (+4.2%)</span>
-</div>
-</div>
-
-<div className="md:col-span-4 rounded-lg bg-surface-container-low/90 backdrop-blur-2xl border border-outline-variant/30 p-space-md shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative">
-<div className="flex items-center justify-between pb-space-sm border-b border-outline-variant/20 mb-space-sm">
-<span className="font-label-caps text-label-caps uppercase text-on-surface tracking-widest font-bold">LOAN AGREEMENT</span>
-<span className="material-symbols-outlined text-outline text-[16px]">fullscreen</span>
-</div>
-<div className="flex items-center justify-between mb-space-md">
-<span className="px-space-xs py-0.5 rounded bg-surface-container text-primary font-label-data-mono text-[11px] font-semibold border border-outline-variant/30">BTC : USDC</span>
-<div className="font-label-data-mono text-[11px] text-on-surface-variant">
-            Fixed Rate: <span className="text-primary font-bold">8.20% APR</span>
-</div>
-</div>
-
-<div className="p-space-sm rounded-lg bg-surface-container-lowest border border-outline-variant/40 mb-space-xs flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="w-6 h-6 rounded-full bg-[#f7931a] text-black font-bold flex items-center justify-center text-[10px]">₿</span>
-<span className="font-headline-md text-[13px] text-on-surface">BTC</span>
-<span className="material-symbols-outlined text-outline text-[16px]">expand_more</span>
-</div>
-<div className="text-right">
-<div className="font-label-data-mono text-[14px] text-on-surface font-bold">1.250</div>
-<div className="font-body-sm text-[10px] text-outline">≈ $146,613.12</div>
-</div>
-</div>
-
-<div className="flex justify-center -my-2 relative z-10">
-<div className="w-6 h-6 rounded-full bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary shadow-sm">
-<span className="material-symbols-outlined text-[13px]">swap_vert</span>
-</div>
-</div>
-
-<div className="p-space-sm rounded-lg bg-surface-container-lowest border border-outline-variant/40 mb-space-md flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="w-6 h-6 rounded-full bg-[#2775ca] text-white font-bold flex items-center justify-center text-[10px]">$</span>
-<span className="font-headline-md text-[13px] text-on-surface">USDC</span>
-</div>
-<div className="text-right">
-<div className="font-label-data-mono text-[14px] text-primary font-bold">24,375.10</div>
-<div className="font-body-sm text-[10px] text-outline">LTV: 16.6% (Safe)</div>
-</div>
-</div>
-<button className="w-full py-2 rounded-full bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-on-surface font-label-caps text-label-caps uppercase font-bold border border-outline-variant/40 transition-colors">
-          Lock &amp; Issue Escrow
-        </button>
-</div>
-</div>
-</section>
-
-<section className="w-full bg-surface-container-lowest/80 border-y border-outline-variant/30 py-space-md relative z-10 backdrop-blur-xl">
-<div className="max-w-[1280px] mx-auto px-gutter grid grid-cols-2 lg:grid-cols-4 gap-space-md">
-
-<div className="flex items-center gap-space-sm">
-<div className="w-10 h-10 rounded-full bg-primary-container/15 flex items-center justify-center text-primary-container">
-<span className="material-symbols-outlined text-[20px]">verified_user</span>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-on-surface-variant uppercase">Total Escrow Value</div>
-<div className="font-headline-md text-headline-md text-on-surface font-bold">$1,420,000+ <span className="font-label-data-mono text-body-sm text-primary">USDC</span></div>
-</div>
-</div>
-
-<div className="flex items-center gap-space-sm">
-<div className="w-10 h-10 rounded-full bg-secondary-container/15 flex items-center justify-center text-secondary">
-<span className="material-symbols-outlined text-[20px]">handshake</span>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-on-surface-variant uppercase">Active Escrow Deals</div>
-<div className="font-headline-md text-headline-md text-on-surface font-bold">54 <span className="font-label-data-mono text-body-sm text-outline">Contracts</span></div>
-</div>
-</div>
-
-<div className="flex items-center gap-space-sm">
-<div className="w-10 h-10 rounded-full bg-[#10b981]/15 flex items-center justify-center text-[#10b981]">
-<span className="material-symbols-outlined text-[20px]">candlestick_chart</span>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-on-surface-variant uppercase">Collateral Health</div>
-<div className="font-headline-md text-headline-md text-[#10b981] font-bold">135% <span className="font-label-data-mono text-body-sm text-outline">Pyth BTC</span></div>
-</div>
-</div>
-
-<div className="flex items-center gap-space-sm">
-<div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary">
-<span className="material-symbols-outlined text-[20px]">bolt</span>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-on-surface-variant uppercase">Settlement Engine</div>
-<div className="font-headline-md text-headline-md text-on-surface font-bold">&lt; 400ms <span className="font-label-data-mono text-body-sm text-outline">Arc L1 Finality</span></div>
-</div>
-</div>
-</div>
-</section>
-
-<section className="w-full max-w-[1280px] mx-auto px-gutter py-space-xl relative z-10">
-<div className="text-center max-w-2xl mx-auto mb-space-xl">
-<div className="font-label-caps text-label-caps text-primary uppercase tracking-widest mb-space-xs">Flexible Counterparty Discovery</div>
-<h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">Two Distinct Ways to Lend &amp; Borrow</h2>
-<p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">
-        Whether you have a predetermined partner or want to leverage market-clearing liquidity, Persat automates escrow without intermediaries.
-      </p>
-</div>
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-space-lg">
-
-<div className="rounded-lg bg-surface-container-low/90 backdrop-blur-xl border border-outline-variant/30 p-space-xl relative overflow-hidden group hover:border-primary-container/40 transition-all">
-<div className="w-12 h-12 rounded-full bg-primary-container/15 flex items-center justify-center text-primary-container mb-space-md">
-<span className="material-symbols-outlined text-[24px]">key</span>
-</div>
-<span className="font-label-caps text-label-caps uppercase text-primary tracking-wider font-semibold">Path One</span>
-<h3 className="font-headline-md text-headline-md text-on-surface font-bold mt-1 mb-space-sm">Private Deal-Link</h3>
-<p className="font-body-md text-body-md text-on-surface-variant mb-space-md">
-          For when you already know your borrower or lender (a friend, business partner, or DAO colleague). Agree on custom terms in private, generate a single-use claim link, and let our verified smart contracts execute atomic escrow.
-        </p>
-<ul className="flex flex-col gap-space-sm font-body-sm text-body-sm text-on-surface mb-space-lg">
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
-<span>Zero orderbook footprint — private URL exchange</span>
-</li>
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
-<span>Encrypted counterparty authorization check on connection</span>
-</li>
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
-<span>Tamper-proof on-chain collateral lock-up</span>
-</li>
-</ul>
-<div className="p-space-sm rounded bg-surface-container border border-outline-variant/30 flex items-center justify-between font-label-data-mono text-label-data-mono text-outline">
-<span>persat.finance/deal#8f9024a...</span>
-<span className="text-primary cursor-pointer hover:underline">Copy Link</span>
-</div>
-</div>
-
-<div className="rounded-lg bg-surface-container-low/90 backdrop-blur-xl border border-outline-variant/30 p-space-xl relative overflow-hidden group hover:border-secondary/40 transition-all">
-<div className="w-12 h-12 rounded-full bg-secondary-container/15 flex items-center justify-center text-secondary mb-space-md">
-<span className="material-symbols-outlined text-[24px]">storefront</span>
-</div>
-<span className="font-label-caps text-label-caps uppercase text-secondary tracking-wider font-semibold">Path Two</span>
-<h3 className="font-headline-md text-headline-md text-on-surface font-bold mt-1 mb-space-sm">Open Marketplace</h3>
-<p className="font-body-md text-body-md text-on-surface-variant mb-space-md">
-          For when you need instant liquidity matching. Post your exact collateral-to-borrow parameters or fulfill vetted listings. To eradicate phishing and manipulation, counter-offers are strictly structured parameter updates.
-        </p>
-<ul className="flex flex-col gap-space-sm font-body-sm text-body-sm text-on-surface mb-space-lg">
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
-<span>Deterministic terms matching without spam chat vectors</span>
-</li>
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
-<span>Multi-oracle safety valves with automated margin calls</span>
-</li>
-<li className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
-<span>Transparent pool depth with transparent on-chain track records</span>
-</li>
-</ul>
-<div className="p-space-sm rounded bg-surface-container border border-outline-variant/30 flex items-center justify-between font-label-data-mono text-label-data-mono text-outline">
-<span>Active Bids Available: 18 Listings</span>
-<a className="text-secondary hover:underline" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}>View Book</a>
-</div>
-</div>
-</div>
-</section>
-
-<section className="w-full bg-surface-container-lowest/60 border-t border-outline-variant/30 py-space-xl relative z-10">
-<div className="max-w-[1280px] mx-auto px-gutter">
-<div className="text-center max-w-2xl mx-auto mb-space-xl">
-<div className="font-label-caps text-label-caps text-primary uppercase tracking-widest mb-space-xs">Zero-Custody Process</div>
-<h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">The Atomic Escrow Mechanism</h2>
-<p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">
-          How smart contracts replace centralized custodians and credit bureaus with deterministic mathematical guarantees.
-        </p>
-</div>
-<div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 relative flex flex-col justify-between">
-<div>
-<div className="font-display-hero text-headline-lg text-primary/40 font-bold mb-space-sm">01</div>
-<h4 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Pledge Bitcoin Collateral</h4>
-<p className="font-body-md text-body-md text-on-surface-variant">
-              Deposit native Bitcoin through trust-minimized wrapper primitives (cirBTC or WBTC) into an isolated on-chain escrow program. Persat never has administrative access to your keys.
-            </p>
-</div>
-<div className="mt-space-md pt-space-sm border-t border-outline-variant/20 flex items-center justify-between font-label-data-mono text-[11px] text-outline">
-<span>Protocol Bridge</span>
-<span className="text-on-surface">cirBTC / WBTC Vault</span>
-</div>
-</div>
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 relative flex flex-col justify-between">
-<div>
-<div className="font-display-hero text-headline-lg text-primary/40 font-bold mb-space-sm">02</div>
-<h4 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Receive Instant Stablecoins</h4>
-<p className="font-body-md text-body-md text-on-surface-variant">
-              Once verified on Arc via Pyth BTC/USD oracles, stablecoins (USDC or USDT) are dispatched immediately from the peer lender to your destination wallet in one atomic block.
-            </p>
-</div>
-<div className="mt-space-md pt-space-sm border-t border-outline-variant/20 flex items-center justify-between font-label-data-mono text-[11px] text-outline">
-<span>Execution Speed</span>
-<span className="text-primary font-semibold">&lt; 1 Block Finality</span>
-</div>
-</div>
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 relative flex flex-col justify-between">
-<div>
-<div className="font-display-hero text-headline-lg text-primary/40 font-bold mb-space-sm">03</div>
-<h4 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Repay &amp; Auto-Unlock</h4>
-<p className="font-body-md text-body-md text-on-surface-variant">
-              Return the borrowed USDC plus agreed-upon fixed interest prior to expiration. The smart contract automatically unlocks and returns 100% of your collateral.
-            </p>
-</div>
-<div className="mt-space-md pt-space-sm border-t border-outline-variant/20 flex items-center justify-between font-label-data-mono text-[11px] text-outline">
-<span>Settlement Output</span>
-<span className="text-[#10b981] font-semibold">Immediate Release</span>
-</div>
-</div>
-</div>
-</div>
-</section>
-
-<section className="w-full max-w-[1280px] mx-auto px-gutter py-space-xl relative z-10">
-<div className="text-center max-w-2xl mx-auto mb-space-xl">
-<div className="font-label-caps text-label-caps text-primary uppercase tracking-widest mb-space-xs">Cryptographic Assurances</div>
-<h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">Engineered for Sovereign Safety</h2>
-<p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">
-        Multi-tier architecture built to withstand extreme volatility, bridge stalls, and oracle de-pegging.
-      </p>
-</div>
-<div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 hover:bg-surface-container transition-colors">
-<div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary-container mb-space-md">
-<span className="material-symbols-outlined">alt_route</span>
-</div>
-<h3 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Multi-Bridge Redundancy</h3>
-<p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-          Collateral routing is decoupled across both Circle cirBTC and canonical wrapped Bitcoin primitives. If an individual bridge experiences latency or halts, loans continue unaffected on the parallel highway.
-        </p>
-</div>
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 hover:bg-surface-container transition-colors">
-<div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary mb-space-md">
-<span className="material-symbols-outlined">lock_open</span>
-</div>
-<h3 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Zero Admin Backdoors</h3>
-<p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-          Contracts operate on strictly immutable bytecode. Neither Persat Labs nor any validator retains god-mode withdrawal keys, emergency freeze abilities, or unilateral liquidation overrides.
-        </p>
-</div>
-
-<div className="p-space-lg rounded-lg bg-surface-container-low border border-outline-variant/30 hover:bg-surface-container transition-colors">
-<div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-[#10b981] mb-space-md">
-<span className="material-symbols-outlined">query_stats</span>
-</div>
-<h3 className="font-title-sm text-title-sm text-on-surface font-semibold mb-space-xs">Pyth High-Freq Oracle</h3>
-<p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-          Price validation updates sub-second using Pyth Network's institutional confidence feeds with embedded volatility buffer zones, eliminating flash-crash false liquidations.
-        </p>
-</div>
-</div>
-</section>
-
-<section className="w-full bg-surface-container-lowest/80 border-t border-outline-variant/30 py-space-xl relative z-10">
-<div className="max-w-[1280px] mx-auto px-gutter">
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-center">
-<div className="lg:col-span-5">
-<span className="font-label-caps text-label-caps uppercase text-primary tracking-widest font-semibold">Reputation Passport</span>
-<h2 className="font-headline-lg text-headline-lg text-on-surface font-bold mt-space-xs mb-space-md">
-            Trust Formed by Math, <br/>Not Testimonials.
-          </h2>
-<p className="font-body-lg text-body-lg text-on-surface-variant mb-space-md">
-            Real on-chain repayment history tied directly to cryptographic public keys—no fake user reviews, no curated ratings, no manipulated profiles.
-          </p>
-<div className="space-y-space-sm font-body-md text-body-md text-on-surface-variant">
-<div className="flex items-start gap-space-xs">
-<span className="material-symbols-outlined text-[#10b981] text-[20px] mt-0.5">verified</span>
-<span>All historical escrows verified against Arc block explorers</span>
-</div>
-<div className="flex items-start gap-space-xs">
-<span className="material-symbols-outlined text-[#10b981] text-[20px] mt-0.5">verified</span>
-<span>Borrowers build deterministic interest discounts with 100% on-time record</span>
-</div>
-</div>
-</div>
-
-<div className="lg:col-span-7 rounded-xl bg-surface-container-low/90 backdrop-blur-2xl border border-outline-variant/40 p-space-lg shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
-<div className="flex flex-col sm:flex-row sm:items-center justify-between pb-space-md border-b border-outline-variant/20 gap-space-sm">
-<div className="flex items-center gap-space-sm">
-<div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-container p-0.5">
-<div className="w-full h-full rounded-full bg-surface-container-lowest flex items-center justify-center font-label-data-mono text-primary font-bold">
-                  8xK
+          {/* Dual Persona Entry Cards (Pathways) */}
+          <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-5 mb-16 text-left">
+            {/* Pathway 1: Direct Deal */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ff8a00]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
+            >
+              <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ff8a00]/80 to-transparent" />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <LinkIcon className="w-4 h-4 text-[#ff8a00]" />
+                    <span className="font-['Space_Grotesk'] text-[11px] font-bold uppercase text-[#ffb77f] tracking-wider">
+                      Direct Path
+                    </span>
+                  </div>
+                  <span className="font-['Space_Grotesk'] text-xs font-semibold text-[#a58c7b]">P2P Link</span>
                 </div>
-</div>
-<div>
-<div className="flex items-center gap-space-xs">
-<span className="font-label-data-mono text-label-data-mono text-on-surface font-bold">8xK4...9qL2</span>
-<span className="px-1.5 py-0.5 rounded bg-[#10b981]/15 text-[#10b981] font-label-caps text-[10px] font-bold">PROVEN LENDER</span>
-</div>
-<div className="font-body-sm text-body-sm text-outline">First Active: Block #249,112,040</div>
-</div>
-</div>
-<div className="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-container border border-outline-variant/40">
-<span className="w-2 h-2 rounded-full bg-[#10b981]"></span>
-<span className="font-label-caps text-label-caps text-on-surface uppercase">Score: 99.4 Tier-1</span>
-</div>
-</div>
+                <h3 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">Create a Direct Deal</h3>
+                <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
+                  I already have a counterparty. Generate an encrypted, single-use private deal link with atomic settlement on Arc.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/deal/new')}
+                className="group/btn relative inline-flex items-center justify-between w-full px-4 py-3 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
+              >
+                <span className="uppercase tracking-wide font-bold">Create Direct Deal</span>
+                <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover/btn:translate-x-1 transition-transform">
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </button>
+            </motion.div>
 
-<div className="grid grid-cols-3 gap-space-md py-space-md">
-<div>
-<div className="font-label-caps text-label-caps text-outline uppercase">Deals Completed</div>
-<div className="font-headline-md text-headline-md text-on-surface font-bold">4 Loans</div>
-<div className="font-body-sm text-[11px] text-[#10b981]">0 Defaults</div>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-outline uppercase">Repay Rate</div>
-<div className="font-headline-md text-headline-md text-primary font-bold">100.0%</div>
-<div className="font-body-sm text-[11px] text-on-surface-variant">On-Time Execution</div>
-</div>
-<div>
-<div className="font-label-caps text-label-caps text-outline uppercase">Settled Volume</div>
-<div className="font-headline-md text-headline-md text-on-surface font-bold">12.4 BTC</div>
-<div className="font-body-sm text-[11px] text-outline">≈ $1.45M USD</div>
-</div>
-</div>
+            {/* Pathway 2: Marketplace */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ffb86b]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
+            >
+              <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ffb86b]/70 to-transparent" />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-[#ffb86b]" />
+                    <span className="font-['Space_Grotesk'] text-[11px] font-bold uppercase text-[#ffb86b] tracking-wider">
+                      Public Pool
+                    </span>
+                  </div>
+                  <span className="font-['Space_Grotesk'] text-xs font-semibold text-[#a58c7b]">Open Books</span>
+                </div>
+                <h3 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">Open Marketplace</h3>
+                <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
+                  Browse verified community loan requests or post structured, non-negotiable lending terms to match peer liquidity in USDC.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/marketplace')}
+                className="group/btn inline-flex items-center justify-between w-full px-4 py-3 rounded-full bg-[#3a342f]/90 hover:bg-[#3e3833] text-[#ebe0d9] font-['Space_Grotesk'] text-[13px] font-semibold border border-[#564334]/50 transition-all cursor-pointer"
+              >
+                <span className="uppercase tracking-wide font-bold">Explore Marketplace</span>
+                <span className="w-6 h-6 rounded-full bg-[#241f1a] flex items-center justify-center text-[#ffb77f] shadow-sm group-hover/btn:translate-x-1 transition-transform">
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </button>
+            </motion.div>
+          </div>
 
-<div className="p-space-xs rounded bg-surface-container/60 border border-outline-variant/30 flex items-center justify-between font-label-data-mono text-[11px]">
-<span className="text-outline">Last Transaction: 3.1 BTC Collateral Release</span>
-<span className="text-primary hover:underline cursor-pointer">Tx: #92b9f...d4</span>
-</div>
-</div>
-</div>
-</div>
-</section>
+          {/* ── 3D ANIMATED MOTION HUD CONSOLES (Interactive Dashboards) ── */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
+            {/* Widget 1: MARKETS Widget */}
+            <motion.div
+              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative overflow-hidden flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                    <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ebe0d9] tracking-widest font-bold">
+                      LIVE MARKETS
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => navigate('/marketplace')}
+                    className="font-['Space_Grotesk'] text-[10px] uppercase text-[#ff8a00] hover:underline font-bold cursor-pointer"
+                  >
+                    SEE ALL →
+                  </button>
+                </div>
 
-<section className="w-full max-w-[1280px] mx-auto px-gutter py-24 text-center relative z-10">
-<div className="relative p-space-xl rounded-xl bg-gradient-to-b from-surface-container-high/60 to-surface-container-lowest border border-outline-variant/40 shadow-[0_24px_64px_rgba(0,0,0,0.8)] overflow-hidden">
+                <div className="flex flex-col gap-2.5">
+                  {/* BTC */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#241f1a]/70 hover:bg-[#241f1a] transition-colors border border-[#564334]/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#f7931a]/15 text-[#f7931a] flex items-center justify-center font-bold text-xs">
+                        ₿
+                      </div>
+                      <div>
+                        <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">BTC</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+1.6%</div>
+                      </div>
+                    </div>
+                    {/* Animated Sparkline */}
+                    <svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
+                      <path d="M1 15 L12 12 L22 17 L34 8 L46 11 L58 2" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+                    </svg>
+                    <div className="text-right">
+                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">$117,290.50</div>
+                      <div className="text-[10px] text-[#a58c7b]">$1.29T Cap</div>
+                    </div>
+                  </div>
 
-<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary-container/15 rounded-full blur-[100px] pointer-events-none"></div>
-<div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
-<span className="font-label-caps text-label-caps text-primary uppercase tracking-widest mb-space-xs">Ready to Experience True Disintermediation?</span>
-<h2 className="font-display-hero text-headline-lg md:text-display-hero text-on-surface font-bold mb-space-md">
-          Start Lending on Your Own Terms.
-        </h2>
-<p className="font-body-lg text-body-lg text-on-surface-variant mb-space-xl">
-          Connect your Web3 wallet to issue a direct private loan link or match with peer lenders across the globe with zero custody.
-        </p>
-<div className="flex flex-col sm:flex-row items-center gap-space-md">
-<a className="group relative inline-flex items-center pl-space-lg pr-space-xs py-space-xs rounded-full bg-gradient-to-b from-[#ffaa45] to-primary-container text-on-primary-container font-headline-md text-[14px] font-bold shadow-[0px_4px_28px_rgba(255,138,0,0.45)] hover:shadow-[0px_6px_36px_rgba(255,138,0,0.65)] transition-all" onClick={() => navigate("/marketplace")} style={{ cursor: "pointer" }}>
-<span className="font-label-caps text-label-caps uppercase mr-space-md text-on-primary-container font-bold tracking-wide">Launch App Now</span>
-<span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary-container shadow-sm group-hover:translate-x-1 transition-transform">
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</span>
-</a>
-<a className="inline-flex items-center px-space-lg py-3 rounded-full bg-surface-container border border-outline-variant/40 text-on-surface font-label-caps text-label-caps uppercase tracking-wider hover:bg-surface-bright transition-colors" href="https://github.com/MaxCybOps/persat-finance-arc#readme" target="_blank" rel="noopener noreferrer">
-            Read Whitepaper &amp; Docs
-          </a>
-</div>
-</div>
-</div>
-</section>
-</div></main><footer className="w-full bg-surface-container-lowest border-t border-outline-variant/30"><div className="max-w-[1280px] mx-auto px-gutter py-space-xl flex flex-col gap-space-lg"><div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border-b border-outline-variant/20 pb-space-lg"><div className="flex items-center gap-space-sm px-space-md py-space-xs rounded-full bg-surface-container-low border border-outline-variant/40"><span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]"></span></span><span className="font-label-data-mono text-label-data-mono text-on-surface">Connected to Arc Testnet (Chain ID: 5042002)</span></div><div className="flex flex-wrap items-center gap-x-space-lg gap-y-space-xs"><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`} target="_blank" rel="noopener noreferrer">Deal Registry</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`} target="_blank" rel="noopener noreferrer">Whitelist Contract</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href={`https://explorer.testnet.arc.io/address/${ESCROW_VAULT_ADDRESS}`} target="_blank" rel="noopener noreferrer">Escrow Vault</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href="https://github.com/MaxCybOps/persat-finance-arc" target="_blank" rel="noopener noreferrer">GitHub</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href="https://github.com/MaxCybOps/persat-finance-arc#readme" target="_blank" rel="noopener noreferrer">Docs</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href="https://t.me" target="_blank" rel="noopener noreferrer">Telegram</a><a className="font-label-data-mono text-label-data-mono text-on-surface-variant hover:text-primary transition-colors" href="https://x.com" target="_blank" rel="noopener noreferrer">X (Twitter)</a></div></div><div className="flex flex-col sm:flex-row items-center justify-between gap-space-sm font-body-sm text-body-sm text-on-surface-variant"><p>© 2026 Persat Finance. Built by Persat Labs Limited.</p><p className="font-label-data-mono text-label-data-mono text-outline">Zero-Latency Institutional Escrow Protocol</p></div></div></footer>
+                  {/* USDC */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#241f1a]/70 hover:bg-[#241f1a] transition-colors border border-[#564334]/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#2775ca]/15 text-[#2775ca] flex items-center justify-center font-bold text-xs">
+                        $
+                      </div>
+                      <div>
+                        <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">USDC</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+0.01%</div>
+                      </div>
+                    </div>
+                    <svg className="w-16 h-5 stroke-[#a58c7b]" fill="none" viewBox="0 0 60 20">
+                      <path d="M1 10 L15 10 L25 9.5 L38 10.5 L50 10 L58 10" strokeLinecap="round" strokeWidth="1.5" />
+                    </svg>
+                    <div className="text-right">
+                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">$1.00</div>
+                      <div className="text-[10px] text-[#a58c7b]">$31.5B Supply</div>
+                    </div>
+                  </div>
+
+                  {/* cirBTC / ARC */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#241f1a]/70 hover:bg-[#241f1a] transition-colors border border-[#564334]/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] flex items-center justify-center font-bold text-xs">
+                        ⚡
+                      </div>
+                      <div>
+                        <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">cirBTC</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+2.4%</div>
+                      </div>
+                    </div>
+                    <svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
+                      <path d="M1 18 L14 15 L26 12 L36 14 L48 5 L58 3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+                    </svg>
+                    <div className="text-right">
+                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">1.00 BTC</div>
+                      <div className="text-[10px] text-[#a58c7b]">Arc Collateral</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[#564334]/20 mt-3 text-[11px] text-[#a58c7b] flex items-center justify-between">
+                <span>Oracle Provider: Pyth Network</span>
+                <span className="text-[#10b981]">Heartbeat: 400ms</span>
+              </div>
+            </motion.div>
+
+            {/* Widget 2: Center Viewport (PORTFOLIO HUD) */}
+            <motion.div
+              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              className="md:col-span-4 rounded-2xl bg-[#120d0a]/95 backdrop-blur-2xl border border-[#ff8a00]/40 p-5 shadow-[0_20px_50px_rgba(255,138,0,0.22)] text-left relative flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-['Space_Grotesk'] text-[11px] text-[#ebe0d9] font-bold tracking-wider uppercase">
+                      PORTFOLIO OVERVIEW
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#10b981]" />
+                    <span className="text-[11px] text-[#a58c7b] font-['Space_Grotesk']">Arc L1</span>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex items-center justify-between p-1 rounded-full bg-[#241f1a] mb-4 border border-[#564334]/30">
+                  {(['Home', 'Borrow', 'Lend', 'Vote'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setPortfolioTab(tab)}
+                      className={`px-3 py-1 rounded-full font-['Space_Grotesk'] text-[11px] font-bold transition-all cursor-pointer ${
+                        portfolioTab === tab
+                          ? 'bg-[#ff8a00] text-[#17120f] shadow-sm'
+                          : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Balance Metric */}
+                <div className="mb-3">
+                  <div className="text-[11px] text-[#a58c7b] uppercase tracking-wider font-['Space_Grotesk']">
+                    Net Escrow Value
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-['Space_Grotesk'] text-3xl font-bold text-[#ebe0d9]">
+                      $84,320.55
+                    </span>
+                    <span className="font-['Space_Grotesk'] text-xs text-[#a58c7b]">USD</span>
+                  </div>
+                </div>
+
+                {/* Animated Wave Curve Chart with Node Dot */}
+                <div className="relative w-full h-20 mb-2">
+                  <svg className="w-full h-full overflow-visible" fill="none" viewBox="0 0 280 80">
+                    <defs>
+                      <linearGradient id="curveGradientLanding" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#ff8a00" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#ff8a00" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0 60 Q 30 10, 70 45 T 140 30 T 210 65 T 280 15 L 280 80 L 0 80 Z" fill="url(#curveGradientLanding)" />
+                    <path d="M0 60 Q 30 10, 70 45 T 140 30 T 210 65 T 280 15" fill="none" stroke="#ffb77f" strokeWidth="2.5" />
+                    <circle className="filter drop-shadow-[0_0_8px_#ff8a00] animate-pulse" cx="210" cy="65" fill="#ffffff" r="4.5" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#564334]/25 text-xs">
+                <span className="text-[#ddc1ae]">Collateral Yield</span>
+                <span className="font-['Space_Grotesk'] text-[#10b981] font-semibold">
+                  +$1,240.49 (+4.2%)
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Widget 3: LOAN AGREEMENT Widget */}
+            <motion.div
+              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-3">
+                  <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ebe0d9] tracking-widest font-bold">
+                    LOAN AGREEMENT
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-[#10b981]/15 text-[#10b981] text-[10px] font-['Space_Grotesk'] font-bold uppercase">
+                    Interactive
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2 py-0.5 rounded bg-[#241f1a] text-[#ff8a00] font-['Space_Grotesk'] text-[11px] font-semibold border border-[#564334]/30">
+                    BTC : USDC
+                  </span>
+                  <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae]">
+                    Fixed Rate: <span className="text-[#ff8a00] font-bold">8.20% APR</span>
+                  </div>
+                </div>
+
+                {/* Collateral Deposit */}
+                <div className="p-3 rounded-xl bg-[#120d0a] border border-[#564334]/40 mb-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-[#f7931a] text-black font-bold flex items-center justify-center text-[10px]">
+                      ₿
+                    </span>
+                    <span className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold">cirBTC</span>
+                  </div>
+                  <div className="text-right">
+                    <input
+                      type="number"
+                      value={btcAmount}
+                      onChange={(e) => setBtcAmount(e.target.value)}
+                      className="w-24 text-right bg-transparent text-[#ebe0d9] font-['Space_Grotesk'] text-[14px] font-bold outline-none focus:text-[#ff8a00]"
+                      step="0.05"
+                    />
+                    <div className="text-[10px] text-[#a58c7b]">
+                      ≈ ${collateralUsdValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Switch Divider */}
+                <div className="flex justify-center -my-2 relative z-10">
+                  <div className="w-6 h-6 rounded-full bg-[#2f2924] border border-[#564334]/50 flex items-center justify-center text-[#ff8a00] shadow-sm">
+                    <ArrowDownUp className="w-3 h-3" />
+                  </div>
+                </div>
+
+                {/* Borrow Principal */}
+                <div className="p-3 rounded-xl bg-[#120d0a] border border-[#564334]/40 mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-[#2775ca] text-white font-bold flex items-center justify-center text-[10px]">
+                      $
+                    </span>
+                    <span className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold">USDC</span>
+                  </div>
+                  <div className="text-right">
+                    <input
+                      type="number"
+                      value={usdcAmount}
+                      onChange={(e) => setUsdcAmount(e.target.value)}
+                      className="w-28 text-right bg-transparent text-[#ff8a00] font-['Space_Grotesk'] text-[14px] font-bold outline-none focus:underline"
+                      step="500"
+                    />
+                    <div className={`text-[10px] font-['Space_Grotesk'] font-semibold ${isSafe ? 'text-[#10b981]' : 'text-red-400'}`}>
+                      LTV: {ltv}% {isSafe ? '(Safe)' : '(High Risk)'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => navigate('/deal/new')}
+                className="w-full py-2.5 rounded-full bg-[#2f2924] hover:bg-[#ff8a00] hover:text-[#17120f] text-[#ebe0d9] font-['Space_Grotesk'] text-[11px] uppercase font-bold border border-[#564334]/40 transition-colors cursor-pointer mt-2"
+              >
+                Lock & Issue Escrow
+              </button>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── SECTION 2: LIVE ON-CHAIN STATS TICKER ── */}
+        <section className="w-full bg-[#120d0a]/80 border-y border-[#564334]/30 py-8 relative z-10 backdrop-blur-xl">
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00]">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
+                  Total Escrow Value
+                </div>
+                <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#ebe0d9] font-bold">
+                  $1,420,000+ <span className="text-xs text-[#ff8a00]">USDC</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#cc7f1a]/15 flex items-center justify-center text-[#ffb86b]">
+                <Coins className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
+                  Active Escrow Deals
+                </div>
+                <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#ebe0d9] font-bold">
+                  54 <span className="text-xs text-[#a58c7b]">Contracts</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#10b981]/15 flex items-center justify-center text-[#10b981]">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
+                  Collateral Health
+                </div>
+                <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#10b981] font-bold">
+                  135% <span className="text-xs text-[#a58c7b]">Pyth BTC</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#ffb77f]/15 flex items-center justify-center text-[#ffb77f]">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
+                  Settlement Engine
+                </div>
+                <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#ebe0d9] font-bold">
+                  &lt; 1s <span className="text-xs text-[#a58c7b]">Arc L1 Finality</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 3: INTERACTIVE LOAN & YIELD CALCULATOR ── */}
+        <section id="calculator" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+              Instant Simulation
+            </div>
+            <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+              Bitcoin Loan & Yield Calculator
+            </h2>
+            <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+              Model your borrowing capacity or calculate lender returns with guaranteed non-custodial math.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto rounded-3xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.7)]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              {/* Controls */}
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+                      Bitcoin Collateral (cirBTC)
+                    </label>
+                    <span className="font-['Space_Grotesk'] text-base font-bold text-[#ff8a00]">
+                      {calcBtc.toFixed(2)} BTC
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="5.0"
+                    step="0.05"
+                    value={calcBtc}
+                    onChange={(e) => setCalcBtc(parseFloat(e.target.value))}
+                    className="w-full accent-[#ff8a00] cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[11px] text-[#a58c7b] mt-1 font-['Space_Grotesk']">
+                    <span>0.1 BTC</span>
+                    <span>2.5 BTC</span>
+                    <span>5.0 BTC</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-2">
+                    Loan Duration
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[7, 14, 30, 90].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setCalcDuration(d)}
+                        className={`py-2 rounded-xl font-['Space_Grotesk'] text-xs font-bold transition-all cursor-pointer ${
+                          calcDuration === d
+                            ? 'bg-[#ff8a00] text-[#17120f] shadow-md'
+                            : 'bg-[#241f1a] text-[#ddc1ae] hover:bg-[#2f2924] border border-[#564334]/30'
+                        }`}
+                      >
+                        {d} Days
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#a58c7b] space-y-1">
+                  <div className="flex justify-between">
+                    <span>Collateral Value:</span>
+                    <span className="text-[#ebe0d9] font-bold">
+                      ${(calcBtc * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Fixed Protocol APR:</span>
+                    <span className="text-[#10b981] font-bold">8.20% Fixed</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Output Card */}
+              <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-[#2f2924]/80 to-[#120d0a] border border-[#ff8a00]/30 shadow-inner flex flex-col justify-between">
+                <div>
+                  <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-wider text-[#a58c7b] font-bold">
+                    Max Safe Borrowing Capacity (70% LTV)
+                  </span>
+                  <div className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-1 mb-4">
+                    ${parseInt(calcMaxBorrow).toLocaleString()} <span className="text-base text-[#ff8a00]">USDC</span>
+                  </div>
+
+                  <div className="space-y-3 py-3 border-y border-[#564334]/30 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-[#a58c7b]">Estimated Total Repayment:</span>
+                      <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">
+                        ${(parseInt(calcMaxBorrow) + parseInt(calcInterest)).toLocaleString()} USDC
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#a58c7b]">Fixed Borrow Cost:</span>
+                      <span className="font-['Space_Grotesk'] font-bold text-[#ff8a00]">
+                        +${parseInt(calcInterest).toLocaleString()} USDC
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#a58c7b]">Liquidation Price Trigger:</span>
+                      <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
+                        ${parseInt(calcLiquidationPrice).toLocaleString()} / BTC
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => navigate('/deal/new')}
+                  className="w-full mt-6 py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-[0_6px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_8px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Start This Loan on Arc</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 4: DUAL DISCOVERY ARCHITECTURE ── */}
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-20 md:py-28 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+              Flexible Counterparty Discovery
+            </div>
+            <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+              Two Distinct Ways to Lend & Borrow
+            </h2>
+            <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+              Whether you have a predetermined partner or want to leverage market-clearing liquidity, Persat automates escrow without intermediaries.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Path One: Private Deal-Link */}
+            <div className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ff8a00]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+              <div>
+                <div className="w-12 h-12 rounded-full bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00] mb-4">
+                  <LinkIcon className="w-6 h-6" />
+                </div>
+                <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ff8a00] tracking-wider font-semibold">
+                  Path One
+                </span>
+                <h3 className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold mt-1 mb-3">
+                  Private Deal-Link
+                </h3>
+                <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
+                  For when you already know your borrower or lender (a friend, business partner, or DAO colleague). Agree on custom terms in private, generate a single-use claim link, and let our verified smart contracts execute atomic escrow.
+                </p>
+
+                <ul className="flex flex-col gap-3 text-sm text-[#ebe0d9] mb-8">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
+                    <span>Zero orderbook footprint, private encrypted URL exchange</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
+                    <span>Encrypted counterparty authorization check on connection</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
+                    <span>Tamper-proof on-chain collateral lock-up on Arc L1</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#241f1a] border border-[#564334]/30 flex items-center justify-between font-['Space_Grotesk'] text-xs text-[#a58c7b]">
+                <span className="truncate mr-2">persat.finance/deal#8f9024a...</span>
+                <button
+                  onClick={handleCopyLink}
+                  className="text-[#ff8a00] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy Link'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Path Two: Open Marketplace */}
+            <div className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ffb86b]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+              <div>
+                <div className="w-12 h-12 rounded-full bg-[#cc7f1a]/15 flex items-center justify-center text-[#ffb86b] mb-4">
+                  <Layers className="w-6 h-6" />
+                </div>
+                <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ffb86b] tracking-wider font-semibold">
+                  Path Two
+                </span>
+                <h3 className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold mt-1 mb-3">
+                  Open Marketplace
+                </h3>
+                <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
+                  For when you need instant liquidity matching. Post your exact collateral-to-borrow parameters or fulfill vetted listings. To eradicate phishing and manipulation, counter-offers are strictly structured parameter updates.
+                </p>
+
+                <ul className="flex flex-col gap-3 text-sm text-[#ebe0d9] mb-8">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
+                    <span>Deterministic terms matching without spam chat vectors</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
+                    <span>Multi-oracle safety valves with automated margin calls</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
+                    <span>Transparent pool depth with verifiable on-chain track records</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#241f1a] border border-[#564334]/30 flex items-center justify-between font-['Space_Grotesk'] text-xs text-[#a58c7b]">
+                <span>Active Listings Available</span>
+                <Link to="/marketplace" className="text-[#ffb86b] hover:underline font-bold">
+                  View Orderbook →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 5: 3-STEP ATOMIC PIPELINE ── */}
+        <section id="how-it-works" className="w-full bg-[#120d0a]/60 border-t border-[#564334]/30 py-24 md:py-32 relative z-10">
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+            <div className="text-center max-w-2xl mx-auto mb-14">
+              <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+                Zero-Custody Process
+              </div>
+              <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+                The Atomic Escrow Mechanism
+              </h2>
+              <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+                How smart contracts replace centralized custodians and credit bureaus with deterministic mathematical guarantees.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Step 1 */}
+              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
+                <div>
+                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">01</div>
+                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
+                    Pledge Bitcoin Collateral
+                  </h4>
+                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
+                    Deposit native Bitcoin through verified wrapper primitives (cirBTC or WBTC) into an isolated on-chain escrow program on Arc. Persat never has administrative access to your keys.
+                  </p>
+                </div>
+                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
+                  <span>Protocol Collateral</span>
+                  <span className="text-[#ebe0d9] font-semibold">cirBTC Vault</span>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
+                <div>
+                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">02</div>
+                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
+                    Receive Instant Stablecoins
+                  </h4>
+                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
+                    Once verified on Arc via Pyth BTC/USD oracles, USDC stablecoins are dispatched immediately from the peer lender to your destination wallet in one atomic transaction.
+                  </p>
+                </div>
+                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
+                  <span>Execution Speed</span>
+                  <span className="text-[#ff8a00] font-semibold">&lt; 1s Finality</span>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
+                <div>
+                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">03</div>
+                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
+                    Repay & Auto-Unlock
+                  </h4>
+                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
+                    Return the borrowed USDC plus agreed-upon fixed interest prior to expiration. The smart contract automatically unlocks and returns 100% of your collateral.
+                  </p>
+                </div>
+                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
+                  <span>Settlement Output</span>
+                  <span className="text-[#10b981] font-semibold">Immediate Release</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 6: PROTOCOL COMPARISON MATRIX ── */}
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+              Competitive Advantage
+            </div>
+            <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+              Why Persat on Arc Leads Web3 Lending
+            </h2>
+            <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+              How Persat's atomic peer-to-peer escrow outperforms both centralized lenders and pool lending protocols.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-3xl border border-[#564334]/40 bg-[#201b17]/90 backdrop-blur-xl shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-[#564334]/30 bg-[#241f1a]/80">
+                  <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">Feature</th>
+                  <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#ff8a00] font-bold uppercase text-xs sm:text-sm bg-[#ff8a00]/10">
+                    Persat on Arc
+                  </th>
+                  <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">
+                    Centralized (BlockFi/CeFi)
+                  </th>
+                  <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">
+                    Pool Lending (Aave/Compound)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#564334]/20 text-[#ddc1ae]">
+                <tr>
+                  <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Custody Risk</td>
+                  <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
+                    Zero Custody (Smart Contract)
+                  </td>
+                  <td className="p-4 sm:p-5 text-red-400">High (Company holds keys)</td>
+                  <td className="p-4 sm:p-5">Medium (Shared pool risk)</td>
+                </tr>
+                <tr>
+                  <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Interest Rate Stability</td>
+                  <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
+                    Fixed & Guaranteed
+                  </td>
+                  <td className="p-4 sm:p-5">Arbitrary Discretionary</td>
+                  <td className="p-4 sm:p-5 text-amber-300">Volatile Floating Spikes</td>
+                </tr>
+                <tr>
+                  <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">KYC / Identity Friction</td>
+                  <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
+                    Zero KYC (Web3 Wallet Only)
+                  </td>
+                  <td className="p-4 sm:p-5 text-red-400">Mandatory Passport/ID</td>
+                  <td className="p-4 sm:p-5">Zero KYC</td>
+                </tr>
+                <tr>
+                  <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Settlement Speed</td>
+                  <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
+                    &lt; 1s Finality (Arc L1)
+                  </td>
+                  <td className="p-4 sm:p-5 text-red-400">24-48h Manual Review</td>
+                  <td className="p-4 sm:p-5">12s - 15m (Gas volatile)</td>
+                </tr>
+                <tr>
+                  <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Counterparty Options</td>
+                  <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
+                    Private Deal Link OR Open Book
+                  </td>
+                  <td className="p-4 sm:p-5">Company Only</td>
+                  <td className="p-4 sm:p-5">Shared Pool Only</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* ── SECTION 7: REPUTATION & AUDIT ── */}
+        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-24 md:py-32 relative z-10">
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-5">
+                <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ff8a00] tracking-widest font-bold">
+                  Reputation Passport
+                </span>
+                <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-2 mb-4 leading-tight">
+                  Trust Formed by Math, <br />Not Testimonials.
+                </h2>
+                <p className="text-base text-[#ddc1ae] mb-6 leading-relaxed">
+                  Real on-chain repayment history tied directly to cryptographic public keys, zero fake user reviews, zero curated ratings, zero manipulated profiles.
+                </p>
+                <div className="space-y-3 text-sm text-[#ddc1ae]">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-[#10b981] shrink-0 mt-0.5" />
+                    <span>All historical escrows verified directly against Arc block explorers</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-[#10b981] shrink-0 mt-0.5" />
+                    <span>Borrowers build deterministic interest discounts with 100% on-time record</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* High-Fidelity Borrower Credential Badge Card */}
+              <div className="lg:col-span-7 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#564334]/25 gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ffb77f] to-[#ff8a00] p-0.5">
+                      <div className="w-full h-full rounded-full bg-[#120d0a] flex items-center justify-center font-['Space_Grotesk'] text-[#ff8a00] font-bold">
+                        8xK
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-['Space_Grotesk'] text-sm text-[#ebe0d9] font-bold">8xK4...9qL2</span>
+                        <span className="px-1.5 py-0.5 rounded bg-[#10b981]/15 text-[#10b981] font-['Space_Grotesk'] text-[10px] font-bold">
+                          PROVEN LENDER
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#a58c7b]">First Active: Block #249,112,040</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-[#241f1a] border border-[#564334]/40">
+                    <span className="w-2 h-2 rounded-full bg-[#10b981]" />
+                    <span className="font-['Space_Grotesk'] text-xs text-[#ebe0d9] uppercase font-bold">Score: 99.4 Tier-1</span>
+                  </div>
+                </div>
+
+                {/* Proof Metrics Grid */}
+                <div className="grid grid-cols-3 gap-4 py-6">
+                  <div>
+                    <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Deals Completed</div>
+                    <div className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold">4 Loans</div>
+                    <div className="text-[11px] text-[#10b981]">0 Defaults</div>
+                  </div>
+                  <div>
+                    <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Repay Rate</div>
+                    <div className="font-['Space_Grotesk'] text-2xl text-[#ff8a00] font-bold">100.0%</div>
+                    <div className="text-[11px] text-[#ddc1ae]">On-Time Execution</div>
+                  </div>
+                  <div>
+                    <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Settled Volume</div>
+                    <div className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold">12.4 BTC</div>
+                    <div className="text-[11px] text-[#a58c7b]">≈ $1.45M USD</div>
+                  </div>
+                </div>
+
+                {/* Micro Proof Line Item */}
+                <div className="p-3 rounded-xl bg-[#241f1a]/60 border border-[#564334]/30 flex items-center justify-between font-['Space_Grotesk'] text-xs">
+                  <span className="text-[#a58c7b]">Last Transaction: 3.1 BTC Collateral Release</span>
+                  <a
+                    href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#ff8a00] hover:underline flex items-center gap-1"
+                  >
+                    <span>Tx: #92b9f...d4</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 8: FAQ ACCORDION ── */}
+        <section id="faq" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+              Common Inquiries
+            </div>
+            <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+              Everything you need to know about collateral safety, liquidation thresholds, and Arc L1 escrow.
+            </p>
+          </div>
+
+          <div className="max-w-3xl mx-auto space-y-4">
+            {[
+              {
+                q: 'How is my Bitcoin collateral kept safe during the loan?',
+                a: 'Collateral is locked into immutable smart contract escrow on Circle\'s Arc L1. Persat never has administrative access, custody keys, or backdoors. Your collateral is solely unlocked by automated smart contract logic upon loan repayment.',
+              },
+              {
+                q: 'What happens if Bitcoin\'s price drops significantly?',
+                a: 'Loans maintain an 80% maximum Loan-to-Value (LTV) liquidation threshold. If the market value drops and approaches the threshold, automated margin notifications trigger. If 80% is breached, the escrow smart contract liquidates only enough collateral to protect the lender.',
+              },
+              {
+                q: 'Can Persat Labs freeze or seize my funds?',
+                a: 'No. The contracts operate strictly on verified bytecode without emergency freeze abilities, validator god-mode, or unilateral withdrawal privileges.',
+              },
+              {
+                q: 'How do private deal links work for known counterparties?',
+                a: 'When you create a Direct Deal, an encrypted single-use link is generated. Only the designated counterparty\'s connected wallet can accept the terms. No details are leaked to the public marketplace orderbook.',
+              },
+              {
+                q: 'What tokens are supported on Arc Testnet?',
+                a: 'The protocol natively supports cirBTC (Circle wrapped Bitcoin primitives) as collateral and native Circle USDC for borrowing and interest settlements.',
+              },
+            ].map((faq, idx) => (
+              <div
+                key={idx}
+                className="rounded-2xl bg-[#201b17] border border-[#564334]/30 overflow-hidden transition-colors"
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full p-5 text-left flex items-center justify-between font-['Space_Grotesk'] text-sm sm:text-base font-bold text-[#ebe0d9] hover:text-[#ff8a00] transition-colors cursor-pointer"
+                >
+                  <span>{faq.q}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-[#ff8a00] transition-transform duration-200 ${
+                      openFaq === idx ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {openFaq === idx && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="px-5 pb-5 text-xs sm:text-sm text-[#ddc1ae] leading-relaxed border-t border-[#564334]/20 pt-3"
+                    >
+                      {faq.a}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── SECTION 9: FINAL CALL TO ACTION ── */}
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 text-center relative z-10">
+          <div className="relative p-8 sm:p-14 rounded-3xl bg-gradient-to-b from-[#2f2924]/60 to-[#120d0a] border border-[#564334]/40 shadow-[0_24px_64px_rgba(0,0,0,0.8)] overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#ff8a00]/15 rounded-full blur-[100px] pointer-events-none" />
+            <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
+              <span className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+                Ready to Experience True Disintermediation?
+              </span>
+              <h2 className="font-['Space_Grotesk'] text-3xl sm:text-5xl text-[#ebe0d9] font-bold mb-4">
+                Start Lending on Your Own Terms.
+              </h2>
+              <p className="text-base text-[#ddc1ae] mb-8 leading-relaxed">
+                Connect your Web3 wallet to issue a direct private loan link or match with peer lenders across the globe with zero custody on Circle's Arc L1.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <button
+                  onClick={() => openAuth('/marketplace')}
+                  className="group relative inline-flex items-center pl-6 pr-2 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[14px] font-bold shadow-[0px_4px_28px_rgba(255,138,0,0.45)] hover:shadow-[0px_6px_36px_rgba(255,138,0,0.65)] transition-all cursor-pointer"
+                >
+                  <span className="uppercase mr-3 font-bold tracking-wide">Launch App Now</span>
+                  <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-1 transition-transform">
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                </button>
+                <Link
+                  to="/deal/new"
+                  className="inline-flex items-center px-6 py-3 rounded-full bg-[#241f1a] border border-[#564334]/40 text-[#ebe0d9] font-['Space_Grotesk'] text-xs uppercase tracking-wider hover:bg-[#3e3833] transition-colors no-underline font-semibold"
+                >
+                  Create Direct Deal
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* FOOTER */}
+      <footer className="w-full bg-[#120d0a] border-t border-[#564334]/30 relative z-10">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-12 flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#564334]/20 pb-6">
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#201b17] border border-[#564334]/40">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]" />
+              </span>
+              <span className="font-['Space_Grotesk'] text-xs text-[#ebe0d9] font-semibold">
+                Connected to Arc Testnet (Chain ID: 5042002)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <a
+                href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline flex items-center gap-1"
+              >
+                Deal Registry <ExternalLink className="w-3 h-3" />
+              </a>
+              <a
+                href={`https://explorer.testnet.arc.io/address/${ESCROW_VAULT_ADDRESS}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline flex items-center gap-1"
+              >
+                Escrow Vault <ExternalLink className="w-3 h-3" />
+              </a>
+              <a
+                href="https://github.com/MaxCybOps/persat-finance-arc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline flex items-center gap-1"
+              >
+                GitHub <ExternalLink className="w-3 h-3" />
+              </a>
+              <Link to="/marketplace" className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline">
+                Marketplace
+              </Link>
+              <button
+                onClick={() => openAuth('/dashboard')}
+                className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline cursor-pointer"
+              >
+                Dashboard
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#ddc1ae]">
+            <p>© 2026 Persat Finance. Built on Circle's Arc L1.</p>
+            <p className="font-['Space_Grotesk'] text-[#a58c7b]">
+              Zero-Latency Institutional Escrow Protocol
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Web3 Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        destination={authDestination}
+      />
     </div>
   )
 }

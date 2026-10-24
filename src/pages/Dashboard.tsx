@@ -1,210 +1,515 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useAccount } from 'wagmi'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Bitcoin, DollarSign, Percent, Clock, ArrowRight } from 'lucide-react'
-import { Card, Button, Input } from '../components/ui'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Plus,
+  Bitcoin,
+  DollarSign,
+  Percent,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+  AlertTriangle,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ExternalLink,
+  Flame,
+  Copy,
+  Check,
+  Activity,
+  Layers,
+  Coins,
+  Lock,
+  ChevronRight,
+  RefreshCw,
+  Wallet,
+} from 'lucide-react'
 import { shortAddr } from '../lib/utils'
-import { REGISTRY_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
-import { requireChain } from '@/onchain-facts'
-
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+import { REGISTRY_ADDRESS, ESCROW_VAULT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
 
 export default function Dashboard() {
   const { address, isConnected } = useAccount()
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'claims'>('borrowed')
   const [jumpId, setJumpId] = useState('')
+  const [copiedAddr, setCopiedAddr] = useState(false)
+
+  const btcPrice = 117290.5
+
+  // User Mock On-Chain Position Metrics (Interactive)
+  const collateralBtc = 1.25
+  const borrowedUsdc = 24375.10
+  const collateralValueUsd = collateralBtc * btcPrice
+  const aggregateLtv = ((borrowedUsdc / collateralValueUsd) * 100).toFixed(1)
+  const isHealthy = parseFloat(aggregateLtv) <= 50
+  const isWarning = parseFloat(aggregateLtv) > 50 && parseFloat(aggregateLtv) <= 75
+  const isDanger = parseFloat(aggregateLtv) > 75
 
   function goToDeal() {
     const id = jumpId.trim()
     if (!id) return
-    void navigate(`/deal/${id}/manage`)
+    navigate(`/deal/${id}/manage`)
+  }
+
+  const handleCopyAddr = () => {
+    if (!address) return
+    navigator.clipboard.writeText(address)
+    setCopiedAddr(true)
+    setTimeout(() => setCopiedAddr(false), 2000)
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="display text-2xl font-bold mb-1" style={{ color: 'var(--ink)' }}>
-            Dashboard
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-            {isConnected ? `Connected: ${shortAddr(address!)}` : 'Connect your wallet to view your deals'}
-          </p>
+    <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] pb-16">
+      {/* ── TOP ORACLE PRICE TICKER RIBBON ── */}
+      <div className="w-full bg-[#120d0a] border-b border-[#564334]/30 px-4 sm:px-6 py-2.5">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-4 sm:gap-6">
+            {/* Pyth Feed status */}
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="font-['Space_Grotesk'] text-[11px] font-bold text-[#ddc1ae] uppercase tracking-wider">
+                Pyth Arc Feed:
+              </span>
+            </div>
+
+            {/* BTC Price */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">$117,290.50</span>
+              <span className="text-[#10b981] text-[10px] font-bold">+1.6%</span>
+            </div>
+
+            {/* USDC Price */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="text-[#a58c7b] font-semibold">USDC/USD:</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">$1.000</span>
+              <span className="text-[#10b981] text-[10px] font-bold">Stable</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px] text-[#a58c7b]">
+            <span>Arc Testnet (5042002)</span>
+            <span>•</span>
+            <span className="text-[#10b981]">Confidence: ±$4.20</span>
+          </div>
         </div>
-        {isConnected && (
-          <Link to="/deal/new">
-            <Button variant="primary" size="md">
-              <Plus size={15} />
-              New Deal
-            </Button>
-          </Link>
-        )}
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Active Loans', value: '—', icon: DollarSign },
-          { label: 'cirBTC Locked', value: '—', icon: Bitcoin },
-          { label: 'Avg Rate', value: '—', icon: Percent },
-          { label: 'Network', value: 'Arc Testnet', icon: Clock },
-        ].map(({ label, value, icon: Icon }) => (
-          <Card key={label}>
-            <div className="flex items-center gap-2 mb-2">
-              <Icon size={14} style={{ color: 'var(--subtle)' }} />
-              <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--subtle)' }}>
-                {label}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
+        {/* ── HEADER ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#564334]/30 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="font-['Space_Grotesk'] text-2xl sm:text-3xl font-bold text-[#ebe0d9]">
+                Institutional Escrow Dashboard
+              </h1>
+              <span className="px-2 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] font-['Space_Grotesk'] text-[10px] font-bold uppercase border border-[#ff8a00]/30">
+                P2P Non-Custodial
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#ddc1ae]">
+              {isConnected ? (
+                <span className="flex items-center gap-2">
+                  <span>Connected: <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">{shortAddr(address!)}</span></span>
+                  <button
+                    onClick={handleCopyAddr}
+                    className="text-[#ff8a00] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedAddr ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedAddr ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </span>
+              ) : (
+                'Connect your Web3 wallet to manage collateral, claim repayments, or monitor active loans.'
+              )}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              to="/marketplace"
+              className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors no-underline"
+            >
+              Marketplace
+            </Link>
+            <Link
+              to="/deal/new"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold shadow-[0_4px_16px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_24px_rgba(255,138,0,0.55)] transition-all no-underline"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Deal</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* ── LTV HEALTH GAUGE & METRICS ROW ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
+          {/* LTV Safety Gauge Card */}
+          <div className="lg:col-span-5 rounded-3xl bg-[#201b17] border border-[#564334]/40 p-6 shadow-[0_12px_32px_rgba(0,0,0,0.6)] relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-['Space_Grotesk'] text-xs uppercase font-bold text-[#a58c7b] tracking-wider">
+                  Portfolio Health Factor (LTV)
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold uppercase ${
+                  isHealthy
+                    ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30'
+                    : isWarning
+                    ? 'bg-amber-400/15 text-amber-300 border border-amber-400/30'
+                    : 'bg-red-400/15 text-red-300 border border-red-400/30'
+                }`}>
+                  {isHealthy ? 'Safe & Healthy' : isWarning ? 'Caution Zone' : 'Liquidation Hazard'}
+                </span>
+              </div>
+
+              {/* LTV Percentage Big Text */}
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="font-['Space_Grotesk'] text-4xl sm:text-5xl font-bold text-[#ebe0d9]">
+                  {aggregateLtv}%
+                </span>
+                <span className="text-xs text-[#a58c7b]">Current Loan-to-Value</span>
+              </div>
+
+              {/* Progress Bar Gauge */}
+              <div className="w-full bg-[#120d0a] h-3 rounded-full overflow-hidden border border-[#564334]/40 relative mb-3">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isHealthy
+                      ? 'bg-gradient-to-r from-[#10b981] to-[#ffaa45]'
+                      : isWarning
+                      ? 'bg-gradient-to-r from-amber-400 to-[#ff8a00]'
+                      : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(parseFloat(aggregateLtv), 100)}%` }}
+                />
+              </div>
+
+              {/* Gauge Steps */}
+              <div className="flex justify-between text-[10px] font-['Space_Grotesk'] text-[#a58c7b]">
+                <span className="text-[#10b981]">0% (Zero Debt)</span>
+                <span>50% Caution</span>
+                <span className="text-red-400">80% Liquidation Threshold</span>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[#564334]/25 mt-4 flex items-center justify-between text-xs">
+              <span className="text-[#ddc1ae]">Liquidation Buffer Remaining:</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
+                {(80 - parseFloat(aggregateLtv)).toFixed(1)}% Room
+              </span>
+            </div>
+          </div>
+
+          {/* Key Metrics Grid */}
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Metric 1 */}
+            <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
+                  Total cirBTC Locked
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#f7931a]/15 text-[#f7931a] flex items-center justify-center font-bold text-xs">
+                  ₿
+                </div>
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
+                  {collateralBtc.toFixed(2)} BTC
+                </div>
+                <div className="text-xs text-[#a58c7b] mt-0.5">
+                  ≈ ${collateralValueUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 2 */}
+            <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
+                  Active USDC Borrowed
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#2775ca]/15 text-[#2775ca] flex items-center justify-center font-bold text-xs">
+                  $
+                </div>
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
+                  ${borrowedUsdc.toLocaleString()}
+                </div>
+                <div className="text-xs text-[#ff8a00] font-semibold mt-0.5">
+                  Fixed APR: 8.20%
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 3 */}
+            <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
+                  Accrued Interest Owed
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#ff8a00]/15 text-[#ff8a00] flex items-center justify-center">
+                  <Percent className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ff8a00]">
+                  +$164.30 USDC
+                </div>
+                <div className="text-xs text-[#a58c7b] mt-0.5">
+                  Next Due: in 18 days
+                </div>
+              </div>
+            </div>
+
+            {/* Metric 4 */}
+            <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
+                  Settlement Network
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#10b981]/15 text-[#10b981] flex items-center justify-center">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <div className="font-['Space_Grotesk'] text-xl font-bold text-[#ebe0d9]">
+                  Circle Arc L1
+                </div>
+                <div className="text-xs text-[#10b981] font-semibold mt-0.5">
+                  Sub-second Finality
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FAST ACTION TOOLBAR ── */}
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-[#201b17] via-[#241f1a] to-[#201b17] border border-[#ff8a00]/30 shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00]">
+              <Flame className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+                Quick Actions
+              </h4>
+              <p className="text-xs text-[#a58c7b]">
+                Borrow against Bitcoin, supply peer liquidity, or look up an existing deal by ID.
               </p>
             </div>
-            <p className="display text-xl font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-              {value}
-            </p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Connect prompt */}
-      {!isConnected && (
-        <Card className="text-center py-16">
-          <Bitcoin size={40} className="mx-auto mb-4" style={{ color: 'var(--brand)' }} />
-          <h2 className="display text-xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
-            Peer-to-peer BTC lending
-          </h2>
-          <p className="text-sm mb-6 max-w-sm mx-auto" style={{ color: 'var(--subtle)' }}>
-            Lock cirBTC as collateral. Borrow USDC at fixed terms. Trust-minimized, permissionless, and fully on-chain on Arc.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to="/deal/new">
-              <Button variant="primary">
-                <Plus size={14} />
-                Create a Deal
-              </Button>
-            </Link>
-            <Link to="/marketplace">
-              <Button variant="secondary">Browse Marketplace</Button>
-            </Link>
-          </div>
-        </Card>
-      )}
-
-      {/* Connected — jump to deal + create CTA */}
-      {isConnected && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-base" style={{ color: 'var(--ink)' }}>
-              Your Deals
-            </h2>
-            <p className="text-xs mono" style={{ color: 'var(--subtle)' }}>
-              {shortAddr(address!)}
-            </p>
           </div>
 
-          {/* Jump to any deal by ID */}
-          <Card className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--subtle)' }}>
-              Open a Deal by ID
-            </p>
-            <div className="flex gap-2">
-              <Input
-                placeholder="0x1a2b3c... (deal ID)"
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            {/* Jump by ID input */}
+            <div className="flex items-center rounded-full bg-[#120d0a] border border-[#564334]/40 px-3 py-1.5 flex-1 sm:flex-initial">
+              <input
+                type="text"
+                placeholder="Jump by Deal ID..."
                 value={jumpId}
                 onChange={(e) => setJumpId(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && goToDeal()}
-                className="flex-1"
+                className="bg-transparent text-xs text-[#ebe0d9] placeholder-[#a58c7b] outline-none w-32 font-['Space_Grotesk']"
               />
-              <Button
-                variant="secondary"
-                size="md"
-                disabled={!jumpId.trim()}
+              <button
                 onClick={goToDeal}
+                className="text-[#ff8a00] hover:text-[#ffaa45] font-['Space_Grotesk'] text-xs font-bold cursor-pointer"
               >
-                <ArrowRight size={15} />
                 Go
-              </Button>
+              </button>
             </div>
-            <p className="text-xs mt-2" style={{ color: 'var(--subtle)' }}>
-              Paste any deal ID to view its state, approve tokens, activate, repay, or liquidate.
-            </p>
-          </Card>
 
-          {/* Empty state with CTAs */}
-          <Card className="text-center py-10">
-            <p className="text-sm mb-4" style={{ color: 'var(--subtle)' }}>
-              On-chain event indexing is coming. Until then, use a deal ID to manage any loan.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/deal/new">
-                <Button variant="primary" size="md">
-                  <Plus size={14} />
-                  Create a Deal
-                </Button>
-              </Link>
-              <Link to="/marketplace">
-                <Button variant="secondary" size="md">
-                  Browse Marketplace
-                </Button>
-              </Link>
-            </div>
-          </Card>
+            <Link
+              to="/deal/new"
+              className="px-4 py-2 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors no-underline"
+            >
+              Borrow USDC
+            </Link>
+            <Link
+              to="/marketplace"
+              className="px-4 py-2 rounded-full bg-[#2f2924] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#3a342f] border border-[#564334]/40 transition-colors no-underline"
+            >
+              Lend & Earn Yield
+            </Link>
+          </div>
         </div>
-      )}
 
-      {/* Protocol info */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          {
-            title: 'Private Deal Links',
-            desc: 'Create terms, generate a single-use claim link, and share it directly with your counterparty.',
-            icon: '🔗',
-          },
-          {
-            title: 'Open Marketplace',
-            desc: 'Post or browse structured lending/borrowing requests. Counter-offers are numbers only — no free-text.',
-            icon: '📋',
-          },
-          {
-            title: 'Auto Liquidation',
-            desc: 'If LTV exceeds 80%, anyone can trigger permissionless liquidation. Oracle-driven, no centralized operator.',
-            icon: '⚡',
-          },
-        ].map(({ title, desc, icon }) => (
-          <Card key={title}>
-            <p className="text-xl mb-2">{icon}</p>
-            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--ink)' }}>
-              {title}
-            </h3>
-            <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-              {desc}
-            </p>
-          </Card>
-        ))}
+        {/* ── ACTIVE POSITIONS & LOANS CONSOLE ── */}
+        <div className="rounded-3xl bg-[#201b17] border border-[#564334]/40 overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.6)] mb-8">
+          {/* Tabs */}
+          <div className="flex items-center justify-between border-b border-[#564334]/30 px-6 pt-4 bg-[#241f1a]/80">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => setActiveTab('borrowed')}
+                className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
+                  activeTab === 'borrowed'
+                    ? 'text-[#ff8a00]'
+                    : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
+                }`}
+              >
+                <span>Loans You Borrowed</span>
+                <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] text-[10px]">
+                  1 Active
+                </span>
+                {activeTab === 'borrowed' && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff8a00]"
+                  />
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('funded')}
+                className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
+                  activeTab === 'funded'
+                    ? 'text-[#ff8a00]'
+                    : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
+                }`}
+              >
+                <span>Loans You Funded (Lender)</span>
+                <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#241f1a] text-[#a58c7b] text-[10px]">
+                  0
+                </span>
+                {activeTab === 'funded' && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff8a00]"
+                  />
+                )}
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 pb-4 text-xs text-[#a58c7b]">
+              <span>Smart Escrow: Immutable</span>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'borrowed' && (
+              <div className="space-y-4">
+                {/* Active Loan Row 1 */}
+                <div className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/15 border border-[#ff8a00]/30 flex items-center justify-center text-[#ff8a00] shrink-0">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                          Deal #8F9024A
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] font-['Space_Grotesk'] text-[10px] font-bold">
+                          ACTIVE ESCROW
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
+                        <span>Collateral: <strong className="text-[#ebe0d9]">1.25 cirBTC</strong></span>
+                        <span>•</span>
+                        <span>Borrowed: <strong className="text-[#ff8a00]">$24,375.10 USDC</strong></span>
+                        <span>•</span>
+                        <span>Rate: <strong className="text-[#ebe0d9]">8.20% Fixed</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div className="text-left sm:text-right">
+                      <div className="text-xs text-[#a58c7b]">Repayment Due:</div>
+                      <div className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+                        18 Days Left (Nov 11)
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/deal/1/manage"
+                      className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                    >
+                      Manage & Repay
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'funded' && (
+              <div className="text-center py-12 text-[#a58c7b]">
+                <Coins className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
+                <h4 className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] mb-1">
+                  No Active Lender Positions
+                </h4>
+                <p className="text-xs max-w-sm mx-auto mb-6 text-[#ddc1ae]">
+                  You have not funded any loans yet. Browse the public marketplace to earn guaranteed fixed APR yields in USDC.
+                </p>
+                <Link
+                  to="/marketplace"
+                  className="px-6 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors no-underline inline-block"
+                >
+                  Explore Marketplace
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── ON-CHAIN RECENT ESCROW AUDIT LOG ── */}
+        <div className="rounded-2xl bg-[#201b17] border border-[#564334]/30 p-6">
+          <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#ff8a00]" />
+              <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] uppercase tracking-wider">
+                Recent On-Chain Escrows (Arc L1)
+              </h3>
+            </div>
+            <a
+              href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1"
+            >
+              <span>View Explorer</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div className="space-y-3 font-['Space_Grotesk'] text-xs">
+            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <ArrowDownLeft className="w-4 h-4 text-[#10b981]" />
+                <div>
+                  <span className="font-bold text-[#ebe0d9]">1.25 cirBTC Locked</span>
+                  <span className="text-[#a58c7b] ml-2">Deal #8F9024A</span>
+                </div>
+              </div>
+              <span className="text-[#a58c7b]">Block #249,112,040</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <ArrowUpRight className="w-4 h-4 text-[#ff8a00]" />
+                <div>
+                  <span className="font-bold text-[#ebe0d9]">$24,375.10 USDC Disbursed</span>
+                  <span className="text-[#a58c7b] ml-2">Atomic Settlement</span>
+                </div>
+              </div>
+              <span className="text-[#a58c7b]">Block #249,112,042</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle className="w-4 h-4 text-[#10b981]" />
+                <div>
+                  <span className="font-bold text-[#ebe0d9]">0.85 cirBTC Released</span>
+                  <span className="text-[#a58c7b] ml-2">100% Repaid & Unlocked</span>
+                </div>
+              </div>
+              <span className="text-[#a58c7b]">Block #249,108,912</span>
+            </div>
+          </div>
+        </div>
       </div>
-
-      {/* Explorer link */}
-      <p className="text-center text-xs mt-6" style={{ color: 'var(--subtle)' }}>
-        Registry:{' '}
-        <a
-          href={`${chain.explorerBase}/address/${REGISTRY_ADDRESS}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline mono"
-          style={{ color: 'var(--accent)' }}
-        >
-          {shortAddr(REGISTRY_ADDRESS)}
-        </a>
-        {' · '}
-        Vault:{' '}
-        <a
-          href={`${chain.explorerBase}/address/0x79a374e95a85611a95847ed9939a63be96418e49`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline mono"
-          style={{ color: 'var(--accent)' }}
-        >
-          {shortAddr('0x79a374e95a85611a95847ed9939a63be96418e49')}
-        </a>
-      </p>
     </div>
   )
 }
