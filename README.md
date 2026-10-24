@@ -14,12 +14,26 @@ Built with [Arc Studio](https://studio.arc.io)
 
 ---
 
-## Deployed contracts (Arc Testnet)
+## Deployed contracts
+
+### Arc Mainnet (Chain ID 5042)
+
+| Contract | Address | Explorer |
+|---|---|---|
+| PersatDealRegistry | `0x46725a32b46f5388be1237e2847694fdecab3b3c` | [View on Explorer](https://explorer.arc.io/address/0x46725a32b46f5388be1237e2847694fdecab3b3c) |
+| PersatEscrowVault | `0x48396168c79fce1c4b002c1f8f660b0f73dd43f6` | [View on Explorer](https://explorer.arc.io/address/0x48396168c79fce1c4b002c1f8f660b0f73dd43f6) |
+| cirBTC Collateral | `0x9b6ef2eb94fc756d2521ddc42baeb4ec3a3454c4` | [View on Explorer](https://explorer.arc.io/address/0x9b6ef2eb94fc756d2521ddc42baeb4ec3a3454c4) |
+| Chainlink BTC/USD Oracle | `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De` | [View on Explorer](https://explorer.arc.io/address/0xa109B535C70C8Be9995be64Bb6751AcDB27e03De) |
+| Native USDC Gas & ERC-20 | `0x3600000000000000000000000000000000000000` | [View on Explorer](https://explorer.arc.io/address/0x3600000000000000000000000000000000000000) |
+
+- **Live Arc Mainnet Proof Transaction:** [`0xd029dbc35c6a8881eafcdcbe26ef487a8ed1c72b6d1d65514133b4688c6caa8f`](https://explorer.arc.io/tx/0xd029dbc35c6a8881eafcdcbe26ef487a8ed1c72b6d1d65514133b4688c6caa8f)
+
+### Arc Testnet (Chain ID 5042002)
 
 | Contract | Address |
 |---|---|
-| PersatDealRegistry | `0x277ec42de9cc634fa25c2f308f5e14c71e7a0593` |
-| PersatEscrowVault | `0x79a374e95a85611a95847ed9939a63be96418e49` |
+| PersatDealRegistry | `0x2ed7e6d7f293299a4f9083b4c49d6d0b53171e70` |
+| PersatEscrowVault | `0x59241023610c71c56154e5c6d56821a750ff2e76` |
 | MockPriceFeed (BTC/USD $60k) | `0xa620864091aa03188e33db8ef938dc7e82e4a463` |
 | MockERC20 (cirBTC testnet) | `0x52c0757272713869f2a34827386c301a5c3af744` |
 | USDC (Arc Testnet) | `0x3600000000000000000000000000000000000000` |
