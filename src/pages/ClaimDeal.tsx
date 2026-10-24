@@ -33,13 +33,16 @@ export default function ClaimDeal() {
   const { address, isConnected, chainId } = useAccount()
   const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
 
+  const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
+  const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
+
   const { data: deal, isLoading, refetch } = useReadContract({
     address: REGISTRY_ADDRESS,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
-    args: [dealId as `0x${string}`],
+    args: [safeDealId],
     chainId: ARC_TESTNET_CHAIN_ID,
-    query: { enabled: !!dealId },
+    query: { enabled: isValidHexId },
   })
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()

@@ -101,19 +101,44 @@ export default function AuthModal({ isOpen, onClose, destination = '/dashboard' 
                   </div>
                 </div>
 
-                {/* Primary Action Button */}
+                {/* Primary: Enter Dashboard */}
                 <button
-                  onClick={handleEnterDashboard}
+                  onClick={() => {
+                    onClose()
+                    navigate('/dashboard')
+                  }}
                   className="w-full py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-[0_6px_24px_rgba(255,138,0,0.4)] hover:shadow-[0_8px_32px_rgba(255,138,0,0.6)] flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
-                  <span>Enter Dashboard</span>
+                  <span>Go to Dashboard</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
-                {/* Secondary: Disconnect */}
+                {/* Secondary Actions Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      onClose()
+                      navigate('/deal/new')
+                    }}
+                    className="py-2.5 rounded-xl bg-[#241f1a] hover:bg-[#2f2924] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-semibold border border-[#564334]/40 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span>Create a Deal</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onClose()
+                      navigate('/marketplace')
+                    }}
+                    className="py-2.5 rounded-xl bg-[#241f1a] hover:bg-[#2f2924] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-semibold border border-[#564334]/40 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span>Marketplace</span>
+                  </button>
+                </div>
+
+                {/* Tertiary: Disconnect */}
                 <button
                   onClick={() => disconnect()}
-                  className="w-full py-2.5 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-semibold border border-[#564334]/40 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full py-2 rounded-full text-[#a58c7b] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Disconnect Wallet</span>

@@ -41,31 +41,34 @@ export default function ManageDeal() {
   const { address, isConnected, chainId } = useAccount()
   const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
 
+  const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
+  const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
+
   const { data: deal, isLoading, refetch } = useReadContract({
     address: REGISTRY_ADDRESS,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
-    args: [dealId as `0x${string}`],
+    args: [safeDealId],
     chainId: ARC_TESTNET_CHAIN_ID,
-    query: { enabled: !!dealId },
+    query: { enabled: isValidHexId },
   })
 
   const { data: lockedCollateral } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
     functionName: 'lockedCollateral',
-    args: [dealId as `0x${string}`],
+    args: [safeDealId],
     chainId: ARC_TESTNET_CHAIN_ID,
-    query: { enabled: !!dealId && deal?.state === DealState.Active },
+    query: { enabled: isValidHexId && deal?.state === DealState.Active },
   })
 
   const { data: claimableUsdc } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
     functionName: 'claimableUsdc',
-    args: [dealId as `0x${string}`],
+    args: [safeDealId],
     chainId: ARC_TESTNET_CHAIN_ID,
-    query: { enabled: !!dealId && deal?.state === DealState.Active },
+    query: { enabled: isValidHexId && deal?.state === DealState.Active },
   })
 
   // cirBTC allowance check (borrower needs to approve vault before activating)
@@ -109,7 +112,27 @@ export default function ManageDeal() {
     }
   }, [isSuccess, refetch, refetchOffers])
 
-  if (!dealId) return null
+  if (!dealId || !isValidHexId) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <AlertTriangle size={36} className="mx-auto mb-4 text-[#ff8a00]" />
+        <h2 className="font-['Space_Grotesk'] text-xl font-bold mb-2 text-[#ebe0d9]">
+          Invalid Deal Identifier
+        </h2>
+        <p className="text-sm text-[#ddc1ae] max-w-md mx-auto mb-6">
+          The requested Deal ID (<code className="mono text-[#ff8a00]">{dealId || 'empty'}</code>) is not a 32-byte cryptographic hash. On Arc, deal identifiers are 66-character hashes (e.g. <code>0x8f9024a...</code>).
+        </p>
+        <div className="flex justify-center gap-3">
+          <Link to="/dashboard" className="px-5 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold no-underline">
+            Back to Dashboard
+          </Link>
+          <Link to="/marketplace" className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 no-underline">
+            Browse Marketplace
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -121,9 +144,12 @@ export default function ManageDeal() {
 
   if (!deal) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-        <AlertTriangle size={32} className="mx-auto mb-3" style={{ color: 'var(--danger)' }} />
-        <p style={{ color: 'var(--subtle)' }}>Deal not found for ID: <code className="mono">{dealId}</code></p>
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <AlertTriangle size={32} className="mx-auto mb-3 text-[#ff8a00]" />
+        <p className="text-sm text-[#ddc1ae] mb-4">No deal found on Arc Testnet for ID: <code className="mono text-[#ff8a00]">{dealId}</code></p>
+        <Link to="/dashboard" className="px-4 py-2 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 no-underline">
+          Return to Dashboard
+        </Link>
       </div>
     )
   }

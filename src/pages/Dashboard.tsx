@@ -47,8 +47,10 @@ export default function Dashboard() {
   const isDanger = parseFloat(aggregateLtv) > 75
 
   function goToDeal() {
-    const id = jumpId.trim()
+    let id = jumpId.trim()
     if (!id) return
+    if (!id.startsWith('0x')) id = `0x${id}`
+    if (id.length < 66) id = id.padEnd(66, '0')
     navigate(`/deal/${id}/manage`)
   }
 
@@ -424,7 +426,7 @@ export default function Dashboard() {
                     </div>
 
                     <Link
-                      to="/deal/1/manage"
+                      to="/deal/0x8f9024a000000000000000000000000000000000000000000000000000000001/manage"
                       className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
                     >
                       Manage & Repay

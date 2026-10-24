@@ -396,7 +396,7 @@ export default function Landing() {
             className="mb-14 sm:mb-16"
           >
             <button
-              onClick={() => openAuth('/deal/new')}
+              onClick={() => openAuth('/dashboard')}
               className="group relative inline-flex items-center pl-6 sm:pl-8 pr-2.5 py-3 sm:py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm sm:text-base font-bold shadow-[0px_8px_32px_rgba(255,138,0,0.45)] hover:shadow-[0px_10px_40px_rgba(255,138,0,0.7)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
             >
               <span className="uppercase mr-3 sm:mr-4 font-bold tracking-wide">
@@ -1408,7 +1408,7 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <button
-                  onClick={() => openAuth('/marketplace')}
+                  onClick={() => openAuth('/dashboard')}
                   className="group relative inline-flex items-center pl-6 pr-2 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[14px] font-bold shadow-[0px_4px_28px_rgba(255,138,0,0.45)] hover:shadow-[0px_6px_36px_rgba(255,138,0,0.65)] transition-all cursor-pointer"
                 >
                   <span className="uppercase mr-3 font-bold tracking-wide">Launch App Now</span>
