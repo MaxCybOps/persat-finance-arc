@@ -408,16 +408,12 @@ export default function Landing() {
             </button>
           </motion.div>
 
-          {/* Dual Persona Entry Cards (3D Angle Entrance) */}
+          {/* Dual Persona Entry Cards */}
           <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-5 mb-16 text-left" style={{ perspective: 1000 }}>
             {/* Pathway 1: Direct Deal */}
             <motion.div
-              initial={{ opacity: 0, x: -50, rotateY: 15 }}
-              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               whileHover={{ y: -4, rotateY: 3, transition: { duration: 0.2 } }}
-              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ff8a00]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
+              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ff8a00]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
             >
               <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ff8a00]/80 to-transparent" />
               <div>
@@ -448,12 +444,8 @@ export default function Landing() {
 
             {/* Pathway 2: Marketplace */}
             <motion.div
-              initial={{ opacity: 0, x: 50, rotateY: -15 }}
-              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               whileHover={{ y: -4, rotateY: -3, transition: { duration: 0.2 } }}
-              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ffb86b]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
+              className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ffb86b]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
             >
               <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ffb86b]/70 to-transparent" />
               <div>
@@ -485,15 +477,12 @@ export default function Landing() {
 
           {/* ── 3D LEVITATING HUD CONSOLES (Floating Zero-Gravity Motion) ── */}
           <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch" style={{ perspective: 1200 }}>
-            {/* Widget 1: MARKETS Widget (Tilts from Left) */}
+            {/* Widget 1: MARKETS Widget */}
             <motion.div
-              initial={{ opacity: 0, x: -40, rotateY: 15 }}
-              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
               whileHover={{ y: -12, scale: 1.01, transition: { duration: 0.2 } }}
-              className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative overflow-hidden flex flex-col justify-between"
+              className="md:col-span-4 rounded-2xl bg-[#201b17]/95 backdrop-blur-2xl border border-[#564334]/50 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative overflow-hidden flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
@@ -581,15 +570,12 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* Widget 2: Center Viewport (Tilts from Center with Depth) */}
+            {/* Widget 2: Center Viewport (PORTFOLIO HUD) */}
             <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.94 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true, amount: 0.2 }}
               animate={{ y: [0, -10, 0] }}
               transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
               whileHover={{ y: -14, scale: 1.02, transition: { duration: 0.2 } }}
-              className="md:col-span-4 rounded-2xl bg-[#120d0a]/95 backdrop-blur-2xl border border-[#ff8a00]/40 p-5 shadow-[0_20px_50px_rgba(255,138,0,0.22)] text-left relative flex flex-col justify-between"
+              className="md:col-span-4 rounded-2xl bg-[#201b17]/95 backdrop-blur-2xl border border-[#ff8a00]/50 p-5 shadow-[0_20px_50px_rgba(255,138,0,0.25)] text-left relative flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
@@ -658,15 +644,12 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* Widget 3: LOAN AGREEMENT Widget (Tilts from Right) */}
+            {/* Widget 3: LOAN AGREEMENT Widget */}
             <motion.div
-              initial={{ opacity: 0, x: 40, rotateY: -15 }}
-              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
               whileHover={{ y: -12, scale: 1.01, transition: { duration: 0.2 } }}
-              className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative flex flex-col justify-between"
+              className="md:col-span-4 rounded-2xl bg-[#201b17]/95 backdrop-blur-2xl border border-[#564334]/50 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-3">
