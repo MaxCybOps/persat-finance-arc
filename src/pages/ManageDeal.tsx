@@ -98,7 +98,13 @@ export default function ManageDeal() {
   })
 
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+    chainId,
+    query: {
+      enabled: Boolean(hash),
+    },
+  })
 
   useEffect(() => {
     if (isSuccess) {

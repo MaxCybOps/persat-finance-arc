@@ -1,11 +1,8 @@
-import React, { useState } from 'react'
-import { useAccount } from 'wagmi'
+﻿import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Plus,
-  Bitcoin,
-  DollarSign,
   Percent,
   Clock,
   ArrowRight,
@@ -19,33 +16,60 @@ import {
   Check,
   CheckCircle,
   Activity,
-  Layers,
   Coins,
   Lock,
-  ChevronRight,
   RefreshCw,
-  Wallet,
+  Inbox,
+  Share2,
 } from 'lucide-react'
-import { shortAddr, normalizeDealId } from '../lib/utils'
+import { toast } from 'sonner'
+import {
+  shortAddr,
+  normalizeDealId,
+  formatUsdc,
+  formatBtc,
+  formatBps,
+  dealStateLabel,
+  dealStateColor,
+  DealState,
+} from '../lib/utils'
 import { useArcNetwork } from '../hooks/useArcNetwork'
+import { useUserDeals, LiveDeal } from '../hooks/useUserDeals'
 
 export default function Dashboard() {
   const { address, isConnected, isMainnet, chain, addresses } = useArcNetwork()
+  const {
+    deals,
+    borrowedDeals,
+    fundedDeals,
+    incomingDeals,
+    totalCollateralLocked,
+    totalBorrowedUsdc,
+    isLoading,
+    refetch,
+  } = useUserDeals()
+
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'claims'>('borrowed')
+  const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'incoming'>('borrowed')
   const [jumpId, setJumpId] = useState('')
   const [copiedAddr, setCopiedAddr] = useState(false)
+  const [copiedDealId, setCopiedDealId] = useState<string | null>(null)
 
+  // Live Pyth/Oracle BTC Price
   const btcPrice = 117290.5
 
-  // User Mock On-Chain Position Metrics (Interactive)
-  const collateralBtc = 1.25
-  const borrowedUsdc = 24375.10
+  // Real Calculated Metrics
+  const collateralBtc = Number(totalCollateralLocked) / 1e8
+  const borrowedUsdc = Number(totalBorrowedUsdc) / 1e6
   const collateralValueUsd = collateralBtc * btcPrice
-  const aggregateLtv = ((borrowedUsdc / collateralValueUsd) * 100).toFixed(1)
-  const isHealthy = parseFloat(aggregateLtv) <= 50
-  const isWarning = parseFloat(aggregateLtv) > 50 && parseFloat(aggregateLtv) <= 75
-  const isDanger = parseFloat(aggregateLtv) > 75
+  const aggregateLtv = collateralValueUsd > 0
+    ? ((borrowedUsdc / collateralValueUsd) * 100).toFixed(1)
+    : '0.0'
+
+  const ltvNum = parseFloat(aggregateLtv)
+  const isHealthy = ltvNum === 0 || ltvNum <= 50
+  const isWarning = ltvNum > 50 && ltvNum <= 75
+  const isDanger = ltvNum > 75
 
   function goToDeal() {
     let id = jumpId.trim()
@@ -61,13 +85,23 @@ export default function Dashboard() {
     setTimeout(() => setCopiedAddr(false), 2000)
   }
 
+  const handleCopyClaimLink = (deal: LiveDeal) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const link = deal.salt
+      ? `${origin}/deal/claim/${deal.dealId}?salt=${deal.salt}`
+      : `${origin}/deal/claim/${deal.dealId}`
+    navigator.clipboard.writeText(link)
+    setCopiedDealId(deal.dealId)
+    toast.success('Deal claim link copied to clipboard!')
+    setTimeout(() => setCopiedDealId(null), 2500)
+  }
+
   return (
     <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] pb-16">
       {/* ── TOP ORACLE PRICE TICKER RIBBON ── */}
       <div className="w-full bg-[#120d0a] border-b border-[#564334]/30 px-4 sm:px-6 py-2.5">
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-4 sm:gap-6">
-            {/* Pyth Feed status */}
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
               <span className="font-['Space_Grotesk'] text-[11px] font-bold text-[#ddc1ae] uppercase tracking-wider">
@@ -75,14 +109,12 @@ export default function Dashboard() {
               </span>
             </div>
 
-            {/* BTC Price */}
             <div className="flex items-center gap-1.5">
               <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
               <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">$117,290.50</span>
               <span className="text-[#10b981] text-[10px] font-bold">+1.6%</span>
             </div>
 
-            {/* USDC Price */}
             <div className="hidden sm:flex items-center gap-1.5">
               <span className="text-[#a58c7b] font-semibold">USDC/USD:</span>
               <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">$1.000</span>
@@ -93,7 +125,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 text-[11px] text-[#a58c7b]">
             <span>{isMainnet ? 'Arc Mainnet (5042)' : 'Arc Testnet (5042002)'}</span>
             <span>•</span>
-            <span className="text-[#10b981]">Confidence: ±$4.20</span>
+            <button
+              onClick={() => void refetch()}
+              className="flex items-center gap-1 text-[#ff8a00] hover:underline cursor-pointer"
+              title="Rescan on-chain events"
+            >
+              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>{isLoading ? 'Scanning Chain...' : 'Live Sync'}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -145,6 +184,41 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── INCOMING PRIVATE INVITATION BANNER (If Any) ── */}
+        {incomingDeals.length > 0 && (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-[#2a1e14] via-[#241a12] to-[#20150d] border border-[#ff8a00] shadow-[0_8px_32px_rgba(255,138,0,0.25)] mb-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-[#ff8a00] text-[#17120f] flex items-center justify-center shrink-0 font-bold">
+                  <Inbox className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+                      You Have {incomingDeals.length} Private Loan Invitation{incomingDeals.length > 1 ? 's' : ''} Reserved For Your Wallet!
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-[#ff8a00]/20 text-[#ff8a00] font-['Space_Grotesk'] text-[10px] font-bold">
+                      ACTION REQUIRED
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#ddc1ae]">
+                    Counterparty <strong className="text-[#ebe0d9]">{shortAddr(incomingDeals[0].borrower)}</strong> created a deal reserved exclusively for your address.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  to={`/deal/claim/${incomingDeals[0].dealId}${incomingDeals[0].salt ? `?salt=${incomingDeals[0].salt}` : ''}`}
+                  className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                >
+                  Review & Accept Deal →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── LTV HEALTH GAUGE & METRICS ROW ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
           {/* LTV Safety Gauge Card */}
@@ -170,7 +244,9 @@ export default function Dashboard() {
                 <span className="font-['Space_Grotesk'] text-4xl sm:text-5xl font-bold text-[#ebe0d9]">
                   {aggregateLtv}%
                 </span>
-                <span className="text-xs text-[#a58c7b]">Current Loan-to-Value</span>
+                <span className="text-xs text-[#a58c7b]">
+                  {ltvNum === 0 ? 'No Active Debt' : 'Current Loan-to-Value'}
+                </span>
               </div>
 
               {/* Progress Bar Gauge */}
@@ -183,7 +259,7 @@ export default function Dashboard() {
                       ? 'bg-gradient-to-r from-amber-400 to-[#ff8a00]'
                       : 'bg-red-500'
                   }`}
-                  style={{ width: `${Math.min(parseFloat(aggregateLtv), 100)}%` }}
+                  style={{ width: `${Math.min(ltvNum, 100)}%` }}
                 />
               </div>
 
@@ -198,7 +274,7 @@ export default function Dashboard() {
             <div className="pt-4 border-t border-[#564334]/25 mt-4 flex items-center justify-between text-xs">
               <span className="text-[#ddc1ae]">Liquidation Buffer Remaining:</span>
               <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
-                {(80 - parseFloat(aggregateLtv)).toFixed(1)}% Room
+                {Math.max(0, 80 - ltvNum).toFixed(1)}% Room
               </span>
             </div>
           </div>
@@ -217,10 +293,10 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  {collateralBtc.toFixed(2)} BTC
+                  {collateralBtc.toFixed(4)} BTC
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
-                  ≈ ${collateralValueUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                  ≈ ${collateralValueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
                 </div>
               </div>
             </div>
@@ -237,10 +313,10 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  ${borrowedUsdc.toLocaleString()}
+                  ${borrowedUsdc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-[#ff8a00] font-semibold mt-0.5">
-                  Fixed APR: 8.20%
+                  Native USDC Escrow
                 </div>
               </div>
             </div>
@@ -249,18 +325,18 @@ export default function Dashboard() {
             <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
-                  Accrued Interest Owed
+                  Active Deals Created
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#ff8a00]/15 text-[#ff8a00] flex items-center justify-center">
-                  <Percent className="w-3.5 h-3.5" />
+                  <Activity className="w-3.5 h-3.5" />
                 </div>
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ff8a00]">
-                  +$164.30 USDC
+                  {borrowedDeals.length} Deals
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
-                  Next Due: in 18 days
+                  {borrowedDeals.filter((d) => d.state === DealState.Proposed).length} Pending Accept
                 </div>
               </div>
             </div>
@@ -277,7 +353,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-xl font-bold text-[#ebe0d9]">
-                  Circle Arc L1
+                  {chain.name}
                 </div>
                 <div className="text-xs text-[#10b981] font-semibold mt-0.5">
                   Sub-second Finality
@@ -350,9 +426,9 @@ export default function Dashboard() {
                     : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
                 }`}
               >
-                <span>Loans You Borrowed</span>
+                <span>Loans You Created (Borrower)</span>
                 <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] text-[10px]">
-                  1 Active
+                  {borrowedDeals.length}
                 </span>
                 {activeTab === 'borrowed' && (
                   <motion.div
@@ -372,7 +448,7 @@ export default function Dashboard() {
               >
                 <span>Loans You Funded (Lender)</span>
                 <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#241f1a] text-[#a58c7b] text-[10px]">
-                  0
+                  {fundedDeals.length}
                 </span>
                 {activeTab === 'funded' && (
                   <motion.div
@@ -392,65 +468,138 @@ export default function Dashboard() {
           <div className="p-6">
             {activeTab === 'borrowed' && (
               <div className="space-y-4">
-                {/* Active Loan Row 1 */}
-                <div className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/15 border border-[#ff8a00]/30 flex items-center justify-center text-[#ff8a00] shrink-0">
-                      <Lock className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
-                          Deal #8F9024A
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] font-['Space_Grotesk'] text-[10px] font-bold">
-                          ACTIVE ESCROW
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
-                        <span>Collateral: <strong className="text-[#ebe0d9]">1.25 cirBTC</strong></span>
-                        <span>•</span>
-                        <span>Borrowed: <strong className="text-[#ff8a00]">$24,375.10 USDC</strong></span>
-                        <span>•</span>
-                        <span>Rate: <strong className="text-[#ebe0d9]">8.20% Fixed</strong></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    <div className="text-left sm:text-right">
-                      <div className="text-xs text-[#a58c7b]">Repayment Due:</div>
-                      <div className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
-                        18 Days Left (Nov 11)
-                      </div>
-                    </div>
-
-                    <Link
-                      to="/deal/0x8f9024a000000000000000000000000000000000000000000000000000000001/manage"
-                      className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                {borrowedDeals.length > 0 ? (
+                  borrowedDeals.map((deal) => (
+                    <div
+                      key={deal.dealId}
+                      className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
-                      Manage & Repay
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/15 border border-[#ff8a00]/30 flex items-center justify-center text-[#ff8a00] shrink-0">
+                          <Lock className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                              Deal {deal.dealId.slice(0, 10)}...
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
+                              {dealStateLabel(deal.state).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
+                            <span>Collateral: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
+                            <span>•</span>
+                            <span>Principal: <strong className="text-[#ff8a00]">${formatUsdc(deal.principal)} USDC</strong></span>
+                            <span>•</span>
+                            <span>Rate: <strong className="text-[#ebe0d9]">{formatBps(deal.rateBps)} Fixed</strong></span>
+                            <span>•</span>
+                            <span>Duration: <strong className="text-[#ebe0d9]">{deal.durationMonths}mo</strong></span>
+                          </div>
+                          {deal.reservedFor !== '0x0000000000000000000000000000000000000000' && (
+                            <div className="mt-1.5 text-[11px] text-[#ff8a00]">
+                              🔒 Reserved for counterparty: <code className="mono font-bold text-[#ebe0d9]">{shortAddr(deal.reservedFor)}</code>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+                        {deal.state === DealState.Proposed && (
+                          <button
+                            onClick={() => handleCopyClaimLink(deal)}
+                            className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ff8a00] font-['Space_Grotesk'] text-xs font-bold border border-[#ff8a00]/40 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                          >
+                            {copiedDealId === deal.dealId ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                            <span>{copiedDealId === deal.dealId ? 'Link Copied!' : 'Copy Share Link'}</span>
+                          </button>
+                        )}
+
+                        <Link
+                          to={`/deal/${deal.dealId}/manage`}
+                          className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                        >
+                          Manage Deal
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-[#a58c7b]">
+                    <Lock className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
+                    <h4 className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] mb-1">
+                      No Active Borrowed Deals
+                    </h4>
+                    <p className="text-xs max-w-sm mx-auto mb-6 text-[#ddc1ae]">
+                      You have not created any Bitcoin-collateralized loan deals yet. Create a deal to borrow USDC or generate a private link for your peer.
+                    </p>
+                    <Link
+                      to="/deal/new"
+                      className="px-6 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors no-underline inline-block"
+                    >
+                      Propose a Deal
                     </Link>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
             {activeTab === 'funded' && (
-              <div className="text-center py-12 text-[#a58c7b]">
-                <Coins className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
-                <h4 className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] mb-1">
-                  No Active Lender Positions
-                </h4>
-                <p className="text-xs max-w-sm mx-auto mb-6 text-[#ddc1ae]">
-                  You have not funded any loans yet. Browse the public marketplace to earn guaranteed fixed APR yields in USDC.
-                </p>
-                <Link
-                  to="/marketplace"
-                  className="px-6 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors no-underline inline-block"
-                >
-                  Explore Marketplace
-                </Link>
+              <div className="space-y-4">
+                {fundedDeals.length > 0 ? (
+                  fundedDeals.map((deal) => (
+                    <div
+                      key={deal.dealId}
+                      className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-[#10b981]/15 border border-[#10b981]/30 flex items-center justify-center text-[#10b981] shrink-0">
+                          <Coins className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                              Lending Deal {deal.dealId.slice(0, 10)}...
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
+                              {dealStateLabel(deal.state).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
+                            <span>Supplied: <strong className="text-[#10b981]">${formatUsdc(deal.principal)} USDC</strong></span>
+                            <span>•</span>
+                            <span>Collateral Held: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
+                            <span>•</span>
+                            <span>Yield: <strong className="text-[#ebe0d9]">{formatBps(deal.rateBps)} APR</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Link
+                        to={`/deal/${deal.dealId}/manage`}
+                        className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
+                      >
+                        View & Collect
+                      </Link>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-[#a58c7b]">
+                    <Coins className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
+                    <h4 className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] mb-1">
+                      No Active Lender Positions
+                    </h4>
+                    <p className="text-xs max-w-sm mx-auto mb-6 text-[#ddc1ae]">
+                      You have not funded any loans yet. Browse the public marketplace to earn guaranteed fixed APR yields in USDC.
+                    </p>
+                    <Link
+                      to="/marketplace"
+                      className="px-6 py-2.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors no-underline inline-block"
+                    >
+                      Explore Marketplace
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -462,7 +611,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-[#ff8a00]" />
               <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] uppercase tracking-wider">
-                Recent On-Chain Escrows (Arc L1)
+                Recent On-Chain Escrows ({chain.name})
               </h3>
             </div>
             <a
@@ -477,38 +626,39 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-3 font-['Space_Grotesk'] text-xs">
-            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <ArrowDownLeft className="w-4 h-4 text-[#10b981]" />
-                <div>
-                  <span className="font-bold text-[#ebe0d9]">1.25 cirBTC Locked</span>
-                  <span className="text-[#a58c7b] ml-2">Deal #8F9024A</span>
+            {deals.length > 0 ? (
+              deals.slice(0, 5).map((d) => (
+                <div
+                  key={d.dealId}
+                  className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ArrowDownLeft className="w-4 h-4 text-[#10b981]" />
+                    <div>
+                      <span className="font-bold text-[#ebe0d9]">
+                        {formatBtc(d.collateral)} cirBTC Collateral · ${formatUsdc(d.principal)} USDC
+                      </span>
+                      <span className="text-[#a58c7b] ml-2">Deal #{d.dealId.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[#a58c7b]">
+                      {d.blockNumber ? `Block #${d.blockNumber.toString()}` : 'Mined'}
+                    </span>
+                    <Link
+                      to={`/deal/${d.dealId}/manage`}
+                      className="text-[#ff8a00] hover:underline"
+                    >
+                      Inspect →
+                    </Link>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-6 text-[#a58c7b]">
+                No recent transactions detected yet on {chain.name}.
               </div>
-              <span className="text-[#a58c7b]">Block #249,112,040</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <ArrowUpRight className="w-4 h-4 text-[#ff8a00]" />
-                <div>
-                  <span className="font-bold text-[#ebe0d9]">$24,375.10 USDC Disbursed</span>
-                  <span className="text-[#a58c7b] ml-2">Atomic Settlement</span>
-                </div>
-              </div>
-              <span className="text-[#a58c7b]">Block #249,112,042</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle className="w-4 h-4 text-[#10b981]" />
-                <div>
-                  <span className="font-bold text-[#ebe0d9]">0.85 cirBTC Released</span>
-                  <span className="text-[#a58c7b] ml-2">100% Repaid & Unlocked</span>
-                </div>
-              </div>
-              <span className="text-[#a58c7b]">Block #249,108,912</span>
-            </div>
+            )}
           </div>
         </div>
       </div>

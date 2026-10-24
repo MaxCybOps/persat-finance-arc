@@ -16,6 +16,7 @@ import {
 import { buildShareLink } from '../lib/share'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
+import { saveStoredDeal } from '../lib/dealStorage'
 
 type Tab = 'private' | 'public'
 type Role = 'borrower' | 'lender'
@@ -38,13 +39,19 @@ export default function NewDeal() {
   const [copied, setCopied] = useState(false)
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+    chainId,
+    query: {
+      enabled: Boolean(hash),
+    },
+  })
 
-  // Build share link once we have a successful tx
+  // Build share link once we have a transaction hash or confirmation
   useEffect(() => {
-    if (!isSuccess) return
+    if (!hash) return
     void buildShareLink(`/deal/claim/${dealId}?salt=${salt}`).then(setShareLink)
-  }, [isSuccess, dealId, salt])
+  }, [hash, isSuccess, dealId, salt])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -71,6 +78,22 @@ export default function NewDeal() {
 
   function submit() {
     if (!isValid || !address) return
+
+    // Save to local registry so creator and counterparty have full access
+    saveStoredDeal({
+      dealId,
+      salt: tab === 'private' ? salt : undefined,
+      role,
+      principal: form.principal,
+      collateral: form.collateral,
+      rateBps: form.rateBps,
+      durationMonths: duration,
+      visibility: tab,
+      reservedFor: form.reservedFor || undefined,
+      chainId,
+      createdAt: Date.now(),
+    })
+
     writeContract({
       address: addresses.registry,
       abi: REGISTRY_ABI,

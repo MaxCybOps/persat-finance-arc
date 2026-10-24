@@ -47,7 +47,13 @@ export default function ClaimDeal() {
   })
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+    chainId,
+    query: {
+      enabled: Boolean(hash),
+    },
+  })
 
   useEffect(() => {
     if (isSuccess) void refetch()

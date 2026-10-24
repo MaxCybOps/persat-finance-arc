@@ -38,7 +38,13 @@ function CounterOfferModal({
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+    chainId,
+    query: {
+      enabled: Boolean(hash),
+    },
+  })
 
   const principalRaw = parseUsdc(form.principal)
   const collateralRaw = parseBtc(form.collateral)
