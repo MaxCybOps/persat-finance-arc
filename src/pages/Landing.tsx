@@ -28,6 +28,7 @@ import {
   Scale,
 } from 'lucide-react'
 import AuthModal from '../components/AuthModal'
+import SplashScreen from '../components/SplashScreen'
 import { REGISTRY_ADDRESS, ESCROW_VAULT_ADDRESS } from '../contracts/addresses'
 
 // 3D Orbital Solar Canvas
@@ -64,10 +65,10 @@ function OrbitalCanvas() {
     window.addEventListener('mousemove', onMove)
 
     // Star dust particles
-    const stars = Array.from({ length: 40 }, () => ({
+    const stars = Array.from({ length: 45 }, () => ({
       x: Math.random() * 2000 - 1000,
       y: Math.random() * 2000 - 1000,
-      r: Math.random() * 1.5 + 0.5,
+      r: Math.random() * 1.6 + 0.5,
       alpha: Math.random() * 0.7 + 0.2,
       speed: Math.random() * 0.002 + 0.001,
     }))
@@ -79,12 +80,12 @@ function OrbitalCanvas() {
       ctx.clearRect(0, 0, W, H)
       t += 0.004
 
-      const cx = W / 2 + mouse.current.x * 24
-      const cy = H / 2 + mouse.current.y * 24
+      const cx = W / 2 + mouse.current.x * 28
+      const cy = H / 2 + mouse.current.y * 28
 
       // 1. Ambient solar haze
-      const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.6)
-      haze.addColorStop(0, 'rgba(255,138,0,0.18)')
+      const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.65)
+      haze.addColorStop(0, 'rgba(255,138,0,0.20)')
       haze.addColorStop(0.4, 'rgba(204,127,26,0.08)')
       haze.addColorStop(1, 'rgba(23,18,15,0)')
       ctx.fillStyle = haze
@@ -95,7 +96,7 @@ function OrbitalCanvas() {
         const r = Math.min(W, H) * 0.16 * i + Math.sin(t + i) * 6
         ctx.beginPath()
         ctx.ellipse(cx, cy, r, r * 0.42, 0, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(255,186,105,${0.15 - i * 0.024})`
+        ctx.strokeStyle = `rgba(255,186,105,${0.16 - i * 0.024})`
         ctx.lineWidth = 1
         ctx.stroke()
       }
@@ -106,7 +107,7 @@ function OrbitalCanvas() {
       ctx.rotate(t * 0.25)
       const filament = ctx.createLinearGradient(-W * 0.4, 0, W * 0.4, 0)
       filament.addColorStop(0, 'rgba(255,138,0,0)')
-      filament.addColorStop(0.5, 'rgba(255,170,69,0.16)')
+      filament.addColorStop(0.5, 'rgba(255,170,69,0.18)')
       filament.addColorStop(1, 'rgba(255,138,0,0)')
       ctx.fillStyle = filament
       ctx.fillRect(-W * 0.4, -2, W * 0.8, 4)
@@ -114,8 +115,8 @@ function OrbitalCanvas() {
 
       // 4. Drifting particle star dust
       for (const s of stars) {
-        const px = cx + s.x + Math.sin(t * 2 + s.x) * 12
-        const py = cy + s.y + Math.cos(t * 2 + s.y) * 12
+        const px = cx + s.x + Math.sin(t * 2 + s.x) * 14
+        const py = cy + s.y + Math.cos(t * 2 + s.y) * 14
         ctx.beginPath()
         ctx.arc(px, py, s.r, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(255,184,107,${s.alpha * (0.6 + 0.4 * Math.sin(t * 3 + s.r))})`
@@ -144,6 +145,7 @@ function OrbitalCanvas() {
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [showSplash, setShowSplash] = useState(true)
   const [copied, setCopied] = useState(false)
   const [portfolioTab, setPortfolioTab] = useState<'Home' | 'Borrow' | 'Lend' | 'Vote'>('Home')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -184,6 +186,9 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] selection:bg-[#ff8a00] selection:text-[#17120f] relative overflow-hidden flex flex-col justify-between">
+      {/* ── INTRO SPLASH SCREEN ── */}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+
       {/* 3D Interactive Solar Background */}
       <OrbitalCanvas />
 
@@ -343,13 +348,13 @@ export default function Landing() {
 
       {/* MAIN BODY */}
       <main className="w-full pt-20 flex-1 flex flex-col relative z-10">
-        {/* ── SECTION 1: HERO & SIGNATURE CTA ── */}
-        <section className="relative w-full max-w-[1280px] mx-auto px-4 sm:px-6 pt-12 md:pt-20 pb-20 md:pb-28 flex flex-col items-center text-center">
+        {/* ── SECTION 1: HERO & SIGNATURE CTA (3D Perspective) ── */}
+        <section className="relative w-full max-w-[1280px] mx-auto px-4 sm:px-6 pt-12 md:pt-20 pb-20 md:pb-28 flex flex-col items-center text-center" style={{ perspective: 1200 }}>
           {/* Micro Badge Pill */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            initial={{ opacity: 0, y: 16, rotateX: 20 }}
+            animate={{ opacity: 1, y: 0, rotateX: 0 }}
+            transition={{ duration: 0.6 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2f2924]/80 backdrop-blur-md border border-[#ff8a00]/30 shadow-[0_0_20px_rgba(255,138,0,0.15)] mb-6"
           >
             <span className="w-2 h-2 rounded-full bg-[#ff8a00] animate-ping" />
@@ -358,11 +363,11 @@ export default function Landing() {
             </span>
           </motion.div>
 
-          {/* Headline */}
+          {/* Headline with 3D scale entrance */}
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
             className="font-['Space_Grotesk'] text-3xl sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.1] max-w-4xl tracking-tight text-[#ebe0d9] uppercase font-bold drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
           >
             WHAT IF YOU COULD <br className="hidden sm:inline" />
@@ -383,10 +388,10 @@ export default function Landing() {
             Infrastructure for a world where anyone can lend to anyone, secured by digital assets and enforced by smart contracts, starting with Bitcoin on Circle's Arc L1.
           </motion.p>
 
-          {/* NEW: Lend with Confidence Signature CTA Button */}
+          {/* Lend with Confidence Signature CTA Button */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.3 }}
             className="mb-14 sm:mb-16"
           >
@@ -403,14 +408,15 @@ export default function Landing() {
             </button>
           </motion.div>
 
-          {/* Dual Persona Entry Cards (Pathways) */}
-          <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-5 mb-16 text-left">
+          {/* Dual Persona Entry Cards (3D Angle Entrance) */}
+          <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-5 mb-16 text-left" style={{ perspective: 1000 }}>
             {/* Pathway 1: Direct Deal */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+              initial={{ opacity: 0, x: -50, rotateY: 15 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -4, rotateY: 3, transition: { duration: 0.2 } }}
               className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ff8a00]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
             >
               <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ff8a00]/80 to-transparent" />
@@ -442,10 +448,11 @@ export default function Landing() {
 
             {/* Pathway 2: Marketplace */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+              initial={{ opacity: 0, x: 50, rotateY: -15 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -4, rotateY: -3, transition: { duration: 0.2 } }}
               className="relative group p-6 sm:p-7 rounded-2xl bg-[#201b17]/85 backdrop-blur-xl border border-[#564334]/40 hover:border-[#ffb86b]/60 transition-all duration-300 shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex flex-col justify-between"
             >
               <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#ffb86b]/70 to-transparent" />
@@ -476,11 +483,16 @@ export default function Landing() {
             </motion.div>
           </div>
 
-          {/* ── 3D ANIMATED MOTION HUD CONSOLES (Interactive Dashboards) ── */}
-          <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
-            {/* Widget 1: MARKETS Widget */}
+          {/* ── 3D LEVITATING HUD CONSOLES (Floating Zero-Gravity Motion) ── */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch" style={{ perspective: 1200 }}>
+            {/* Widget 1: MARKETS Widget (Tilts from Left) */}
             <motion.div
-              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, x: -40, rotateY: 15 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              whileHover={{ y: -12, scale: 1.01, transition: { duration: 0.2 } }}
               className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative overflow-hidden flex flex-col justify-between"
             >
               <div>
@@ -569,9 +581,14 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* Widget 2: Center Viewport (PORTFOLIO HUD) */}
+            {/* Widget 2: Center Viewport (Tilts from Center with Depth) */}
             <motion.div
-              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, y: 50, scale: 0.94 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, amount: 0.2 }}
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+              whileHover={{ y: -14, scale: 1.02, transition: { duration: 0.2 } }}
               className="md:col-span-4 rounded-2xl bg-[#120d0a]/95 backdrop-blur-2xl border border-[#ff8a00]/40 p-5 shadow-[0_20px_50px_rgba(255,138,0,0.22)] text-left relative flex flex-col justify-between"
             >
               <div>
@@ -641,9 +658,14 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* Widget 3: LOAN AGREEMENT Widget */}
+            {/* Widget 3: LOAN AGREEMENT Widget (Tilts from Right) */}
             <motion.div
-              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, x: 40, rotateY: -15 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+              whileHover={{ y: -12, scale: 1.01, transition: { duration: 0.2 } }}
               className="md:col-span-4 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] text-left relative flex flex-col justify-between"
             >
               <div>
@@ -727,8 +749,14 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── SECTION 2: LIVE ON-CHAIN STATS TICKER ── */}
-        <section className="w-full bg-[#120d0a]/80 border-y border-[#564334]/30 py-8 relative z-10 backdrop-blur-xl">
+        {/* ── SECTION 2: LIVE ON-CHAIN STATS TICKER (Scroll Fade In) ── */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.6 }}
+          className="w-full bg-[#120d0a]/80 border-y border-[#564334]/30 py-8 relative z-10 backdrop-blur-xl"
+        >
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00]">
@@ -786,132 +814,139 @@ export default function Landing() {
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        {/* ── SECTION 3: INTERACTIVE LOAN & YIELD CALCULATOR ── */}
-        <section id="calculator" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
-              Instant Simulation
+        {/* ── SECTION 3: INTERACTIVE LOAN CALCULATOR (3D Tilt Rise) ── */}
+        <section id="calculator" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 50, rotateX: 12 }}
+            whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="text-center max-w-2xl mx-auto mb-14">
+              <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
+                Instant Simulation
+              </div>
+              <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
+                Bitcoin Loan & Yield Calculator
+              </h2>
+              <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
+                Model your borrowing capacity or calculate lender returns with guaranteed non-custodial math.
+              </p>
             </div>
-            <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
-              Bitcoin Loan & Yield Calculator
-            </h2>
-            <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
-              Model your borrowing capacity or calculate lender returns with guaranteed non-custodial math.
-            </p>
-          </div>
 
-          <div className="max-w-4xl mx-auto rounded-3xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.7)]">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              {/* Controls */}
-              <div className="space-y-6">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
-                      Bitcoin Collateral (cirBTC)
+            <div className="max-w-4xl mx-auto rounded-3xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.7)]">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                {/* Controls */}
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+                        Bitcoin Collateral (cirBTC)
+                      </label>
+                      <span className="font-['Space_Grotesk'] text-base font-bold text-[#ff8a00]">
+                        {calcBtc.toFixed(2)} BTC
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="5.0"
+                      step="0.05"
+                      value={calcBtc}
+                      onChange={(e) => setCalcBtc(parseFloat(e.target.value))}
+                      className="w-full accent-[#ff8a00] cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[11px] text-[#a58c7b] mt-1 font-['Space_Grotesk']">
+                      <span>0.1 BTC</span>
+                      <span>2.5 BTC</span>
+                      <span>5.0 BTC</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-2">
+                      Loan Duration
                     </label>
-                    <span className="font-['Space_Grotesk'] text-base font-bold text-[#ff8a00]">
-                      {calcBtc.toFixed(2)} BTC
+                    <div className="grid grid-cols-4 gap-2">
+                      {[7, 14, 30, 90].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setCalcDuration(d)}
+                          className={`py-2 rounded-xl font-['Space_Grotesk'] text-xs font-bold transition-all cursor-pointer ${
+                            calcDuration === d
+                              ? 'bg-[#ff8a00] text-[#17120f] shadow-md'
+                              : 'bg-[#241f1a] text-[#ddc1ae] hover:bg-[#2f2924] border border-[#564334]/30'
+                          }`}
+                        >
+                          {d} Days
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#a58c7b] space-y-1">
+                    <div className="flex justify-between">
+                      <span>Collateral Value:</span>
+                      <span className="text-[#ebe0d9] font-bold">
+                        ${(calcBtc * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fixed Protocol APR:</span>
+                      <span className="text-[#10b981] font-bold">8.20% Fixed</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Output Card */}
+                <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-[#2f2924]/80 to-[#120d0a] border border-[#ff8a00]/30 shadow-inner flex flex-col justify-between">
+                  <div>
+                    <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-wider text-[#a58c7b] font-bold">
+                      Max Safe Borrowing Capacity (70% LTV)
                     </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="5.0"
-                    step="0.05"
-                    value={calcBtc}
-                    onChange={(e) => setCalcBtc(parseFloat(e.target.value))}
-                    className="w-full accent-[#ff8a00] cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[11px] text-[#a58c7b] mt-1 font-['Space_Grotesk']">
-                    <span>0.1 BTC</span>
-                    <span>2.5 BTC</span>
-                    <span>5.0 BTC</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-2">
-                    Loan Duration
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[7, 14, 30, 90].map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setCalcDuration(d)}
-                        className={`py-2 rounded-xl font-['Space_Grotesk'] text-xs font-bold transition-all cursor-pointer ${
-                          calcDuration === d
-                            ? 'bg-[#ff8a00] text-[#17120f] shadow-md'
-                            : 'bg-[#241f1a] text-[#ddc1ae] hover:bg-[#2f2924] border border-[#564334]/30'
-                        }`}
-                      >
-                        {d} Days
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#a58c7b] space-y-1">
-                  <div className="flex justify-between">
-                    <span>Collateral Value:</span>
-                    <span className="text-[#ebe0d9] font-bold">
-                      ${(calcBtc * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Fixed Protocol APR:</span>
-                    <span className="text-[#10b981] font-bold">8.20% Fixed</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Output Card */}
-              <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-[#2f2924]/80 to-[#120d0a] border border-[#ff8a00]/30 shadow-inner flex flex-col justify-between">
-                <div>
-                  <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-wider text-[#a58c7b] font-bold">
-                    Max Safe Borrowing Capacity (70% LTV)
-                  </span>
-                  <div className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-1 mb-4">
-                    ${parseInt(calcMaxBorrow).toLocaleString()} <span className="text-base text-[#ff8a00]">USDC</span>
-                  </div>
-
-                  <div className="space-y-3 py-3 border-y border-[#564334]/30 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-[#a58c7b]">Estimated Total Repayment:</span>
-                      <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">
-                        ${(parseInt(calcMaxBorrow) + parseInt(calcInterest)).toLocaleString()} USDC
-                      </span>
+                    <div className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-1 mb-4">
+                      ${parseInt(calcMaxBorrow).toLocaleString()} <span className="text-base text-[#ff8a00]">USDC</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a58c7b]">Fixed Borrow Cost:</span>
-                      <span className="font-['Space_Grotesk'] font-bold text-[#ff8a00]">
-                        +${parseInt(calcInterest).toLocaleString()} USDC
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a58c7b]">Liquidation Price Trigger:</span>
-                      <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
-                        ${parseInt(calcLiquidationPrice).toLocaleString()} / BTC
-                      </span>
+
+                    <div className="space-y-3 py-3 border-y border-[#564334]/30 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-[#a58c7b]">Estimated Total Repayment:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">
+                          ${(parseInt(calcMaxBorrow) + parseInt(calcInterest)).toLocaleString()} USDC
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#a58c7b]">Fixed Borrow Cost:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-[#ff8a00]">
+                          +${parseInt(calcInterest).toLocaleString()} USDC
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#a58c7b]">Liquidation Price Trigger:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
+                          ${parseInt(calcLiquidationPrice).toLocaleString()} / BTC
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={() => navigate('/deal/new')}
-                  className="w-full mt-6 py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-[0_6px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_8px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span>Start This Loan on Arc</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                  <button
+                    onClick={() => navigate('/deal/new')}
+                    className="w-full mt-6 py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-[0_6px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_8px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Start This Loan on Arc</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </section>
 
-        {/* ── SECTION 4: DUAL DISCOVERY ARCHITECTURE ── */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-20 md:py-28 relative z-10">
+        {/* ── SECTION 4: DUAL DISCOVERY ARCHITECTURE (3D Angle Entrance) ── */}
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-20 md:py-28 relative z-10" style={{ perspective: 1200 }}>
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
               Flexible Counterparty Discovery
@@ -926,7 +961,13 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Path One: Private Deal-Link */}
-            <div className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ff8a00]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+            <motion.div
+              initial={{ opacity: 0, x: -60, rotateY: 14 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ff8a00]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-full bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00] mb-4">
                   <LinkIcon className="w-6 h-6" />
@@ -967,10 +1008,16 @@ export default function Landing() {
                   <span>{copied ? 'Copied' : 'Copy Link'}</span>
                 </button>
               </div>
-            </div>
+            </motion.div>
 
             {/* Path Two: Open Marketplace */}
-            <div className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ffb86b]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+            <motion.div
+              initial={{ opacity: 0, x: 60, rotateY: -14 }}
+              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl bg-[#201b17]/90 backdrop-blur-xl border border-[#564334]/30 p-6 sm:p-8 relative overflow-hidden group hover:border-[#ffb86b]/40 transition-all shadow-[0_16px_40px_rgba(0,0,0,0.5)] flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-full bg-[#cc7f1a]/15 flex items-center justify-center text-[#ffb86b] mb-4">
                   <Layers className="w-6 h-6" />
@@ -1007,12 +1054,12 @@ export default function Landing() {
                   View Orderbook →
                 </Link>
               </div>
-            </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* ── SECTION 5: 3-STEP ATOMIC PIPELINE ── */}
-        <section id="how-it-works" className="w-full bg-[#120d0a]/60 border-t border-[#564334]/30 py-24 md:py-32 relative z-10">
+        {/* ── SECTION 5: 3-STEP ATOMIC PIPELINE (Staggered 3D Rise) ── */}
+        <section id="how-it-works" className="w-full bg-[#120d0a]/60 border-t border-[#564334]/30 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <div className="text-center max-w-2xl mx-auto mb-14">
               <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
@@ -1027,62 +1074,68 @@ export default function Landing() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Step 1 */}
-              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
-                <div>
-                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">01</div>
-                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
-                    Pledge Bitcoin Collateral
-                  </h4>
-                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
-                    Deposit native Bitcoin through verified wrapper primitives (cirBTC or WBTC) into an isolated on-chain escrow program on Arc. Persat never has administrative access to your keys.
-                  </p>
-                </div>
-                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
-                  <span>Protocol Collateral</span>
-                  <span className="text-[#ebe0d9] font-semibold">cirBTC Vault</span>
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
-                <div>
-                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">02</div>
-                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
-                    Receive Instant Stablecoins
-                  </h4>
-                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
-                    Once verified on Arc via Pyth BTC/USD oracles, USDC stablecoins are dispatched immediately from the peer lender to your destination wallet in one atomic transaction.
-                  </p>
-                </div>
-                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
-                  <span>Execution Speed</span>
-                  <span className="text-[#ff8a00] font-semibold">&lt; 1s Finality</span>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between">
-                <div>
-                  <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">03</div>
-                  <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
-                    Repay & Auto-Unlock
-                  </h4>
-                  <p className="text-sm text-[#ddc1ae] leading-relaxed">
-                    Return the borrowed USDC plus agreed-upon fixed interest prior to expiration. The smart contract automatically unlocks and returns 100% of your collateral.
-                  </p>
-                </div>
-                <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
-                  <span>Settlement Output</span>
-                  <span className="text-[#10b981] font-semibold">Immediate Release</span>
-                </div>
-              </div>
+              {[
+                {
+                  step: '01',
+                  title: 'Pledge Bitcoin Collateral',
+                  desc: 'Deposit native Bitcoin through verified wrapper primitives (cirBTC or WBTC) into an isolated on-chain escrow program on Arc. Persat never has administrative access to your keys.',
+                  footerLabel: 'Protocol Collateral',
+                  footerVal: 'cirBTC Vault',
+                  valColor: 'text-[#ebe0d9]',
+                },
+                {
+                  step: '02',
+                  title: 'Receive Instant Stablecoins',
+                  desc: 'Once verified on Arc via Pyth BTC/USD oracles, USDC stablecoins are dispatched immediately from the peer lender to your destination wallet in one atomic transaction.',
+                  footerLabel: 'Execution Speed',
+                  footerVal: '< 1s Finality',
+                  valColor: 'text-[#ff8a00]',
+                },
+                {
+                  step: '03',
+                  title: 'Repay & Auto-Unlock',
+                  desc: 'Return the borrowed USDC plus agreed-upon fixed interest prior to expiration. The smart contract automatically unlocks and returns 100% of your collateral.',
+                  footerLabel: 'Settlement Output',
+                  footerVal: 'Immediate Release',
+                  valColor: 'text-[#10b981]',
+                },
+              ].map((item, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 40, rotateX: 15 }}
+                  whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.6, delay: idx * 0.15, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                  className="p-6 sm:p-7 rounded-2xl bg-[#201b17] border border-[#564334]/30 flex flex-col justify-between shadow-lg"
+                >
+                  <div>
+                    <div className="font-['Space_Grotesk'] text-3xl text-[#ff8a00]/40 font-bold mb-3">{item.step}</div>
+                    <h4 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">
+                      {item.title}
+                    </h4>
+                    <p className="text-sm text-[#ddc1ae] leading-relaxed">
+                      {item.desc}
+                    </p>
+                  </div>
+                  <div className="mt-6 pt-3 border-t border-[#564334]/20 flex items-center justify-between font-['Space_Grotesk'] text-[11px] text-[#a58c7b]">
+                    <span>{item.footerLabel}</span>
+                    <span className={`font-semibold ${item.valColor}`}>{item.footerVal}</span>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* ── SECTION 6: PROTOCOL COMPARISON MATRIX ── */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
+        <motion.section
+          initial={{ opacity: 0, y: 40, scale: 0.97 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10"
+        >
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
               Competitive Advantage
@@ -1155,13 +1208,19 @@ export default function Landing() {
               </tbody>
             </table>
           </div>
-        </section>
+        </motion.section>
 
-        {/* ── SECTION 7: REPUTATION & AUDIT ── */}
-        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-24 md:py-32 relative z-10">
+        {/* ── SECTION 7: REPUTATION & AUDIT (3D Flip Entrance) ── */}
+        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-              <div className="lg:col-span-5">
+              <motion.div
+                initial={{ opacity: 0, x: -30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6 }}
+                className="lg:col-span-5"
+              >
                 <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ff8a00] tracking-widest font-bold">
                   Reputation Passport
                 </span>
@@ -1181,10 +1240,16 @@ export default function Landing() {
                     <span>Borrowers build deterministic interest discounts with 100% on-time record</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* High-Fidelity Borrower Credential Badge Card */}
-              <div className="lg:col-span-7 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+              {/* High-Fidelity Borrower Credential Badge Card (3D Flip In) */}
+              <motion.div
+                initial={{ opacity: 0, rotateY: -15, scale: 0.94 }}
+                whileInView={{ opacity: 1, rotateY: 0, scale: 1 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                className="lg:col-span-7 rounded-2xl bg-[#201b17]/90 backdrop-blur-2xl border border-[#564334]/40 p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative"
+              >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#564334]/25 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ffb77f] to-[#ff8a00] p-0.5">
@@ -1240,13 +1305,20 @@ export default function Landing() {
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </section>
 
         {/* ── SECTION 8: FAQ ACCORDION ── */}
-        <section id="faq" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10">
+        <motion.section
+          id="faq"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10"
+        >
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
               Common Inquiries
@@ -1312,11 +1384,17 @@ export default function Landing() {
               </div>
             ))}
           </div>
-        </section>
+        </motion.section>
 
         {/* ── SECTION 9: FINAL CALL TO ACTION ── */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 text-center relative z-10">
-          <div className="relative p-8 sm:p-14 rounded-3xl bg-gradient-to-b from-[#2f2924]/60 to-[#120d0a] border border-[#564334]/40 shadow-[0_24px_64px_rgba(0,0,0,0.8)] overflow-hidden">
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 text-center relative z-10" style={{ perspective: 1200 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.95 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="relative p-8 sm:p-14 rounded-3xl bg-gradient-to-b from-[#2f2924]/60 to-[#120d0a] border border-[#564334]/40 shadow-[0_24px_64px_rgba(0,0,0,0.8)] overflow-hidden"
+          >
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#ff8a00]/15 rounded-full blur-[100px] pointer-events-none" />
             <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
               <span className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
@@ -1346,7 +1424,7 @@ export default function Landing() {
                 </Link>
               </div>
             </div>
-          </div>
+          </motion.div>
         </section>
       </main>
 
