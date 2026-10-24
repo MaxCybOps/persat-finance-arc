@@ -17,6 +17,7 @@ import {
   Flame,
   Copy,
   Check,
+  CheckCircle,
   Activity,
   Layers,
   Coins,
