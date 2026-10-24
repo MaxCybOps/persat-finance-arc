@@ -19,29 +19,25 @@ import {
   DealState,
   parseOnchainError,
 } from '../lib/utils'
-import { REGISTRY_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
 import { REGISTRY_ABI } from '../contracts/abis'
-import { requireChain } from '@/onchain-facts'
-
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 export default function ClaimDeal() {
   const { token: dealId } = useParams<{ token: string }>()
   const [searchParams] = useSearchParams()
   const salt = searchParams.get('salt') as `0x${string}` | null
 
-  const { address, isConnected, chainId } = useAccount()
-  const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
+  const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
 
   const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
   const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
 
   const { data: deal, isLoading, refetch } = useReadContract({
-    address: REGISTRY_ADDRESS,
+    address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
     args: [safeDealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
     query: { enabled: isValidHexId },
   })
 
@@ -105,11 +101,11 @@ export default function ClaimDeal() {
   function claim() {
     if (!dealId || !salt || !address) return
     writeContract({
-      address: REGISTRY_ADDRESS,
+      address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'claimDeal',
       args: [dealId as `0x${string}`, salt],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -225,7 +221,7 @@ export default function ClaimDeal() {
         </div>
       ) : isWrongChain ? (
         <div className="rounded-xl p-3 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-          Switch to Arc Testnet (chain ID 5042002)
+          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042002)
         </div>
       ) : (
         <Button

@@ -20,17 +20,9 @@ import {
   DealState,
   parseOnchainError,
 } from '../lib/utils'
-import {
-  REGISTRY_ADDRESS,
-  VAULT_ADDRESS,
-  CIRBTC_ADDRESS,
-  ARC_TESTNET_CHAIN_ID,
-} from '../contracts/addresses'
 import { REGISTRY_ABI, VAULT_ABI, ERC20_APPROVE_ABI } from '../contracts/abis'
-import { requireChain, getUsdc } from '@/onchain-facts'
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
-const usdcFact = getUsdc(ARC_TESTNET_CHAIN_ID)!
 // Computed once at module load — stable reference safe to use in render
 const PAGE_LOAD_SEC = Math.floor(new Date().valueOf() / 1000)
 
@@ -38,66 +30,65 @@ type Action = 'activateLoan' | 'claimPrincipal' | 'repayLoan' | 'liquidate' | 'm
 
 export default function ManageDeal() {
   const { id: dealId } = useParams<{ id: string }>()
-  const { address, isConnected, chainId } = useAccount()
-  const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
+  const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
 
   const isValidHexId = Boolean(dealId && dealId.startsWith('0x') && dealId.length === 66)
   const safeDealId = (isValidHexId ? dealId : '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
 
   const { data: deal, isLoading, refetch } = useReadContract({
-    address: REGISTRY_ADDRESS,
+    address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
     args: [safeDealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
     query: { enabled: isValidHexId },
   })
 
   const { data: lockedCollateral } = useReadContract({
-    address: VAULT_ADDRESS,
+    address: addresses.vault,
     abi: VAULT_ABI,
     functionName: 'lockedCollateral',
     args: [safeDealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
     query: { enabled: isValidHexId && deal?.state === DealState.Active },
   })
 
   const { data: claimableUsdc } = useReadContract({
-    address: VAULT_ADDRESS,
+    address: addresses.vault,
     abi: VAULT_ABI,
     functionName: 'claimableUsdc',
     args: [safeDealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
     query: { enabled: isValidHexId && deal?.state === DealState.Active },
   })
 
   // cirBTC allowance check (borrower needs to approve vault before activating)
   const { data: cirBtcAllowance } = useReadContract({
-    address: CIRBTC_ADDRESS,
+    address: addresses.cirBtc,
     abi: ERC20_APPROVE_ABI,
     functionName: 'allowance',
-    args: [address ?? '0x0000000000000000000000000000000000000000', VAULT_ADDRESS],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    args: [address ?? '0x0000000000000000000000000000000000000000', addresses.vault],
+    chainId,
     query: { enabled: !!address && deal?.state === DealState.Confirmed },
   })
 
   // USDC allowance check (borrower needs to approve vault before repaying; lender before activating)
   const { data: usdcAllowance } = useReadContract({
-    address: usdcFact.address as `0x${string}`,
+    address: addresses.usdc,
     abi: ERC20_APPROVE_ABI,
     functionName: 'allowance',
-    args: [address ?? '0x0000000000000000000000000000000000000000', VAULT_ADDRESS],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    args: [address ?? '0x0000000000000000000000000000000000000000', addresses.vault],
+    chainId,
     query: { enabled: !!address && deal?.state === DealState.Confirmed },
   })
 
   // Counter-offers (only relevant for proposer on Proposed deals)
   const { data: counterOffers, refetch: refetchOffers } = useReadContract({
-    address: REGISTRY_ADDRESS,
+    address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getCounterOffers',
     args: [dealId as `0x${string}`],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
     query: { enabled: !!dealId && deal?.state === DealState.Proposed },
   })
 
@@ -168,11 +159,11 @@ export default function ManageDeal() {
     if (!dealId || !address) return
     reset()
     writeContract({
-      address: VAULT_ADDRESS,
+      address: addresses.vault,
       abi: VAULT_ABI,
       functionName: action,
       args: [dealId as `0x${string}`],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -180,11 +171,11 @@ export default function ManageDeal() {
     if (!dealId || !address) return
     reset()
     writeContract({
-      address: REGISTRY_ADDRESS,
+      address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'cancelDeal',
       args: [dealId as `0x${string}`],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -192,11 +183,11 @@ export default function ManageDeal() {
     if (!dealId || !address) return
     reset()
     writeContract({
-      address: REGISTRY_ADDRESS,
+      address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'acceptCounterOffer',
       args: [dealId as `0x${string}`, offerId],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -204,11 +195,11 @@ export default function ManageDeal() {
     if (!address) return
     reset()
     writeContract({
-      address: token === 'cirBtc' ? CIRBTC_ADDRESS : (usdcFact.address as `0x${string}`),
+      address: token === 'cirBtc' ? addresses.cirBtc : addresses.usdc,
       abi: ERC20_APPROVE_ABI,
       functionName: 'approve',
-      args: [VAULT_ADDRESS, amount],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      args: [addresses.vault, amount],
+      chainId,
     })
   }
 

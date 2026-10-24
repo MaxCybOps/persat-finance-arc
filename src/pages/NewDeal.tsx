@@ -14,18 +14,14 @@ import {
   parseOnchainError,
 } from '../lib/utils'
 import { buildShareLink } from '../lib/share'
-import { REGISTRY_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
 import { REGISTRY_ABI } from '../contracts/abis'
-import { requireChain } from '@/onchain-facts'
-
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 type Tab = 'private' | 'public'
 type Role = 'borrower' | 'lender'
 
 export default function NewDeal() {
-  const { address, isConnected, chainId } = useAccount()
-  const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
+  const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
 
   const [tab, setTab] = useState<Tab>('private')
   const [role, setRole] = useState<Role>('borrower')
@@ -76,7 +72,7 @@ export default function NewDeal() {
   function submit() {
     if (!isValid || !address) return
     writeContract({
-      address: REGISTRY_ADDRESS,
+      address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'proposeDeal',
       args: [
@@ -92,7 +88,7 @@ export default function NewDeal() {
         tab === 'private' ? 0 : 1, // Visibility enum
         tab === 'private' ? salt : ('0x' + '00'.repeat(32) as `0x${string}`),
       ],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -275,7 +271,7 @@ export default function NewDeal() {
         </div>
       ) : isWrongChain ? (
         <div className="rounded-xl p-3 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-          Switch to Arc Testnet (chain ID 5042002)
+          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042002)
         </div>
       ) : (
         <Button

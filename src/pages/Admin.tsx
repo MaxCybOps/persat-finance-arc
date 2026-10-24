@@ -4,12 +4,7 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { parseUnits } from 'viem'
 import { toast } from 'sonner'
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
-import {
-  REGISTRY_ADDRESS,
-  VAULT_ADDRESS,
-  CIRBTC_ADDRESS,
-  ARC_TESTNET_CHAIN_ID,
-} from '../contracts/addresses'
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 const REGISTRY_ADMIN_ABI = [
   { name: 'vault',    type: 'function', stateMutability: 'view',       inputs: [],                                    outputs: [{ name: '', type: 'address' }] },
@@ -52,15 +47,13 @@ const input: React.CSSProperties = {
 }
 
 export default function Admin() {
-  const { address, chainId } = useAccount()
+  const { address, chainId, isWrongChain: wrongChain, addresses } = useArcNetwork()
   const [mintAmount, setMintAmount] = useState('1')
   const [mintTo, setMintTo]         = useState('')
 
-  const wrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
-
-  const { data: vaultSet,    refetch: refetchVault }   = useReadContract({ address: REGISTRY_ADDRESS, abi: REGISTRY_ADMIN_ABI, functionName: 'vault',     chainId: ARC_TESTNET_CHAIN_ID })
-  const { data: owner }                                = useReadContract({ address: REGISTRY_ADDRESS, abi: REGISTRY_ADMIN_ABI, functionName: 'owner',     chainId: ARC_TESTNET_CHAIN_ID })
-  const { data: cirBal,      refetch: refetchBal }     = useReadContract({ address: CIRBTC_ADDRESS,   abi: MOCK_ERC20_ABI,    functionName: 'balanceOf', args: [address ?? ZERO], chainId: ARC_TESTNET_CHAIN_ID, query: { enabled: !!address } })
+  const { data: vaultSet,    refetch: refetchVault }   = useReadContract({ address: addresses.registry, abi: REGISTRY_ADMIN_ABI, functionName: 'vault',     chainId })
+  const { data: owner }                                = useReadContract({ address: addresses.registry, abi: REGISTRY_ADMIN_ABI, functionName: 'owner',     chainId })
+  const { data: cirBal,      refetch: refetchBal }     = useReadContract({ address: addresses.cirBtc,   abi: MOCK_ERC20_ABI,    functionName: 'balanceOf', args: [address ?? ZERO], chainId, query: { enabled: !!address } })
 
   const { writeContract, data: txHash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
@@ -73,8 +66,8 @@ export default function Admin() {
 
   function doSetVault() {
     writeContract(
-      { address: REGISTRY_ADDRESS, abi: REGISTRY_ADMIN_ABI, functionName: 'setVault', args: [VAULT_ADDRESS], chainId: ARC_TESTNET_CHAIN_ID },
-      { onSuccess: () => toast.success('setVault submitted — confirming…'), onError: e => toast.error(e.message.slice(0, 120)) },
+      { address: addresses.registry, abi: REGISTRY_ADMIN_ABI, functionName: 'setVault', args: [addresses.vault], chainId },
+      { onSuccess: () => toast.success('setVault submitted (confirming)...'), onError: e => toast.error(e.message.slice(0, 120)) },
     )
   }
 
@@ -84,8 +77,8 @@ export default function Admin() {
     const n = parseFloat(mintAmount)
     if (!n || n <= 0) { toast.error('Invalid amount'); return }
     writeContract(
-      { address: CIRBTC_ADDRESS, abi: MOCK_ERC20_ABI, functionName: 'mint', args: [to, parseUnits(mintAmount, 8)], chainId: ARC_TESTNET_CHAIN_ID },
-      { onSuccess: () => toast.success('Mint submitted — confirming…'), onError: e => toast.error(e.message.slice(0, 120)) },
+      { address: addresses.cirBtc, abi: MOCK_ERC20_ABI, functionName: 'mint', args: [to, parseUnits(mintAmount, 8)], chainId },
+      { onSuccess: () => toast.success('Mint submitted (confirming)...'), onError: e => toast.error(e.message.slice(0, 120)) },
     )
   }
 

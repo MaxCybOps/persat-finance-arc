@@ -14,11 +14,8 @@ import {
   DealState,
   parseOnchainError,
 } from '../lib/utils'
-import { REGISTRY_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
 import { REGISTRY_ABI } from '../contracts/abis'
-import { requireChain } from '@/onchain-facts'
-
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 // Type for counter-offer form
 interface OfferForm {
@@ -35,8 +32,7 @@ function CounterOfferModal({
   dealId: `0x${string}`
   onClose: () => void
 }) {
-  const { chainId } = useAccount()
-  const isWrongChain = chainId !== ARC_TESTNET_CHAIN_ID
+  const { isWrongChain, addresses, chainId } = useArcNetwork()
   const [form, setForm] = useState<OfferForm>({ principal: '', collateral: '', rateBps: '', durationMonths: '' })
   const set = (k: keyof OfferForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -53,11 +49,11 @@ function CounterOfferModal({
   function submit() {
     if (!isValid) return
     writeContract({
-      address: REGISTRY_ADDRESS,
+      address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'submitCounterOffer',
       args: [dealId, principalRaw, collateralRaw, rateBpsRaw, duration],
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId,
     })
   }
 
@@ -128,23 +124,23 @@ function CounterOfferModal({
 
 // A single marketplace order card — reads live from the chain
 function OrderCard({ dealId }: { dealId: `0x${string}` }) {
-  const { address } = useAccount()
+  const { address, addresses, chainId } = useArcNetwork()
   const [showModal, setShowModal] = useState(false)
 
   const { data: deal } = useReadContract({
-    address: REGISTRY_ADDRESS,
+    address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getDeal',
     args: [dealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
   })
 
   const { data: offers } = useReadContract({
-    address: REGISTRY_ADDRESS,
+    address: addresses.registry,
     abi: REGISTRY_ABI,
     functionName: 'getCounterOffers',
     args: [dealId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId,
   })
 
   if (!deal || deal.state !== DealState.Proposed || deal.visibility !== 1) return null

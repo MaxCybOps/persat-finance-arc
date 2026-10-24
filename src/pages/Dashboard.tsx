@@ -27,10 +27,10 @@ import {
   Wallet,
 } from 'lucide-react'
 import { shortAddr } from '../lib/utils'
-import { REGISTRY_ADDRESS, ESCROW_VAULT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 export default function Dashboard() {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, isMainnet, chain, addresses } = useArcNetwork()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'claims'>('borrowed')
   const [jumpId, setJumpId] = useState('')
@@ -92,7 +92,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3 text-[11px] text-[#a58c7b]">
-            <span>Arc Testnet (5042002)</span>
+            <span>{isMainnet ? 'Arc Mainnet (5042)' : 'Arc Testnet (5042002)'}</span>
             <span>•</span>
             <span className="text-[#10b981]">Confidence: ±$4.20</span>
           </div>
@@ -467,7 +467,7 @@ export default function Dashboard() {
               </h3>
             </div>
             <a
-              href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
+              href={`${chain.explorerBase}/address/${addresses.registry}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1"

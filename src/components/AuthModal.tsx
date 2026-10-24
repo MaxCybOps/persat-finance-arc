@@ -12,7 +12,7 @@ import {
   Flame,
   Lock,
 } from 'lucide-react'
-import { ARC_TESTNET_CHAIN_ID } from '../contracts/addresses'
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -21,7 +21,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, destination = '/dashboard' }: AuthModalProps) {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, isMainnet, chainId } = useArcNetwork()
   const { setOpen: openConnectKit } = useModal()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
@@ -66,7 +66,7 @@ export default function AuthModal({ isOpen, onClose, destination = '/dashboard' 
                     {isConnected ? 'Wallet Connected' : 'Connect to Persat'}
                   </h3>
                   <p className="text-xs text-[#a58c7b]">
-                    Circle's Arc L1 (Chain ID: {ARC_TESTNET_CHAIN_ID})
+                    Circle's Arc L1 (Chain ID: {chainId})
                   </p>
                 </div>
               </div>
@@ -89,7 +89,7 @@ export default function AuthModal({ isOpen, onClose, destination = '/dashboard' 
                     </span>
                     <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] font-['Space_Grotesk'] text-[10px] font-bold">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
-                      Arc Testnet
+                      {isMainnet ? 'Arc Mainnet' : 'Arc Testnet'}
                     </span>
                   </div>
                   <div className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] break-all">
