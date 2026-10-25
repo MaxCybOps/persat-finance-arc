@@ -24,6 +24,7 @@ import {
 } from '../lib/utils'
 import { REGISTRY_ABI, VAULT_ABI, ERC20_APPROVE_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
+import { DealChat } from '../components/DealChat'
 
 // Computed once at module load — stable reference safe to use in render
 const PAGE_LOAD_SEC = Math.floor(new Date().valueOf() / 1000)
@@ -494,9 +495,18 @@ export default function ManageDeal() {
       )}
       {isConnected && isWrongChain && (
         <div className="mt-4 rounded-xl p-3 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-          Switch to Arc Testnet (chain ID 5042002)
+          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042002)
         </div>
       )}
+
+      {/* P2P Live Deal Chat & Coordination */}
+      <DealChat
+        dealId={normalizedDealId}
+        borrower={deal.borrower}
+        lender={deal.lender}
+        currentAddress={address}
+        dealStateLabel={dealStateLabel(deal.state)}
+      />
     </div>
   )
 }

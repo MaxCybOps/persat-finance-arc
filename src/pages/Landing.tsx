@@ -174,7 +174,8 @@ export default function Landing() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText('https://persat.finance/deal#8f9024a-arc-testnet')
+    const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://persat.finance'
+    navigator.clipboard.writeText(`${origin}/deal/claim/8f9024a-arc-testnet`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -982,7 +983,7 @@ export default function Landing() {
               </div>
 
               <div className="p-3 rounded-xl bg-[#241f1a] border border-[#564334]/30 flex items-center justify-between font-['Space_Grotesk'] text-xs text-[#a58c7b]">
-                <span className="truncate mr-2">persat.finance/deal#8f9024a...</span>
+                <span className="truncate mr-2">{typeof window !== 'undefined' ? window.location.host : 'persat.finance'}/deal/claim/8f9024a...</span>
                 <button
                   onClick={handleCopyLink}
                   className="text-[#ff8a00] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
