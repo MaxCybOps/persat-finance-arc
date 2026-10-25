@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Inbox,
   Share2,
+  MessageSquare,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -517,6 +518,15 @@ export default function Dashboard() {
 
                         <Link
                           to={`/deal/${deal.dealId}/manage`}
+                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
+                          title="Open Deal Negotiation Chat"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
+                          <span>Chat</span>
+                        </Link>
+
+                        <Link
+                          to={`/deal/${deal.dealId}/manage`}
                           className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
                         >
                           Manage Deal
@@ -575,12 +585,22 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <Link
-                        to={`/deal/${deal.dealId}/manage`}
-                        className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
-                      >
-                        View & Collect
-                      </Link>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={`/deal/${deal.dealId}/manage`}
+                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
+                          title="Open Deal Negotiation Chat"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
+                          <span>Chat</span>
+                        </Link>
+                        <Link
+                          to={`/deal/${deal.dealId}/manage`}
+                          className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
+                        >
+                          View & Collect
+                        </Link>
+                      </div>
                     </div>
                   ))
                 ) : (

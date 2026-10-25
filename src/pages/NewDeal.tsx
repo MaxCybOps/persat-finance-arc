@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { Copy, Check, Lock, Unlock, Info } from 'lucide-react'
+import { Copy, Check, Lock, Unlock, Info, ArrowRight, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Input, TxStatus } from '../components/ui'
 import {
@@ -17,6 +18,7 @@ import { buildShareLink } from '../lib/share'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { saveStoredDeal } from '../lib/dealStorage'
+import { DealChat } from '../components/DealChat'
 
 type Tab = 'private' | 'public'
 type Role = 'borrower' | 'lender'
@@ -320,7 +322,7 @@ export default function NewDeal() {
       {isSuccess && tab === 'private' && shareLink && (
         <Card className="mt-4">
           <p className="text-sm font-semibold mb-1" style={{ color: 'var(--success)' }}>
-            Deal proposed! Share this claim link:
+            Deal proposed on-chain! Share this claim link with your counterparty:
           </p>
           <div
             className="flex items-center gap-2 rounded-xl px-3 py-2 mt-2"
@@ -329,7 +331,7 @@ export default function NewDeal() {
             <code className="mono text-xs flex-1 truncate" style={{ color: 'var(--muted)' }}>
               {shareLink}
             </code>
-            <button onClick={() => void copyLink()} className="flex-shrink-0 p-1">
+            <button onClick={() => void copyLink()} className="flex-shrink-0 p-1 cursor-pointer">
               {copied ? (
                 <Check size={14} style={{ color: 'var(--success)' }} />
               ) : (
@@ -337,17 +339,57 @@ export default function NewDeal() {
               )}
             </button>
           </div>
-          <p className="text-xs mt-2" style={{ color: 'var(--subtle)' }}>
-            This link contains the salt needed to claim. It is single-use and cannot be regenerated.
+          <p className="text-xs mt-2 mb-3" style={{ color: 'var(--subtle)' }}>
+            This link contains the salt needed to claim and opens the counterparty deal negotiation channel.
           </p>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-[var(--border)]">
+            <Link to={`/deal/claim/${dealId}?salt=${salt}`} className="flex-1">
+              <Button variant="primary" size="sm" className="w-full flex items-center justify-center gap-1.5">
+                <MessageSquare size={14} />
+                <span>Open Deal & Live Chat Room</span>
+                <ArrowRight size={14} />
+              </Button>
+            </Link>
+            <Link to={`/deal/${dealId}/manage`} className="flex-1">
+              <Button variant="secondary" size="sm" className="w-full flex items-center justify-center gap-1.5">
+                <span>View in Escrow Manager</span>
+              </Button>
+            </Link>
+          </div>
         </Card>
+      )}
+
+      {/* Embedded Live Deal Chat */}
+      {isSuccess && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+            <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
+              Deal Negotiation & Chat Channel
+            </h3>
+          </div>
+          <p className="text-xs text-[#a58c7b] mb-2">
+            Your counterparty can join this room via the invitation link above. Send notes or coordinate loan terms right here:
+          </p>
+          <DealChat
+            dealId={dealId}
+            borrower={role === 'borrower' ? address! : ''}
+            lender={role === 'lender' ? address! : ''}
+            currentAddress={address}
+            dealStateLabel="Proposed"
+          />
+        </div>
       )}
 
       {isSuccess && tab === 'public' && (
         <Card className="mt-4">
-          <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>
+          <p className="text-sm font-semibold mb-2" style={{ color: 'var(--success)' }}>
             Your order is live on the marketplace.
           </p>
+          <Link to="/marketplace">
+            <Button variant="primary" size="sm">View on Marketplace &rarr;</Button>
+          </Link>
         </Card>
       )}
     </div>

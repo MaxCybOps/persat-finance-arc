@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { ConnectKitButton } from 'connectkit'
 import { LayoutDashboard, Plus, ShoppingCart, Bitcoin, Settings, Flame } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { FloatingChatDrawer } from './FloatingChatDrawer'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -82,6 +83,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Content */}
       <main className="flex-1 pb-20 md:pb-8">{children}</main>
+
+      {/* Global Floating P2P Deal Negotiation Drawer */}
+      <FloatingChatDrawer />
     </div>
   )
 }

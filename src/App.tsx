@@ -20,6 +20,7 @@ export default function App() {
         <Route path="/deal/claim/:token" element={<Layout><ClaimDeal /></Layout>} />
         <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
         <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
+        <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
         <Route path="/admin" element={<Layout><Admin /></Layout>} />
       </Routes>
     </BrowserRouter>
