@@ -1,8 +1,14 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { keccak256, encodePacked } from 'viem'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/** Deterministically derive salt for a private deal when reservedFor counterparty is known */
+export function deriveSaltForCounterparty(dealId: `0x${string}`, reservedFor: `0x${string}`): `0x${string}` {
+  return keccak256(encodePacked(['bytes16', 'address'], [dealId, reservedFor]))
 }
 
 /** Shorten an address for display: 0x1234...abcd */

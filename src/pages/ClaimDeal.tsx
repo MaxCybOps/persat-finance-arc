@@ -1,11 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
+  usePublicClient,
 } from 'wagmi'
-import { Shield, AlertTriangle, Sparkles, Copy, ArrowRight } from 'lucide-react'
+import { Shield, AlertTriangle, Sparkles, Copy, ArrowRight, CheckCircle2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Badge, Stat, TxStatus } from '../components/ui'
 import {
@@ -20,18 +21,21 @@ import {
   parseOnchainError,
   normalizeDealId,
   isValidDealId,
+  deriveSaltForCounterparty,
 } from '../lib/utils'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
-import { saveStoredDeal } from '../lib/dealStorage'
+import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
 import { DealChat } from '../components/DealChat'
+import { keccak256, encodeAbiParameters, parseAbiParameters, decodeFunctionData } from 'viem'
 
 export default function ClaimDeal() {
   const { token: dealIdParam } = useParams<{ token: string }>()
   const [searchParams] = useSearchParams()
-  const salt = searchParams.get('salt') as `0x${string}` | null
+  const saltParam = searchParams.get('salt') as `0x${string}` | null
 
   const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
+  const publicClient = usePublicClient({ chainId })
 
   const hasValidId = isValidDealId(dealIdParam)
   const normalizedDealId = normalizeDealId(dealIdParam)
@@ -48,14 +52,77 @@ export default function ClaimDeal() {
     },
   })
 
+  // Recover salt if missing from URL params
+  const [recoveredSalt, setRecoveredSalt] = useState<`0x${string}` | null>(null)
+
+  useEffect(() => {
+    if (saltParam || !deal) return
+
+    // 1. Try localStorage
+    const storedDeals = getStoredDeals(chainId)
+    const stored = storedDeals.find((d) => d.dealId.toLowerCase() === normalizedDealId.toLowerCase())
+    if (stored?.salt) {
+      setRecoveredSalt(stored.salt)
+      return
+    }
+
+    // 2. If private and reservedFor matches current user, try derived salt
+    if (deal.visibility === 0 && deal.reservedFor && deal.reservedFor !== '0x0000000000000000000000000000000000000000') {
+      const candidate = deriveSaltForCounterparty(normalizedDealId, deal.reservedFor)
+      const expectedToken = keccak256(
+        encodeAbiParameters(parseAbiParameters('bytes16, bytes32'), [normalizedDealId, candidate])
+      )
+      if (expectedToken.toLowerCase() === deal.claimToken.toLowerCase()) {
+        setRecoveredSalt(candidate)
+        return
+      }
+    }
+  }, [saltParam, deal, normalizedDealId, chainId])
+
+  // Public deals use empty salt (bytes32(0))
+  const emptySalt = ('0x' + '00'.repeat(32)) as `0x${string}`
+  const effectiveSalt: `0x${string}` | null =
+    saltParam ||
+    recoveredSalt ||
+    (deal && deal.visibility === 1 ? emptySalt : null)
+
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const [receiptConfirmed, setReceiptConfirmed] = useState(false)
+
+  const { isSuccess: isWagmiSuccess } = useWaitForTransactionReceipt({
     hash,
     chainId,
     query: {
       enabled: Boolean(hash),
     },
   })
+
+  // Fast direct receipt polling
+  useEffect(() => {
+    if (!hash || receiptConfirmed || !publicClient) return
+    let active = true
+    const interval = setInterval(async () => {
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash })
+        if (receipt && receipt.status === 'success' && active) {
+          setReceiptConfirmed(true)
+          clearInterval(interval)
+          void refetch()
+          toast.success('Deal sealed on-chain successfully!')
+        }
+      } catch {
+        // Pending
+      }
+    }, 1000)
+
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [hash, receiptConfirmed, publicClient, refetch])
+
+  const isSuccess = isWagmiSuccess || receiptConfirmed
+  const isConfirming = Boolean(hash) && !isSuccess
 
   useEffect(() => {
     if (isSuccess) {
@@ -65,7 +132,7 @@ export default function ClaimDeal() {
         const role = borrowerSet ? 'lender' : 'borrower'
         saveStoredDeal({
           dealId: normalizedDealId,
-          salt: salt ?? undefined,
+          salt: effectiveSalt ?? undefined,
           role,
           principal: formatUsdc(deal.principal),
           collateral: formatBtc(deal.collateral),
@@ -77,17 +144,17 @@ export default function ClaimDeal() {
         })
       }
     }
-  }, [isSuccess, refetch, deal, address, normalizedDealId, salt, chainId])
+  }, [isSuccess, refetch, deal, address, normalizedDealId, effectiveSalt, chainId])
 
-  if (!dealIdParam || !salt) {
+  if (!hasValidId) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <AlertTriangle size={40} className="mx-auto mb-4" style={{ color: 'var(--danger)' }} />
         <h2 className="display text-xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
-          Invalid claim link
+          Invalid Deal ID
         </h2>
         <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-          This link is missing required parameters. Ask the deal creator to resend it.
+          The provided deal ID is not recognized. Please check the URL or ask the creator to resend.
         </p>
       </div>
     )
@@ -109,11 +176,31 @@ export default function ClaimDeal() {
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <AlertTriangle size={40} className="mx-auto mb-4" style={{ color: 'var(--danger)' }} />
         <h2 className="display text-xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
-          Deal not found
+          Deal Not Found
         </h2>
         <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-          No active deal was found for ID <code className="mono">{dealIdParam.slice(0, 18)}...</code> on {chain?.name ?? 'Arc'}. The link may be expired, already claimed, or was created on another network.
+          No active deal was found for ID <code className="mono">{dealIdParam?.slice(0, 18)}...</code> on {chain?.name ?? 'Arc'}.
         </p>
+      </div>
+    )
+  }
+
+  // If deal is private and salt is completely missing
+  if (deal.visibility === 0 && !effectiveSalt) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <Lock size={40} className="mx-auto mb-4 text-[#ff8a00]" />
+        <h2 className="display text-xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
+          Private Deal Claim Link Required
+        </h2>
+        <p className="text-sm mb-4" style={{ color: 'var(--subtle)' }}>
+          This is a private deal encrypted with a secret salt. Please ask the deal creator to send you their full invitation link containing the salt parameter.
+        </p>
+        <Link to="/dashboard">
+          <Button variant="secondary" size="sm">
+            Back to Dashboard
+          </Button>
+        </Link>
       </div>
     )
   }
@@ -121,7 +208,7 @@ export default function ClaimDeal() {
   const alreadyClaimed = deal.state !== DealState.Proposed
   const { interest, total } = computeRepayment(deal.principal, deal.rateBps, deal.durationMonths)
 
-  // Determine which role the claimer will take
+  // Determine roles
   const borrowerSet = deal.borrower !== '0x0000000000000000000000000000000000000000'
   const claimerRole = borrowerSet ? 'lender' : 'borrower'
 
@@ -142,12 +229,12 @@ export default function ClaimDeal() {
     address?.toLowerCase() !== deal.reservedFor.toLowerCase()
 
   function claim() {
-    if (!hasValidId || !salt || !address) return
+    if (!hasValidId || !effectiveSalt || !address) return
     writeContract({
       address: addresses.registry,
       abi: REGISTRY_ABI,
       functionName: 'claimDeal',
-      args: [normalizedDealId, salt],
+      args: [normalizedDealId, effectiveSalt],
       chainId,
     })
   }
@@ -185,7 +272,7 @@ export default function ClaimDeal() {
           <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
             {alreadyClaimed
               ? 'This deal has been sealed on-chain and terms are locked.'
-              : `Share this invitation link with your counterparty (${claimerRole}) so they can connect and seal the deal.`}
+              : `Share this invitation link with your counterparty (${claimerRole}) so they can connect their wallet and seal the deal.`}
           </p>
           <div className="flex items-center gap-2">
             <input
@@ -211,10 +298,28 @@ export default function ClaimDeal() {
         </Card>
       )}
 
-      {/* Terms */}
+      {/* Human-Readable Agreement Terms Summary */}
+      <Card className="mb-4 bg-[#120d0a] border border-[#ff8a00]/40">
+        <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-[#ff8a00]">
+          📋 Agreement Terms Overview
+        </p>
+        <div className="text-xs text-[#ddc1ae] space-y-1.5">
+          <p>
+            • <strong>Borrower:</strong> <code className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</code> is locking <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral.
+          </p>
+          <p>
+            • <strong>Lender:</strong> Supplies <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earns <strong className="text-[#10b981]">{formatBps(deal.rateBps)} fixed APR</strong> over <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
+          </p>
+          <p className="text-[#a58c7b]">
+            • <strong>Security:</strong> Collateral is held non-custodially in smart contract escrow until loan repayment.
+          </p>
+        </div>
+      </Card>
+
+      {/* Terms Stats */}
       <Card className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--subtle)' }}>
-          Loan Terms
+          Loan Stats
         </p>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <Stat label="Principal" value={`$${formatUsdc(deal.principal)}`} />
@@ -248,54 +353,37 @@ export default function ClaimDeal() {
         </p>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span style={{ color: 'var(--subtle)' }}>Proposer ({borrowerSet ? 'Borrower' : 'Lender'})</span>
-            <code className="mono" style={{ color: 'var(--muted)' }}>
-              {shortAddr(borrowerSet ? deal.borrower : deal.lender)}
+            <span style={{ color: 'var(--subtle)' }}>Borrower</span>
+            <code className="mono text-xs" style={{ color: 'var(--ink)' }}>
+              {deal.borrower === '0x0000000000000000000000000000000000000000'
+                ? '(to be filled on claim)'
+                : shortAddr(deal.borrower)}
             </code>
           </div>
           <div className="flex justify-between">
-            <span style={{ color: 'var(--subtle)' }}>
-              {isProposer ? 'Your Status' : `You will be (${claimerRole})`}
-            </span>
-            <code className="mono" style={{ color: isProposer ? 'var(--brand)' : 'var(--accent)' }}>
-              {isProposer
-                ? `Creator (${isBorrower ? 'Borrower' : 'Lender'})`
-                : isConnected
-                ? shortAddr(address!)
-                : '— connect wallet'}
+            <span style={{ color: 'var(--subtle)' }}>Lender</span>
+            <code className="mono text-xs" style={{ color: 'var(--ink)' }}>
+              {deal.lender === '0x0000000000000000000000000000000000000000'
+                ? '(to be filled on claim)'
+                : shortAddr(deal.lender)}
             </code>
           </div>
           {deal.reservedFor !== '0x0000000000000000000000000000000000000000' && (
             <div className="flex justify-between">
               <span style={{ color: 'var(--subtle)' }}>Reserved for</span>
-              <code className="mono" style={{ color: 'var(--muted)' }}>
+              <code className="mono text-xs text-[#ff8a00]">
                 {shortAddr(deal.reservedFor)}
               </code>
             </div>
           )}
+          <div className="flex justify-between pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <span style={{ color: 'var(--subtle)' }}>Connected wallet</span>
+            <code className="mono text-xs" style={{ color: 'var(--ink)' }}>
+              {address ? shortAddr(address) : 'Not connected'}
+            </code>
+          </div>
         </div>
       </Card>
-
-      {/* Warnings */}
-      {isReservedForOther && isConnected && (
-        <div
-          className="flex items-center gap-2 rounded-xl px-4 py-3 mb-4 text-sm"
-          style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)', border: '1px solid var(--danger)' }}
-        >
-          <AlertTriangle size={14} />
-          This link is reserved for a specific wallet address ({shortAddr(deal.reservedFor)}). Your connected wallet is not authorised to claim it.
-        </div>
-      )}
-
-      {alreadyClaimed && !isSuccess && (
-        <div
-          className="flex items-center gap-2 rounded-xl px-4 py-3 mb-4 text-sm"
-          style={{ background: 'var(--surface-muted)', color: 'var(--muted)' }}
-        >
-          <Shield size={14} />
-          This deal has already been sealed and claimed (state: {dealStateLabel(deal.state)}).
-        </div>
-      )}
 
       {/* CTA Section */}
       {!isConnected ? (
@@ -324,6 +412,10 @@ export default function ClaimDeal() {
             Awaiting Counterparty ({claimerRole}) Acceptance...
           </Button>
         )
+      ) : isReservedForOther ? (
+        <div className="rounded-xl p-3 text-sm text-center bg-red-950/40 border border-red-500/40 text-red-300">
+          ⚠️ This deal is reserved for address {shortAddr(deal.reservedFor)}. Please switch to that wallet to seal this deal.
+        </div>
       ) : alreadyClaimed ? (
         <Link to={`/deal/manage/${normalizedDealId}`}>
           <Button variant="primary" size="lg" className="w-full flex items-center justify-center gap-2">
@@ -336,13 +428,13 @@ export default function ClaimDeal() {
           variant="primary"
           size="lg"
           className="w-full"
-          disabled={isReservedForOther || isPending || isConfirming || isSuccess}
+          disabled={isPending || isConfirming || isSuccess}
           onClick={claim}
         >
           {isPending
             ? 'Confirm in wallet...'
             : isConfirming
-            ? 'Confirming on Arc...'
+            ? 'Confirming on Arc Testnet...'
             : isSuccess
             ? 'Deal Confirmed!'
             : `Accept & Seal Deal as ${claimerRole}`}
@@ -359,9 +451,10 @@ export default function ClaimDeal() {
 
       {isSuccess && (
         <Card className="mt-4 border border-[var(--success)]/40 bg-[var(--surface-muted)]">
-          <p className="font-semibold text-sm mb-1" style={{ color: 'var(--success)' }}>
-            Deal successfully sealed on-chain!
-          </p>
+          <div className="flex items-center gap-2 mb-1 text-[var(--success)] font-semibold text-sm">
+            <CheckCircle2 size={16} />
+            <span>Deal successfully sealed on-chain!</span>
+          </div>
           <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
             Both parties are now registered on-chain. Terms are permanently locked in the Persat Escrow Vault.
           </p>

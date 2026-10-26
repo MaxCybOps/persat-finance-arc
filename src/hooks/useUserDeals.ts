@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePublicClient } from 'wagmi'
-import { parseAbiItem } from 'viem'
+import { parseAbiItem, decodeFunctionData, keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { useArcNetwork } from './useArcNetwork'
 import { REGISTRY_ABI } from '../contracts/abis'
-import { getStoredDeals, StoredDeal } from '../lib/dealStorage'
-import { normalizeDealId, DealState } from '../lib/utils'
+import { getStoredDeals, saveStoredDeal, StoredDeal } from '../lib/dealStorage'
+import { normalizeDealId, DealState, deriveSaltForCounterparty } from '../lib/utils'
 
 export interface LiveDeal {
   dealId: `0x${string}`
@@ -91,12 +91,14 @@ export function useUserDeals() {
       // Collect all unique deal IDs from logs and localStorage
       const dealIdSet = new Set<string>()
       const blockMap = new Map<string, bigint>()
+      const txMap = new Map<string, `0x${string}`>()
 
       for (const log of proposedLogs) {
         if (log.args?.dealId) {
           const id = normalizeDealId(log.args.dealId).toLowerCase()
           dealIdSet.add(id)
           if (log.blockNumber) blockMap.set(id, log.blockNumber)
+          if (log.transactionHash) txMap.set(id, log.transactionHash)
         }
       }
 
@@ -121,6 +123,51 @@ export function useUserDeals() {
             if (raw.borrower === '0x0000000000000000000000000000000000000000') return
 
             const storedInfo = storedMap.get(idLower)
+            let salt = storedInfo?.salt
+
+            // If private deal and salt is missing, recover it so counterparty can claim seamlessly
+            if (!salt && raw.visibility === 0 && raw.state === DealState.Proposed) {
+              // 1. Check deterministic derived salt if reservedFor is set
+              if (raw.reservedFor && raw.reservedFor !== '0x0000000000000000000000000000000000000000') {
+                const candidate = deriveSaltForCounterparty(raw.dealId, raw.reservedFor)
+                const expectedToken = keccak256(
+                  encodeAbiParameters(parseAbiParameters('bytes16, bytes32'), [raw.dealId, candidate])
+                )
+                if (expectedToken.toLowerCase() === raw.claimToken.toLowerCase()) {
+                  salt = candidate
+                }
+              }
+
+              // 2. If still not found, recover salt directly from the proposing transaction input
+              if (!salt && txMap.has(idLower)) {
+                try {
+                  const tx = await publicClient.getTransaction({ hash: txMap.get(idLower)! })
+                  const decoded = decodeFunctionData({ abi: REGISTRY_ABI, data: tx.input })
+                  if (decoded.functionName === 'proposeDeal' && decoded.args?.[8]) {
+                    salt = decoded.args[8] as `0x${string}`
+                  }
+                } catch {
+                  // Ignore recovery error
+                }
+              }
+
+              // Cache recovered salt into local storage so it persists
+              if (salt) {
+                saveStoredDeal({
+                  dealId: raw.dealId,
+                  salt,
+                  role: address && raw.borrower.toLowerCase() === address.toLowerCase() ? 'borrower' : 'lender',
+                  principal: (Number(raw.principal) / 1e6).toString(),
+                  collateral: (Number(raw.collateral) / 1e8).toString(),
+                  rateBps: (Number(raw.rateBps) / 100).toString(),
+                  durationMonths: raw.durationMonths,
+                  visibility: 'private',
+                  reservedFor: raw.reservedFor,
+                  chainId,
+                  createdAt: Date.now(),
+                })
+              }
+            }
 
             dealList.push({
               dealId: raw.dealId,
@@ -137,7 +184,7 @@ export function useUserDeals() {
               reservedFor: raw.reservedFor,
               activatedAt: raw.activatedAt,
               blockNumber: blockMap.get(idLower),
-              salt: storedInfo?.salt,
+              salt,
             })
           } catch {
             // Deal does not exist on this chain
