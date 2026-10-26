@@ -64,27 +64,34 @@ export function useUserDeals() {
         ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
         : deploymentBlock
 
-      // 1. Fetch DealProposed events in paginated chunks to stay within RPC limits
+      // 1. Fetch DealProposed events scanning BACKWARDS from latestBlock (newest first)
       let proposedLogs: any[] = []
 
       if (latestBlock > 0n) {
-        let cursor = scanStart
-        while (cursor <= latestBlock) {
-          const chunkEnd = cursor + LOG_CHUNK_SIZE - 1n > latestBlock
-            ? latestBlock
-            : cursor + LOG_CHUNK_SIZE - 1n
+        let toBlock = latestBlock
+        const minBlock = scanStart
+        let chunksScanned = 0
+        const MAX_CHUNKS = 8 // ~36,000 blocks covers recent activity safely
+
+        while (toBlock > minBlock && chunksScanned < MAX_CHUNKS) {
+          const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < minBlock
+            ? minBlock
+            : toBlock - LOG_CHUNK_SIZE + 1n
           try {
             const logs = await publicClient.getLogs({
               address: addresses.registry,
               event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
-              fromBlock: cursor,
-              toBlock: chunkEnd,
+              fromBlock,
+              toBlock,
             })
             proposedLogs = proposedLogs.concat(logs)
           } catch (logErr) {
-            console.warn(`getLogs chunk ${cursor}-${chunkEnd} failed:`, logErr)
+            console.warn(`getLogs chunk ${fromBlock}-${toBlock} failed:`, logErr)
           }
-          cursor = chunkEnd + 1n
+          toBlock = fromBlock - 1n
+          chunksScanned++
+          // 80ms delay between chunks to stay strictly within Arc RPC rate limits
+          await new Promise((r) => setTimeout(r, 80))
         }
       }
 
@@ -207,7 +214,7 @@ export function useUserDeals() {
     } finally {
       setIsLoading(false)
     }
-  }, [publicClient, addresses.registry, chainId, isMainnet])
+  }, [publicClient, addresses.registry, chainId, isMainnet, address])
 
   useEffect(() => {
     void fetchDeals()

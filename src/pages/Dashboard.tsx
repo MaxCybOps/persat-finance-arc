@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -96,6 +96,13 @@ export default function Dashboard() {
     toast.success('Deal claim link copied to clipboard!')
     setTimeout(() => setCopiedDealId(null), 2500)
   }
+
+  // Automatically focus on incoming invitations if counterparty arrives to accept a deal
+  useEffect(() => {
+    if (incomingDeals.length > 0 && borrowedDeals.length === 0) {
+      setActiveTab('incoming')
+    }
+  }, [incomingDeals.length, borrowedDeals.length])
 
   return (
     <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] pb-16">
@@ -203,7 +210,7 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <p className="text-xs text-[#ddc1ae]">
-                    Counterparty <strong className="text-[#ebe0d9]">{shortAddr(incomingDeals[0].borrower)}</strong> created a deal reserved exclusively for your address.
+                    Counterparty <strong className="text-[#ebe0d9]">{shortAddr(incomingDeals[0].borrower)}</strong> created a deal: <strong className="text-[#ff8a00]">${formatUsdc(incomingDeals[0].principal)} USDC</strong> principal at <strong className="text-[#10b981]">{formatBps(incomingDeals[0].rateBps)} fixed APR</strong> ({incomingDeals[0].durationMonths}mo) backed by <strong className="text-[#ebe0d9]">{formatBtc(incomingDeals[0].collateral)} cirBTC</strong> collateral.
                   </p>
                 </div>
               </div>

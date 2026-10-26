@@ -1,6 +1,7 @@
-﻿export async function addArcNetwork(type: "testnet" | "mainnet") {
-  if (typeof window === "undefined" || !window.ethereum) {
-    alert("MetaMask or Web3 wallet not detected. Please install MetaMask.");
+export async function addArcNetwork(type: "testnet" | "mainnet") {
+  const provider = typeof window !== "undefined" ? ((window as any).ethereum || (window as any).okxwallet) : null;
+  if (!provider) {
+    alert("Web3 wallet (MetaMask or OKX) not detected. Please install a Web3 wallet.");
     return false;
   }
 
@@ -12,16 +13,16 @@
 
   try {
     // Attempt switch first
-    await window.ethereum.request({
+    await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: chainIdHex }],
     });
     return true;
   } catch (switchError: any) {
-    // Error code 4902 means the chain has not been added to MetaMask yet
+    // Error code 4902 means the chain has not been added to the wallet yet
     if (switchError.code === 4902 || switchError?.message?.includes("Unrecognized chain")) {
       try {
-        await window.ethereum.request({
+        await provider.request({
           method: "wallet_addEthereumChain",
           params: [
             {
