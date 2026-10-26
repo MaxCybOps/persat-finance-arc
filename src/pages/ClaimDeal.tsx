@@ -61,10 +61,12 @@ export default function ClaimDeal() {
     if (isSuccess) {
       void refetch()
       if (deal && address) {
+        const borrowerSet = deal.borrower !== '0x0000000000000000000000000000000000000000'
+        const role = borrowerSet ? 'lender' : 'borrower'
         saveStoredDeal({
           dealId: normalizedDealId,
           salt: salt ?? undefined,
-          role: claimerRole,
+          role,
           principal: formatUsdc(deal.principal),
           collateral: formatBtc(deal.collateral),
           rateBps: (Number(deal.rateBps) / 100).toString(),
@@ -75,7 +77,7 @@ export default function ClaimDeal() {
         })
       }
     }
-  }, [isSuccess, refetch, deal, address, normalizedDealId, salt, claimerRole, chainId])
+  }, [isSuccess, refetch, deal, address, normalizedDealId, salt, chainId])
 
   if (!dealIdParam || !salt) {
     return (

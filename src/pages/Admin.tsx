@@ -105,8 +105,8 @@ export default function Admin() {
       <div style={card}>
         <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>Contract Status</p>
         {[
-          { label: 'Registry', value: REGISTRY_ADDRESS },
-          { label: 'Vault',    value: VAULT_ADDRESS },
+          { label: 'Registry', value: addresses.registry },
+          { label: 'Vault',    value: addresses.vault },
         ].map(r => (
           <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, fontSize: 13 }}>
             <span style={{ color: 'var(--subtle)' }}>{r.label}</span>

@@ -458,6 +458,30 @@ export default function Dashboard() {
                   />
                 )}
               </button>
+
+              <button
+                onClick={() => setActiveTab('incoming')}
+                className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
+                  activeTab === 'incoming'
+                    ? 'text-[#ff8a00]'
+                    : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
+                }`}
+              >
+                <span>Incoming Invitations</span>
+                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] ${
+                  incomingDeals.length > 0
+                    ? 'bg-[#ff8a00]/20 text-[#ff8a00] font-bold animate-pulse'
+                    : 'bg-[#241f1a] text-[#a58c7b]'
+                }`}>
+                  {incomingDeals.length}
+                </span>
+                {activeTab === 'incoming' && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff8a00]"
+                  />
+                )}
+              </button>
             </div>
 
             <div className="hidden sm:flex items-center gap-2 pb-4 text-xs text-[#a58c7b]">
@@ -618,6 +642,90 @@ export default function Dashboard() {
                     >
                       Explore Marketplace
                     </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'incoming' && (
+              <div className="space-y-4">
+                {incomingDeals.length > 0 ? (
+                  incomingDeals.map((deal) => (
+                    <div
+                      key={deal.dealId}
+                      className="p-5 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 hover:border-[#ff8a00] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,138,0,0.1)]"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/20 border border-[#ff8a00]/40 flex items-center justify-center text-[#ff8a00] shrink-0">
+                          <Inbox className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                              Loan Invitation
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold bg-[#ff8a00]/15 text-[#ff8a00] border border-[#ff8a00]/30">
+                              AWAITING YOUR REVIEW
+                            </span>
+                          </div>
+
+                          {/* Human-readable contract summary */}
+                          <div className="mt-2 p-3 rounded-xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#ddc1ae] space-y-1.5">
+                            <p className="text-[#ebe0d9] font-semibold">📋 Proposed Loan Agreement Terms:</p>
+                            <p>
+                              <strong className="text-[#ff8a00]">Borrower:</strong>{' '}
+                              <code className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</code> is requesting a loan
+                              and will deposit <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral.
+                            </p>
+                            <p>
+                              <strong className="text-[#ff8a00]">You (Lender):</strong> Would supply{' '}
+                              <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a guaranteed{' '}
+                              <strong className="text-[#10b981]">{formatBps(deal.rateBps)} fixed APR</strong> over{' '}
+                              <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
+                            </p>
+                            <p className="text-[#a58c7b]">
+                              ⏱ If the borrower fails to repay, you may claim their{' '}
+                              <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral (fully insured by smart contract escrow).
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-[#a58c7b]">
+                            <span>Deal ID: <code className="text-[#ebe0d9]">{deal.dealId.slice(0, 10)}...</code></span>
+                            <span>•</span>
+                            <span>From: <strong className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
+                        <Link
+                          to={`/deal/${deal.dealId}/manage`}
+                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
+                          <span>Chat with Borrower</span>
+                        </Link>
+                        <Link
+                          to={`/deal/claim/${deal.dealId}${deal.salt ? `?salt=${deal.salt}` : ''}`}
+                          className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                        >
+                          Review & Accept Deal →
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-[#a58c7b]">
+                    <Inbox className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
+                    <h4 className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] mb-1">
+                      No Pending Invitations
+                    </h4>
+                    <p className="text-xs max-w-sm mx-auto mb-2 text-[#ddc1ae]">
+                      When someone creates a loan deal reserved for your wallet address, it will appear here automatically. You can also receive a claim link directly from the borrower.
+                    </p>
+                    <p className="text-[11px] text-[#a58c7b]">
+                      Your receiving address: <code className="text-[#ebe0d9] font-bold">{address ? shortAddr(address) : '—'}</code>
+                    </p>
                   </div>
                 )}
               </div>

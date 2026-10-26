@@ -1,8 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ConnectKitButton } from 'connectkit'
-import { LayoutDashboard, Plus, ShoppingCart, Bitcoin, Settings, Flame } from 'lucide-react'
+import { useAccount, useChainId } from 'wagmi'
+import { LayoutDashboard, Plus, ShoppingCart, Settings, Flame, Wifi } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { FloatingChatDrawer } from './FloatingChatDrawer'
+import { addArcNetwork } from '../lib/networkUtils'
+import { useState } from 'react'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -11,11 +14,43 @@ const NAV = [
   { to: '/admin', label: 'Setup', icon: Settings },
 ]
 
+// Accepted Arc chain IDs
+const ARC_CHAIN_IDS = [5042, 5042002]
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  const { isConnected } = useAccount()
+  const chainId = useChainId()
+  const [addingNetwork, setAddingNetwork] = useState(false)
+
+  const isOnArc = ARC_CHAIN_IDS.includes(chainId)
+  const showNetworkButton = isConnected && !isOnArc
+
+  const handleAddNetwork = async () => {
+    setAddingNetwork(true)
+    try {
+      await addArcNetwork('testnet')
+    } finally {
+      setAddingNetwork(false)
+    }
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-[#17120f] text-[#ebe0d9]">
+      {/* Wrong network banner */}
+      {showNetworkButton && (
+        <div className="w-full bg-red-900/40 border-b border-red-500/40 px-4 py-2.5 flex items-center justify-center gap-3 text-sm">
+          <span className="text-red-300 font-semibold">⚠️ Wrong Network Detected</span>
+          <button
+            onClick={handleAddNetwork}
+            disabled={addingNetwork}
+            className="px-4 py-1.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {addingNetwork ? 'Adding...' : 'Switch to Arc Testnet'}
+          </button>
+        </div>
+      )}
+
       {/* Nav */}
       <header
         className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6 h-16 border-b"
@@ -57,8 +92,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* Wallet */}
+        {/* Wallet + Add Network */}
         <div className="flex items-center gap-2">
+          {isConnected && !isOnArc && (
+            <button
+              onClick={handleAddNetwork}
+              disabled={addingNetwork}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] font-['Space_Grotesk'] text-[11px] font-bold border border-[#ff8a00]/40 hover:bg-[#ff8a00]/25 transition-colors cursor-pointer"
+            >
+              <Wifi size={12} />
+              {addingNetwork ? 'Adding...' : 'Add Arc Network'}
+            </button>
+          )}
           <ConnectKitButton />
         </div>
       </header>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePublicClient } from 'wagmi'
 import { parseAbiItem } from 'viem'
 import { useArcNetwork } from './useArcNetwork'
@@ -24,6 +24,11 @@ export interface LiveDeal {
   salt?: `0x${string}`
 }
 
+// Max blocks the Arc RPC allows per getLogs call
+const LOG_CHUNK_SIZE = 4500n
+// How far back to scan (covers ~14 hours at 1 block/sec)
+const MAX_SCAN_DEPTH = 50000n
+
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
   const publicClient = usePublicClient({ chainId })
@@ -45,19 +50,42 @@ export function useUserDeals() {
         storedMap.set(s.dealId.toLowerCase(), s)
       }
 
-      // Deployment start blocks for fast log scanning
-      const fromBlock = isMainnet ? 27635000n : 68860000n
-
-      // 1. Fetch DealProposed events from the registry
-      let proposedLogs: any[] = []
+      // ─── Dynamic block range: fetch latest block and scan in chunks ───
+      let latestBlock: bigint
       try {
-        proposedLogs = await publicClient.getLogs({
-          address: addresses.registry,
-          event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
-          fromBlock,
-        })
-      } catch (logErr) {
-        console.warn('Could not query getLogs for DealProposed:', logErr)
+        latestBlock = await publicClient.getBlockNumber()
+      } catch {
+        latestBlock = 0n
+      }
+
+      // Absolute minimum from deployment
+      const deploymentBlock = isMainnet ? 27635000n : 68860000n
+      const scanStart = latestBlock > MAX_SCAN_DEPTH
+        ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
+        : deploymentBlock
+
+      // 1. Fetch DealProposed events in paginated chunks to stay within RPC limits
+      let proposedLogs: any[] = []
+
+      if (latestBlock > 0n) {
+        let cursor = scanStart
+        while (cursor <= latestBlock) {
+          const chunkEnd = cursor + LOG_CHUNK_SIZE - 1n > latestBlock
+            ? latestBlock
+            : cursor + LOG_CHUNK_SIZE - 1n
+          try {
+            const logs = await publicClient.getLogs({
+              address: addresses.registry,
+              event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
+              fromBlock: cursor,
+              toBlock: chunkEnd,
+            })
+            proposedLogs = proposedLogs.concat(logs)
+          } catch (logErr) {
+            console.warn(`getLogs chunk ${cursor}-${chunkEnd} failed:`, logErr)
+          }
+          cursor = chunkEnd + 1n
+        }
       }
 
       // Collect all unique deal IDs from logs and localStorage
@@ -88,6 +116,9 @@ export function useUserDeals() {
               functionName: 'getDeal',
               args: [idLower as `0x${string}`],
             })) as any
+
+            // Skip zeroed-out / non-existent deals
+            if (raw.borrower === '0x0000000000000000000000000000000000000000') return
 
             const storedInfo = storedMap.get(idLower)
 

@@ -32,7 +32,7 @@ function CounterOfferModal({
   dealId: `0x${string}`
   onClose: () => void
 }) {
-  const { isWrongChain, addresses, chainId } = useArcNetwork()
+  const { isWrongChain, addresses, chainId, chain } = useArcNetwork()
   const [form, setForm] = useState<OfferForm>({ principal: '', collateral: '', rateBps: '', durationMonths: '' })
   const set = (k: keyof OfferForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
