@@ -49,7 +49,8 @@ export default function ClaimDeal() {
     chainId,
     query: {
       enabled: hasValidId,
-      retry: false,
+      retry: 3,
+      retryDelay: 1500,
     },
   })
 
@@ -179,9 +180,24 @@ export default function ClaimDeal() {
         <h2 className="display text-xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
           Deal Not Found
         </h2>
-        <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-          No active deal was found for ID <code className="mono">{dealIdParam?.slice(0, 18)}...</code> on {chain?.name ?? 'Arc'}.
+        <p className="text-sm mb-2" style={{ color: 'var(--subtle)' }}>
+          No deal was found for ID{' '}
+          <code className="mono text-xs" style={{ color: 'var(--accent)' }}>
+            {dealIdParam?.slice(0, 18)}...
+          </code>{' '}
+          on {chain?.name ?? 'Arc Testnet'}.
         </p>
+        <p className="text-xs mb-6" style={{ color: 'var(--subtle)' }}>
+          Make sure your wallet is connected to Arc Testnet (Chain ID 5042002). If you just received this link, the deal may still be confirming — wait a few seconds and try again.
+        </p>
+        <div className="flex gap-3 justify-center">
+          <Button variant="primary" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+          <Link to="/dashboard">
+            <Button variant="secondary" size="sm">Dashboard</Button>
+          </Link>
+        </div>
       </div>
     )
   }
