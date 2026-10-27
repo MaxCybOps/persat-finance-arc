@@ -626,3 +626,9 @@
 {"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086907637}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086907759}
 {"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086907760}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793088020644}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793088439027}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793088482941}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793088482942}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793088482942}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793088482942}

@@ -1,47 +1,57 @@
 // oxlint-disable
 export async function addArcNetwork(type: "testnet" | "mainnet") {
-  const provider = typeof window !== "undefined" ? ((window as any).ethereum || (window as any).okxwallet) : null;
+  // Try every known provider injection point
+  const provider =
+    typeof window !== "undefined"
+      ? ((window as any).okxwallet ||
+         (window as any).ethereum ||
+         (window as any).web3?.currentProvider)
+      : null;
+
   if (!provider) {
-    alert("Web3 wallet (MetaMask or OKX) not detected. Please install a Web3 wallet.");
+    alert("No Web3 wallet detected. Please install MetaMask or OKX wallet.");
     return false;
   }
 
   const isTestnet = type === "testnet";
-  const chainIdHex = isTestnet ? "0x4CEF72" : "0x13B2"; // 5042002 or 5042
+  const chainIdHex = isTestnet ? "0x4CEF52" : "0x13B2"; // 5042002 = 0x4CEF52, 5042 = 0x13B2
   const chainName = isTestnet ? "Arc Testnet" : "Arc Mainnet";
-  const rpcUrl = isTestnet ? "https://rpc.testnet.arc.io" : "https://rpc.arc.io";
+  const rpcUrl = isTestnet ? "https://rpc.testnet.arc.io" : "https://rpc.mainnet.arc.io";
   const explorerUrl = isTestnet ? "https://explorer.testnet.arc.io" : "https://explorer.arc.io";
 
+  const addParams = [{
+    chainId: chainIdHex,
+    chainName,
+    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+    rpcUrls: [rpcUrl],
+    blockExplorerUrls: [explorerUrl],
+  }];
+
   try {
-    // Attempt switch first
     await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: chainIdHex }],
     });
+    // Reload so wagmi picks up the new chain cleanly
+    window.location.reload();
     return true;
   } catch (switchError: any) {
-    // Error code 4902 means the chain has not been added to the wallet yet
-    if (switchError.code === 4902 || switchError?.message?.includes("Unrecognized chain")) {
+    if (switchError.code === 4902 ||
+        switchError.code === -32603 ||
+        switchError?.message?.toLowerCase().includes("unrecognized") ||
+        switchError?.message?.toLowerCase().includes("not found") ||
+        switchError?.message?.toLowerCase().includes("not exist")) {
       try {
         await provider.request({
           method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: chainIdHex,
-              chainName,
-              nativeCurrency: {
-                name: "USDC",
-                symbol: "USDC",
-                decimals: 18,
-              },
-              rpcUrls: [rpcUrl],
-              blockExplorerUrls: [explorerUrl],
-            },
-          ],
+          params: addParams,
         });
+        // Reload so wagmi picks up the new chain cleanly
+        window.location.reload();
         return true;
       } catch (addError) {
-        console.error("Failed to add Arc network to MetaMask:", addError);
+        console.error("Failed to add Arc network:", addError);
+        alert("Could not add Arc Testnet automatically. Please add it manually:\nRPC: https://rpc.testnet.arc.io\nChain ID: 5042002");
         return false;
       }
     }
