@@ -1,6 +1,6 @@
 // oxlint-disable-next-line -- admin page, owner-only
 import { useState } from 'react'
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseUnits } from 'viem'
 import { toast } from 'sonner'
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'

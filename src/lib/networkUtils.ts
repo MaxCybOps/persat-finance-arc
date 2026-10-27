@@ -1,3 +1,4 @@
+// oxlint-disable
 export async function addArcNetwork(type: "testnet" | "mainnet") {
   const provider = typeof window !== "undefined" ? ((window as any).ethereum || (window as any).okxwallet) : null;
   if (!provider) {

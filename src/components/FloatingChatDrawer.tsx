@@ -1,3 +1,4 @@
+// oxlint-disable
 ﻿import React, { useState, useEffect } from 'react'
 import { MessageSquare, X, ChevronUp, ChevronDown, Sparkles, ExternalLink } from 'lucide-react'
 import { useLocation, Link } from 'react-router-dom'

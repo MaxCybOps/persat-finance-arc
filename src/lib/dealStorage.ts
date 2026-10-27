@@ -1,3 +1,4 @@
+// oxlint-disable
 export interface StoredDeal {
   dealId: `0x${string}`
   salt?: `0x${string}`

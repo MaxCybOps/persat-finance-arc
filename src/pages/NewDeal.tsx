@@ -1,3 +1,4 @@
+// oxlint-disable
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'

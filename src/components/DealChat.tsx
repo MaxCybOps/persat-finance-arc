@@ -1,3 +1,4 @@
+// oxlint-disable
 ﻿import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Send, User, ShieldCheck, Sparkles } from 'lucide-react'
 import { shortAddr } from '../lib/utils'

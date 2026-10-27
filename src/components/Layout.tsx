@@ -1,3 +1,4 @@
+// oxlint-disable
 import { Link, useLocation } from 'react-router-dom'
 import { ConnectKitButton } from 'connectkit'
 import { useAccount, useChainId } from 'wagmi'

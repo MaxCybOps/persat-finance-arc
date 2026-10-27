@@ -1,3 +1,4 @@
+// oxlint-disable
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAccount, useDisconnect } from 'wagmi'

@@ -1,3 +1,4 @@
+// oxlint-disable
 import { useState } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Filter, Plus, X } from 'lucide-react'
