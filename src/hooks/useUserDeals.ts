@@ -60,7 +60,7 @@ export function useUserDeals() {
       }
 
       // Absolute minimum from deployment
-      const deploymentBlock = isMainnet ? 27635000n : 68860000n
+      const deploymentBlock = isMainnet ? 27635000n : 68660000n
       const scanStart = latestBlock > MAX_SCAN_DEPTH
         ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
         : deploymentBlock

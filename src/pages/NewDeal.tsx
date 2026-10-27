@@ -448,6 +448,35 @@ export default function NewDeal() {
             </button>
           </div>
 
+          {/* Share via messaging apps */}
+          {shareLink && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-[#ebe0d9] mb-2">Share directly via:</p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`You've been invited to a USDC loan deal on Persat Finance. Review and accept here: ${shareLink}`)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25d366]/15 border border-[#25d366]/40 text-[#25d366] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#25d366]/25 transition-colors"
+                >
+                  <span>WhatsApp</span>
+                </a>
+                <a
+                  href={`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent('You\'ve been invited to a USDC loan deal on Persat Finance. Review the terms and accept:')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2aabee]/15 border border-[#2aabee]/40 text-[#2aabee] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#2aabee]/25 transition-colors"
+                >
+                  <span>Telegram</span>
+                </a>
+                <a
+                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a MetaMask wallet on Arc Testnet (Chain ID: 5042002, RPC: https://rpc.testnet.arc.io) to accept.`)}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#a58c7b]/15 border border-[#a58c7b]/40 text-[#ddc1ae] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#a58c7b]/25 transition-colors"
+                >
+                  <span>Email</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-[var(--border)] mt-4">
             <Link to={`/deal/claim/${dealId}?salt=${effectiveSalt}`} className="flex-1">
               <Button variant="primary" size="sm" className="w-full flex items-center justify-center gap-1.5">

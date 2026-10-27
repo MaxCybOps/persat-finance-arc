@@ -341,3 +341,13 @@
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793059759876}
 {"level":"debug","message":"[vite] hot updated: /src/components/FloatingChatDrawer.tsx","timestamp":1793059759884}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793059759884}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793059921188}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793059921189}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793061723406}
+{"level":"debug","message":"[vite] connected.","timestamp":1793061727731}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793061762615}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793061762616}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793061771758}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793061771759}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793061771767}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793061771767}
