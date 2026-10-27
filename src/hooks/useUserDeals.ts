@@ -27,8 +27,8 @@ export interface LiveDeal {
 
 // Max blocks the Arc RPC allows per getLogs call
 const LOG_CHUNK_SIZE = 4500n
-// How far back to scan (covers ~14 hours at 1 block/sec)
-const MAX_SCAN_DEPTH = 50000n
+// Scan from deployment block always — covers all deals ever created
+const MAX_SCAN_DEPTH = 600000n
 
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
@@ -72,7 +72,7 @@ export function useUserDeals() {
         let toBlock = latestBlock
         const minBlock = scanStart
         let chunksScanned = 0
-        const MAX_CHUNKS = 8 // ~36,000 blocks covers recent activity safely
+        const MAX_CHUNKS = 140 // scan all the way back to deploymentBlock
 
         while (toBlock > minBlock && chunksScanned < MAX_CHUNKS) {
           const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < minBlock

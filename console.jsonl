@@ -412,3 +412,15 @@
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793068989123}
 {"level":"debug","message":"[vite] connected.","timestamp":1793068993306}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793069015156}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793069756193}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793070104287}
+{"level":"debug","message":"[vite] hot updated: /src/App.tsx","timestamp":1793070123951}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793070123952}
+{"level":"debug","message":"(previous line repeated 1× more)","timestamp":1793070135549}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793070135549}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793070135973}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793070135974}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793070137769}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793070137769}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793070138107}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793070138108}
