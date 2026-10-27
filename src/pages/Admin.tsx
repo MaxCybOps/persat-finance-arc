@@ -66,7 +66,7 @@ export default function Admin() {
 
   function doSetVault() {
     writeContract(
-      { address: addresses.registry, abi: REGISTRY_ADMIN_ABI, functionName: 'setVault', args: [addresses.vault], chainId },
+      { address: addresses.registry, abi: REGISTRY_ADMIN_ABI, functionName: 'setVault', args: [addresses.vault], chainId, gas: 100_000n },
       { onSuccess: () => toast.success('setVault submitted (confirming)...'), onError: e => toast.error(e.message.slice(0, 120)) },
     )
   }
@@ -77,7 +77,7 @@ export default function Admin() {
     const n = parseFloat(mintAmount)
     if (!n || n <= 0) { toast.error('Invalid amount'); return }
     writeContract(
-      { address: addresses.cirBtc, abi: MOCK_ERC20_ABI, functionName: 'mint', args: [to, parseUnits(mintAmount, 8)], chainId },
+      { address: addresses.cirBtc, abi: MOCK_ERC20_ABI, functionName: 'mint', args: [to, parseUnits(mintAmount, 8)], chainId, gas: 100_000n },
       { onSuccess: () => toast.success('Mint submitted (confirming)...'), onError: e => toast.error(e.message.slice(0, 120)) },
     )
   }

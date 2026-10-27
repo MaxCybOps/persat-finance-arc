@@ -100,6 +100,12 @@ export default function ManageDeal() {
   })
 
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+
+  // Show errors as toast so they are never missed
+  useEffect(() => {
+    if (error) toast.error(parseOnchainError(error), { duration: 8000 })
+  }, [error])
+
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
     chainId,
@@ -177,6 +183,7 @@ export default function ManageDeal() {
       functionName: action,
       args: [normalizedDealId],
       chainId,
+      gas: 300_000n,
     })
   }
 
@@ -189,6 +196,7 @@ export default function ManageDeal() {
       functionName: 'cancelDeal',
       args: [normalizedDealId],
       chainId,
+      gas: 100_000n,
     })
   }
 
@@ -201,6 +209,7 @@ export default function ManageDeal() {
       functionName: 'acceptCounterOffer',
       args: [normalizedDealId, offerId],
       chainId,
+      gas: 200_000n,
     })
   }
 
@@ -213,6 +222,7 @@ export default function ManageDeal() {
       functionName: 'approve',
       args: [addresses.vault, amount],
       chainId,
+      gas: 80_000n,
     })
   }
 

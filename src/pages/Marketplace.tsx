@@ -61,6 +61,7 @@ function CounterOfferModal({
       functionName: 'submitCounterOffer',
       args: [dealId, principalRaw, collateralRaw, rateBpsRaw, duration],
       chainId,
+      gas: 200_000n,
     })
   }
 

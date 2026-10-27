@@ -237,6 +237,7 @@ export default function ClaimDeal() {
       functionName: 'claimDeal',
       args: [normalizedDealId, effectiveSalt],
       chainId,
+      gas: 200_000n,
     })
   }
 

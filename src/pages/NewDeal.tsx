@@ -163,9 +163,9 @@ export default function NewDeal() {
         effectiveSalt,
       ],
       chainId,
-      // Skip pre-flight simulation — Arc Testnet RPC occasionally rejects eth_call
-      // simulations while the actual transaction succeeds. Errors are still caught
-      // and displayed via the error state below.
+      // Arc Testnet RPC rejects eth_estimateGas for long calldata ("Invalid params").
+      // Setting gas manually bypasses the estimate and sends directly to MetaMask.
+      gas: 300_000n,
     })
   }
 
