@@ -596,3 +596,33 @@
 {"level":"debug","message":"[vite] connected.","timestamp":1793084686651}
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793085260419}
 {"level":"debug","message":"[vite] connected.","timestamp":1793085264701}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793086852216}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793086875603}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086875604}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086879732}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793086879733}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086879733}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793086885558}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086885558}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793086885559}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086885559}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793086890249}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086890249}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793086890250}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086890250}
+{"level":"debug","message":"(previous line repeated 1× more)","timestamp":1793086900933}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086900933}
+{"level":"debug","message":"(previous line repeated 1× more)","timestamp":1793086901116}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086901116}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086904783}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086904783}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086904825}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086904825}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086906805}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086906805}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086907131}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086907131}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086907637}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086907637}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793086907759}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793086907760}

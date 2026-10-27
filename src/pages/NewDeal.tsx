@@ -19,6 +19,7 @@ import {
 import { buildShareLink } from '../lib/share'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
+import { addArcNetwork } from '../lib/networkUtils'
 import { saveStoredDeal } from '../lib/dealStorage'
 import { DealChat } from '../components/DealChat'
 
@@ -367,8 +368,18 @@ export default function NewDeal() {
           Connect your wallet to propose a deal
         </div>
       ) : isWrongChain ? (
-        <div className="rounded-xl p-3 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042002)
+        <div className="rounded-xl p-4 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', border: '1px solid rgba(232,109,122,0.3)', borderRadius: 12 }}>
+          <p className="mb-3 font-semibold" style={{ color: 'var(--danger)' }}>Wrong Network</p>
+          <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
+            Your wallet is on the wrong network. Click below to switch to Arc Testnet — works with MetaMask, OKX, and any EVM wallet.
+          </p>
+          <button
+            onClick={() => addArcNetwork('testnet')}
+            className="w-full py-3 rounded-xl font-bold text-sm"
+            style={{ background: 'var(--brand)', color: '#17120f', border: 'none', cursor: 'pointer' }}
+          >
+            Switch to Arc Testnet
+          </button>
         </div>
       ) : (
         <Button

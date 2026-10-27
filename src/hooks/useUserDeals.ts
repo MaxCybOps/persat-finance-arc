@@ -27,8 +27,12 @@ export interface LiveDeal {
 
 // Max blocks the Arc RPC allows per getLogs call
 const LOG_CHUNK_SIZE = 4500n
-// Scan last ~24 hours (86400 blocks at ~1/sec); deployment block is the floor
-const MAX_SCAN_DEPTH = 90000n
+// Scan last ~4 hours; deployment block is the absolute floor
+const MAX_SCAN_DEPTH = 15000n
+
+// Global cooldown: prevent multiple page mounts from hammering the RPC
+let lastScanTime = 0
+const SCAN_COOLDOWN_MS = 45_000 // 45 seconds between full scans
 
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
@@ -38,8 +42,13 @@ export function useUserDeals() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchDeals = useCallback(async () => {
+  const fetchDeals = useCallback(async (force = false) => {
     if (!publicClient || !addresses.registry) return
+
+    // Enforce global cooldown to avoid Arc RPC rate limits
+    const now = Date.now()
+    if (!force && now - lastScanTime < SCAN_COOLDOWN_MS) return
+    lastScanTime = now
 
     setIsLoading(true)
     setError(null)
@@ -72,7 +81,7 @@ export function useUserDeals() {
         let toBlock = latestBlock
         const minBlock = scanStart
         let chunksScanned = 0
-        const MAX_CHUNKS = 20 // 20 × 4500 = 90,000 blocks (~25 hrs), rate-limit safe
+        const MAX_CHUNKS = 4 // 4 × 4500 = 18,000 blocks (~5 hrs), rate-limit safe
 
         while (toBlock > minBlock && chunksScanned < MAX_CHUNKS) {
           const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < minBlock
@@ -269,6 +278,6 @@ export function useUserDeals() {
     totalBorrowedUsdc,
     isLoading,
     error,
-    refetch: fetchDeals,
+    refetch: () => fetchDeals(true), // force=true bypasses cooldown
   }
 }
