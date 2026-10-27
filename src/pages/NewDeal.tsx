@@ -47,6 +47,13 @@ export default function NewDeal() {
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
 
+  // Show errors immediately as a toast so they are never missed
+  useEffect(() => {
+    if (error) {
+      toast.error(parseOnchainError(error), { duration: 8000 })
+    }
+  }, [error])
+
   // Standard Wagmi wait
   const { isSuccess: isWagmiSuccess } = useWaitForTransactionReceipt({
     hash,
@@ -156,6 +163,9 @@ export default function NewDeal() {
         effectiveSalt,
       ],
       chainId,
+      // Skip pre-flight simulation — Arc Testnet RPC occasionally rejects eth_call
+      // simulations while the actual transaction succeeds. Errors are still caught
+      // and displayed via the error state below.
     })
   }
 
