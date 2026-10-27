@@ -27,8 +27,8 @@ export interface LiveDeal {
 
 // Max blocks the Arc RPC allows per getLogs call
 const LOG_CHUNK_SIZE = 4500n
-// Scan from deployment block always — covers all deals ever created
-const MAX_SCAN_DEPTH = 600000n
+// Scan last ~24 hours (86400 blocks at ~1/sec); deployment block is the floor
+const MAX_SCAN_DEPTH = 90000n
 
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
@@ -72,7 +72,7 @@ export function useUserDeals() {
         let toBlock = latestBlock
         const minBlock = scanStart
         let chunksScanned = 0
-        const MAX_CHUNKS = 140 // scan all the way back to deploymentBlock
+        const MAX_CHUNKS = 20 // 20 × 4500 = 90,000 blocks (~25 hrs), rate-limit safe
 
         while (toBlock > minBlock && chunksScanned < MAX_CHUNKS) {
           const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < minBlock
@@ -86,13 +86,19 @@ export function useUserDeals() {
               toBlock,
             })
             proposedLogs = proposedLogs.concat(logs)
-          } catch (logErr) {
+          } catch (logErr: any) {
+            const isRateLimit = logErr?.message?.toLowerCase().includes('limit') || logErr?.message?.toLowerCase().includes('rate')
+            if (isRateLimit) {
+              // Back off and stop scanning to avoid hammering the RPC
+              await new Promise((r) => setTimeout(r, 2000))
+              break
+            }
             console.warn(`getLogs chunk ${fromBlock}-${toBlock} failed:`, logErr)
           }
           toBlock = fromBlock - 1n
           chunksScanned++
-          // 80ms delay between chunks to stay strictly within Arc RPC rate limits
-          await new Promise((r) => setTimeout(r, 80))
+          // 300ms between chunks — stays well within Arc RPC rate limits
+          await new Promise((r) => setTimeout(r, 300))
         }
       }
 
