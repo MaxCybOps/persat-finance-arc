@@ -82,10 +82,10 @@ function CounterOfferModal({
 
         <div
           className="flex items-start gap-2 p-3 rounded-xl mb-4 text-xs"
-          style={{ background: 'rgba(172,198,233,0.1)', border: '1px solid var(--border)', color: 'var(--muted)' }}
+          style={{ background: 'rgba(255,138,0,0.08)', border: '1px solid rgba(255,138,0,0.2)', color: '#ddc1ae' }}
         >
-          <Filter size={12} className="flex-shrink-0 mt-0.5" />
-          Structured numbers only. Amount, rate, duration, and collateral — no free-text messaging.
+          <Filter size={12} className="flex-shrink-0 mt-0.5 text-[#ff8a00]" />
+          Propose your preferred terms: principal, rate, duration, and collateral. The deal creator reviews and accepts.
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -262,7 +262,7 @@ export default function Marketplace() {
             No open orders yet
           </h2>
           <p className="text-sm mb-4 max-w-sm mx-auto" style={{ color: 'var(--subtle)' }}>
-            Be the first to post a lending or borrowing request. Counter-offers use structured numbers only — no free-text messaging.
+            Be the first to post a lending or borrowing request. Anyone can propose alternative terms and the deal creator accepts the best offer.
           </p>
           <Button
             variant="primary"
@@ -285,10 +285,10 @@ export default function Marketplace() {
           Marketplace Rules
         </h3>
         <ul className="text-xs space-y-1" style={{ color: 'var(--subtle)' }}>
-          <li>Counter-offers are structured: amount, rate, duration, and collateral only.</li>
-          <li>No free-text messaging between unmatched parties — prevents phishing.</li>
-          <li>The original proposer accepts a counter-offer; all others are cancelled atomically.</li>
-          <li>An accepted offer binds both parties and locks terms with an on-chain hash.</li>
+          <li>Counter-offers let you propose your preferred terms: principal, rate, duration, and collateral.</li>
+          <li>Both parties can negotiate until the deal creator accepts — all terms are locked on-chain.</li>
+          <li>When one counter-offer is accepted, all others are cancelled atomically by the smart contract.</li>
+          <li>An accepted offer binds both parties and locks terms with an immutable on-chain hash.</li>
         </ul>
       </Card>
     </div>

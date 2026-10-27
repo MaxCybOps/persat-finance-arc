@@ -1014,7 +1014,7 @@ export default function Landing() {
                   Open Marketplace
                 </h3>
                 <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
-                  For when you need instant liquidity matching. Post your exact collateral-to-borrow parameters or fulfill vetted listings. To eradicate phishing and manipulation, counter-offers are strictly structured parameter updates.
+                  For when you need instant liquidity matching. Post your exact collateral-to-borrow parameters or fulfill vetted listings. Lenders can propose alternative terms — principal, rate, duration — and you choose the best offer.
                 </p>
 
                 <ul className="flex flex-col gap-3 text-sm text-[#ebe0d9] mb-8">

@@ -40,7 +40,7 @@ export function FloatingChatDrawer() {
   const selectedDeal = deals.find((d) => d.dealId.toLowerCase() === activeDealId.toLowerCase())
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-24 md:bottom-8 right-4 sm:right-6 z-[100] flex flex-col items-end">
       {/* Expanded Chat Drawer */}
       {isOpen && (
         <div className="w-[92vw] sm:w-[420px] max-h-[85vh] h-[580px] bg-[#1a1512] border border-[#ff8a00]/40 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden mb-3 animate-in fade-in slide-in-from-bottom-5 duration-200">
