@@ -395,3 +395,16 @@
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793062407271}
 {"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793062407315}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793062407316}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793062955399}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793063221637}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793063221639}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793063547120}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793063854724}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793066773736}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793067278868}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793067443287}
+{"level":"warn","message":"getLogs chunk 69252904-69257403 failed: LimitExceededRpcError: Request exceeds defined limit.\n\nURL: https://rpc.testnet.arc.io\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0x2ed7e6d7f293299a4f9083b4c49d6d0b53171e70\",\"topics\":[\"0x852a3a4aed0613c5d8f5812d4bd0e65180485339b9712ffef333867244bdb307\"],\"fromBlock\":\"0x420b728\",\"toBlock\":\"0x420c8bb\"}]}\n\nDetails: rate limit exceeded\nVersion: viem@2.57.5\n    at withRetry.delay.count.count (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-AG6PZLTA.js?v=03ec1c26:13584:19)\n    at async attemptRetry (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-AG6PZLTA.js?v=03ec1c26:1604:22)","timestamp":1793067451114,"stack":"LimitExceededRpcError: Request exceeds defined limit.\n\nURL: https://rpc.testnet.arc.io\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0x2ed7e6d7f293299a4f9083b4c49d6d0b53171e70\",\"topics\":[\"0x852a3a4aed0613c5d8f5812d4bd0e65180485339b9712ffef333867244bdb307\"],\"fromBlock\":\"0x420b728\",\"toBlock\":\"0x420c8bb\"}]}\n\nDetails: rate limit exceeded\nVersion: viem@2.57.5\n    at withRetry.delay.count.count (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-AG6PZLTA.js?v=03ec1c26:13584:19)\n    at async attemptRetry (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/node_modules/.vite/deps/chunk-AG6PZLTA.js?v=03ec1c26:1604:22)"}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793067633946}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793067808240}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793068031298}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793068286618}
