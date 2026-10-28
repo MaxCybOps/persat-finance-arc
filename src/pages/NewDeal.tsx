@@ -1,7 +1,7 @@
 // oxlint-disable
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Copy, Check, Lock, Unlock, Info, ArrowRight, MessageSquare, ExternalLink, CheckCircle2, Sparkles, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Input, TxStatus } from '../components/ui'
@@ -22,13 +22,16 @@ import { useArcNetwork } from '../hooks/useArcNetwork'
 import { addArcNetwork } from '../lib/networkUtils'
 import { saveStoredDeal } from '../lib/dealStorage'
 import { DealChat } from '../components/DealChat'
+import { useBtcPrice } from '../hooks/useBtcPrice'
+import { getArcClient } from '../lib/arcClient'
 
 type Tab = 'private' | 'public'
 type Role = 'borrower' | 'lender'
 
 export default function NewDeal() {
-  const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
-  const publicClient = usePublicClient({ chainId })
+  const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
+  const arcClient = getArcClient(isMainnet)
+  const { priceUsd: btcPriceUsd, isStale: priceStale } = useBtcPrice()
 
   const [tab, setTab] = useState<Tab>('private')
   const [role, setRole] = useState<Role>('borrower')
@@ -66,11 +69,11 @@ export default function NewDeal() {
 
   // Fast sub-second direct poller so the UI never stays stuck on 'Confirming...'
   useEffect(() => {
-    if (!hash || receiptConfirmed || !publicClient) return
+    if (!hash || receiptConfirmed) return
     let active = true
     const interval = setInterval(async () => {
       try {
-        const receipt = await publicClient.getTransactionReceipt({ hash })
+        const receipt = await arcClient.getTransactionReceipt({ hash })
         if (receipt && receipt.status === 'success' && active) {
           setReceiptConfirmed(true)
           if (receipt.blockNumber) setMinedBlock(receipt.blockNumber)
@@ -86,7 +89,7 @@ export default function NewDeal() {
       active = false
       clearInterval(interval)
     }
-  }, [hash, receiptConfirmed, publicClient])
+  }, [hash, receiptConfirmed, arcClient])
 
   const isConfirmed = isWagmiSuccess || receiptConfirmed
   const isConfirming = Boolean(hash) && !isConfirmed
@@ -116,9 +119,15 @@ export default function NewDeal() {
     ? computeRepayment(principalRaw, rateBpsRaw, duration)
     : { interest: 0n, total: 0n }
 
-  const btcPriceEstimate = 60_000n // placeholder for display LTV calc
-  const collateralUsdEst = (collateralRaw * btcPriceEstimate) / 100_000_000n
-  const ltvEst = collateralUsdEst > 0n ? Number((principalRaw * 10_000n) / collateralUsdEst) / 100 : 0
+  // LTV calculation (live Pyth price):
+  // collateralRaw = satoshis (8 dec), principalRaw = USDC micro (6 dec), btcPriceUsd = whole dollars
+  // collateralValueUsdc (6-dec) = sats * priceUsd * 1_000_000 / 100_000_000
+  //                              = sats * priceUsd / 100
+  const btcPriceBigInt = BigInt(Math.floor(btcPriceUsd))
+  const collateralUsdEst = collateralRaw * btcPriceBigInt / 100n  // result in USDC 6-dec
+  const ltvEst = collateralUsdEst > 0n
+    ? Number((principalRaw * 10_000n) / collateralUsdEst) / 100
+    : 0
 
   const isValid =
     principalRaw > 0n &&
@@ -316,12 +325,18 @@ export default function NewDeal() {
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--subtle)' }}>
             Payment preview
           </p>
+          {/* Live BTC price indicator */}
+          <div className="flex items-center gap-2 mb-3 text-xs" style={{ color: 'var(--subtle)' }}>
+            <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-green-500'}`} />
+            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> {priceStale ? '(fallback)' : '(Pyth live)'}</span>
+          </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {[
               ['Principal', `$${formatUsdc(principalRaw)}`],
               ['Interest', `$${formatUsdc(interest)}`],
               ['Total repayment', `$${formatUsdc(total)}`],
               ['Collateral', `${formatBtc(collateralRaw)} BTC`],
+              ['Collateral Value', collateralUsdEst > 0n ? `$${formatUsdc(collateralUsdEst)}` : '—'],
               ['Est. LTV', ltvEst > 0 ? `${ltvEst.toFixed(1)}%` : '—'],
               ['Liquidation LTV', '80%'],
             ].map(([k, v]) => (

@@ -37,6 +37,7 @@ import {
 } from '../lib/utils'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { useUserDeals, LiveDeal } from '../hooks/useUserDeals'
+import { useBtcPrice } from '../hooks/useBtcPrice'
 
 export default function Dashboard() {
   const { address, isConnected, isMainnet, chain, addresses } = useArcNetwork()
@@ -58,7 +59,7 @@ export default function Dashboard() {
   const [copiedDealId, setCopiedDealId] = useState<string | null>(null)
 
   // Live Pyth/Oracle BTC Price
-  const btcPrice = 117290.5
+  const { priceUsd: btcPrice, isStale: priceStale } = useBtcPrice()
 
   // Real Calculated Metrics
   const collateralBtc = Number(totalCollateralLocked) / 1e8
@@ -119,9 +120,10 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-[#10b981] animate-pulse'}`} />
               <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
-              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">$117,290.50</span>
-              <span className="text-[#10b981] text-[10px] font-bold">+1.6%</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-[#10b981] text-[10px] font-bold">{priceStale ? 'fallback' : 'live'}</span>
             </div>
 
             <div className="hidden sm:flex items-center gap-1.5">
