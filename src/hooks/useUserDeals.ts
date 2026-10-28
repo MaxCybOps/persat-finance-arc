@@ -1,8 +1,8 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
-import { usePublicClient } from 'wagmi'
 import { parseAbiItem, decodeFunctionData, keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { useArcNetwork } from './useArcNetwork'
+import { getArcClient } from '../lib/arcClient'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { getStoredDeals, saveStoredDeal, StoredDeal } from '../lib/dealStorage'
 import { normalizeDealId, DealState, deriveSaltForCounterparty } from '../lib/utils'
@@ -25,25 +25,27 @@ export interface LiveDeal {
   salt?: `0x${string}`
 }
 
-// Max blocks the Arc RPC allows per getLogs call
+// Max blocks per getLogs request Arc RPC allows
 const LOG_CHUNK_SIZE = 4500n
-// Scan last ~4 hours; deployment block is the absolute floor
-const MAX_SCAN_DEPTH = 15000n
+// Scan back 30,000 blocks (~8 hours) from the latest block
+const MAX_SCAN_DEPTH = 30000n
 
 // Global cooldown: prevent multiple page mounts from hammering the RPC
 let lastScanTime = 0
-const SCAN_COOLDOWN_MS = 45_000 // 45 seconds between full scans
+const SCAN_COOLDOWN_MS = 30_000 // 30 seconds between auto-scans
 
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
-  const publicClient = usePublicClient({ chainId })
+
+  // Use the standalone read-only Arc client — works regardless of connected wallet chain
+  const client = getArcClient(isMainnet)
 
   const [deals, setDeals] = useState<LiveDeal[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchDeals = useCallback(async (force = false) => {
-    if (!publicClient || !addresses.registry) return
+    if (!addresses.registry) return
 
     // Enforce global cooldown to avoid Arc RPC rate limits
     const now = Date.now()
@@ -60,35 +62,34 @@ export function useUserDeals() {
         storedMap.set(s.dealId.toLowerCase(), s)
       }
 
-      // ─── Dynamic block range: fetch latest block and scan in chunks ───
+      // Get latest block from the standalone client (not wagmi)
       let latestBlock: bigint
       try {
-        latestBlock = await publicClient.getBlockNumber()
+        latestBlock = await client.getBlockNumber()
       } catch {
         latestBlock = 0n
       }
 
-      // Absolute minimum from deployment
+      // Deployment block is the absolute scan floor
       const deploymentBlock = isMainnet ? 27635000n : 68660000n
-      const scanStart = latestBlock > MAX_SCAN_DEPTH
+      const scanFloor = latestBlock > MAX_SCAN_DEPTH
         ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
         : deploymentBlock
 
-      // 1. Fetch DealProposed events scanning BACKWARDS from latestBlock (newest first)
+      // Fetch DealProposed events scanning BACKWARDS from latestBlock
       let proposedLogs: any[] = []
 
       if (latestBlock > 0n) {
         let toBlock = latestBlock
-        const minBlock = scanStart
         let chunksScanned = 0
-        const MAX_CHUNKS = 4 // 4 × 4500 = 18,000 blocks (~5 hrs), rate-limit safe
+        const MAX_CHUNKS = 8 // 8 × 4500 = 36,000 blocks (~10 hrs)
 
-        while (toBlock > minBlock && chunksScanned < MAX_CHUNKS) {
-          const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < minBlock
-            ? minBlock
+        while (toBlock > scanFloor && chunksScanned < MAX_CHUNKS) {
+          const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < scanFloor
+            ? scanFloor
             : toBlock - LOG_CHUNK_SIZE + 1n
           try {
-            const logs = await publicClient.getLogs({
+            const logs = await client.getLogs({
               address: addresses.registry,
               event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
               fromBlock,
@@ -96,22 +97,22 @@ export function useUserDeals() {
             })
             proposedLogs = proposedLogs.concat(logs)
           } catch (logErr: any) {
-            const isRateLimit = logErr?.message?.toLowerCase().includes('limit') || logErr?.message?.toLowerCase().includes('rate')
+            const msg = logErr?.message?.toLowerCase() ?? ''
+            const isRateLimit = msg.includes('limit') || msg.includes('rate') || msg.includes('too many')
             if (isRateLimit) {
-              // Back off and stop scanning to avoid hammering the RPC
-              await new Promise((r) => setTimeout(r, 2000))
+              await new Promise((r) => setTimeout(r, 3000))
               break
             }
             console.warn(`getLogs chunk ${fromBlock}-${toBlock} failed:`, logErr)
           }
           toBlock = fromBlock - 1n
           chunksScanned++
-          // 300ms between chunks — stays well within Arc RPC rate limits
-          await new Promise((r) => setTimeout(r, 300))
+          // 400ms between chunks to stay within rate limits
+          await new Promise((r) => setTimeout(r, 400))
         }
       }
 
-      // Collect all unique deal IDs from logs and localStorage
+      // Collect all unique deal IDs from logs + localStorage
       const dealIdSet = new Set<string>()
       const blockMap = new Map<string, bigint>()
       const txMap = new Map<string, `0x${string}`>()
@@ -129,13 +130,13 @@ export function useUserDeals() {
         dealIdSet.add(normalizeDealId(s.dealId).toLowerCase())
       }
 
-      // 2. Fetch live deal structs from smart contract
+      // Fetch live deal structs from contract
       const dealList: LiveDeal[] = []
 
       await Promise.all(
         Array.from(dealIdSet).map(async (idLower) => {
           try {
-            const raw = (await publicClient.readContract({
+            const raw = (await client.readContract({
               address: addresses.registry,
               abi: REGISTRY_ABI,
               functionName: 'getDeal',
@@ -148,9 +149,8 @@ export function useUserDeals() {
             const storedInfo = storedMap.get(idLower)
             let salt = storedInfo?.salt
 
-            // If private deal and salt is missing, recover it so counterparty can claim seamlessly
+            // Recover salt for counterparty so they can claim seamlessly
             if (!salt && raw.visibility === 0 && raw.state === DealState.Proposed) {
-              // 1. Check deterministic derived salt if reservedFor is set
               if (raw.reservedFor && raw.reservedFor !== '0x0000000000000000000000000000000000000000') {
                 const candidate = deriveSaltForCounterparty(raw.dealId, raw.reservedFor)
                 const expectedToken = keccak256(
@@ -161,20 +161,19 @@ export function useUserDeals() {
                 }
               }
 
-              // 2. If still not found, recover salt directly from the proposing transaction input
+              // Recover salt from original proposeDeal tx input
               if (!salt && txMap.has(idLower)) {
                 try {
-                  const tx = await publicClient.getTransaction({ hash: txMap.get(idLower)! })
+                  const tx = await client.getTransaction({ hash: txMap.get(idLower)! })
                   const decoded = decodeFunctionData({ abi: REGISTRY_ABI, data: tx.input })
                   if (decoded.functionName === 'proposeDeal' && decoded.args?.[8]) {
-                    salt = decoded.args[8]
+                    salt = decoded.args[8] as `0x${string}`
                   }
                 } catch {
                   // Ignore recovery error
                 }
               }
 
-              // Cache recovered salt into local storage so it persists
               if (salt) {
                 saveStoredDeal({
                   dealId: raw.dealId,
@@ -215,22 +214,19 @@ export function useUserDeals() {
         })
       )
 
-      // Sort by newest first (descending blockNumber or dealId)
       dealList.sort((a, b) => {
-        if (a.blockNumber && b.blockNumber) {
-          return Number(b.blockNumber - a.blockNumber)
-        }
+        if (a.blockNumber && b.blockNumber) return Number(b.blockNumber - a.blockNumber)
         return b.dealId.localeCompare(a.dealId)
       })
 
       setDeals(dealList)
     } catch (err: any) {
-      console.error('Error fetching on-chain user deals:', err)
+      console.error('Error fetching on-chain deals:', err)
       setError(err?.message ?? 'Failed to load deals')
     } finally {
       setIsLoading(false)
     }
-  }, [publicClient, addresses.registry, chainId, isMainnet, address])
+  }, [addresses.registry, chainId, isMainnet, address, client])
 
   useEffect(() => {
     void fetchDeals()
@@ -238,15 +234,8 @@ export function useUserDeals() {
 
   const userLower = address ? address.toLowerCase() : ''
 
-  // Categorize
-  const borrowedDeals = deals.filter(
-    (d) => d.borrower.toLowerCase() === userLower
-  )
-
-  const fundedDeals = deals.filter(
-    (d) => d.lender.toLowerCase() === userLower
-  )
-
+  const borrowedDeals = deals.filter((d) => d.borrower.toLowerCase() === userLower)
+  const fundedDeals = deals.filter((d) => d.lender.toLowerCase() === userLower)
   const incomingDeals = deals.filter(
     (d) =>
       d.reservedFor.toLowerCase() === userLower &&
@@ -254,20 +243,11 @@ export function useUserDeals() {
       d.borrower.toLowerCase() !== userLower
   )
 
-  // Portfolio metrics across user's active/confirmed deals
   const userActiveBorrowed = borrowedDeals.filter(
     (d) => d.state === DealState.Active || d.state === DealState.Confirmed
   )
-
-  const totalCollateralLocked = userActiveBorrowed.reduce(
-    (acc, d) => acc + d.collateral,
-    0n
-  )
-
-  const totalBorrowedUsdc = userActiveBorrowed.reduce(
-    (acc, d) => acc + d.principal,
-    0n
-  )
+  const totalCollateralLocked = userActiveBorrowed.reduce((acc, d) => acc + d.collateral, 0n)
+  const totalBorrowedUsdc = userActiveBorrowed.reduce((acc, d) => acc + d.principal, 0n)
 
   return {
     deals,
@@ -278,6 +258,6 @@ export function useUserDeals() {
     totalBorrowedUsdc,
     isLoading,
     error,
-    refetch: () => fetchDeals(true), // force=true bypasses cooldown
+    refetch: () => fetchDeals(true),
   }
 }

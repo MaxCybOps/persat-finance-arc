@@ -1,11 +1,9 @@
 // oxlint-disable
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import {
-  useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
-  usePublicClient,
 } from 'wagmi'
 import { Shield, AlertTriangle, Sparkles, Copy, ArrowRight, CheckCircle2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,6 +25,7 @@ import {
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { addArcNetwork } from '../lib/networkUtils'
+import { getArcClient } from '../lib/arcClient'
 import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
 import { DealChat } from '../components/DealChat'
 import { keccak256, encodeAbiParameters, parseAbiParameters, decodeFunctionData } from 'viem'
@@ -36,24 +35,39 @@ export default function ClaimDeal() {
   const [searchParams] = useSearchParams()
   const saltParam = searchParams.get('salt') as `0x${string}` | null
 
-  const { address, isConnected, isWrongChain, chain, addresses, chainId } = useArcNetwork()
-  const publicClient = usePublicClient({ chainId })
+  const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
+
+  // Always read from Arc using the standalone client — works even if wallet is on wrong chain
+  const arcClient = getArcClient(isMainnet)
 
   const hasValidId = isValidDealId(dealIdParam)
   const normalizedDealId = normalizeDealId(dealIdParam)
 
-  const { data: deal, isLoading, refetch, error: readError } = useReadContract({
-    address: addresses.registry,
-    abi: REGISTRY_ABI,
-    functionName: 'getDeal',
-    args: [normalizedDealId],
-    chainId,
-    query: {
-      enabled: hasValidId,
-      retry: 3,
-      retryDelay: 1500,
-    },
-  })
+  const [deal, setDeal] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [readError, setReadError] = useState<Error | null>(null)
+
+  const refetch = useCallback(async () => {
+    if (!hasValidId || !addresses.registry) return
+    setIsLoading(true)
+    setReadError(null)
+    try {
+      const raw = await arcClient.readContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'getDeal',
+        args: [normalizedDealId],
+      })
+      setDeal(raw)
+    } catch (e: any) {
+      setReadError(e)
+      setDeal(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [hasValidId, addresses.registry, normalizedDealId, arcClient])
+
+  useEffect(() => { void refetch() }, [refetch])
 
   // Recover salt if missing from URL params
   const [recoveredSalt, setRecoveredSalt] = useState<`0x${string}` | null>(null)
@@ -102,11 +116,11 @@ export default function ClaimDeal() {
 
   // Fast direct receipt polling
   useEffect(() => {
-    if (!hash || receiptConfirmed || !publicClient) return
+    if (!hash || receiptConfirmed) return
     let active = true
     const interval = setInterval(async () => {
       try {
-        const receipt = await publicClient.getTransactionReceipt({ hash })
+        const receipt = await arcClient.getTransactionReceipt({ hash })
         if (receipt && receipt.status === 'success' && active) {
           setReceiptConfirmed(true)
           clearInterval(interval)
@@ -122,7 +136,7 @@ export default function ClaimDeal() {
       active = false
       clearInterval(interval)
     }
-  }, [hash, receiptConfirmed, publicClient, refetch])
+  }, [hash, receiptConfirmed, arcClient, refetch])
 
   const isSuccess = isWagmiSuccess || receiptConfirmed
   const isConfirming = Boolean(hash) && !isSuccess

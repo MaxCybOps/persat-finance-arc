@@ -632,3 +632,32 @@
 {"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793088482942}
 {"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793088482942}
 {"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793088482942}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793089415094}
+{"level":"debug","message":"[vite] connected.","timestamp":1793089842944}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793090867479}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793090928821}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793146050518}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146138237}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793146138238}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146138559}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793146138559}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146144465}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146144465}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146144465}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146144465}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146146622}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146146622}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146146728}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146146728}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146151202}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146151202}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146151205}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146151205}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146157070}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146157071}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146157073}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146157073}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146158991}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146158991}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793146158991}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793146158991}
