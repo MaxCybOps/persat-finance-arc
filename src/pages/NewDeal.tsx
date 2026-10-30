@@ -31,7 +31,7 @@ type Role = 'borrower' | 'lender'
 export default function NewDeal() {
   const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
   const arcClient = getArcClient(isMainnet)
-  const { priceUsd: btcPriceUsd, isStale: priceStale } = useBtcPrice()
+  const { priceUsd: btcPriceUsd, isStale: priceStale, source: priceSource } = useBtcPrice()
 
   const [tab, setTab] = useState<Tab>('private')
   const [role, setRole] = useState<Role>('borrower')
@@ -328,7 +328,7 @@ export default function NewDeal() {
           {/* Live BTC price indicator */}
           <div className="flex items-center gap-2 mb-3 text-xs" style={{ color: 'var(--subtle)' }}>
             <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-green-500'}`} />
-            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> {priceStale ? '(fallback)' : '(Pyth live)'}</span>
+            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> <span style={{ color: priceStale ? '#f59e0b' : '#10b981' }}>({priceStale ? 'stale' : priceSource})</span></span>
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {[

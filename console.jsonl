@@ -718,3 +718,22 @@
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793317351965}
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793336106882}
 {"level":"debug","message":"[vite] connected.","timestamp":1793336111401}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793336284921}
+{"level":"debug","message":"[vite] connected.","timestamp":1793336289620}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336310989}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793336310990}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793336310990}
+{"level":"debug","message":"(previous line repeated 1× more)","timestamp":1793336312119}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336312119}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793336315697}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336315697}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793336315700}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336315701}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793336318305}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336318305}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793336318306}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336318306}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793336320672}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336320673}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793336320840}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793336320841}

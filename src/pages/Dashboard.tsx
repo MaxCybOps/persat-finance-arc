@@ -59,7 +59,7 @@ export default function Dashboard() {
   const [copiedDealId, setCopiedDealId] = useState<string | null>(null)
 
   // Live Pyth/Oracle BTC Price
-  const { priceUsd: btcPrice, isStale: priceStale } = useBtcPrice()
+  const { priceUsd: btcPrice, isStale: priceStale, source: priceSource } = useBtcPrice()
 
   // Real Calculated Metrics
   const collateralBtc = Number(totalCollateralLocked) / 1e8
@@ -123,7 +123,7 @@ export default function Dashboard() {
               <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-[#10b981] animate-pulse'}`} />
               <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
               <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span className="text-[#10b981] text-[10px] font-bold">{priceStale ? 'fallback' : 'live'}</span>
+              <span className="text-[#10b981] text-[10px] font-bold">{priceStale ? 'stale' : priceSource}</span>
             </div>
 
             <div className="hidden sm:flex items-center gap-1.5">
