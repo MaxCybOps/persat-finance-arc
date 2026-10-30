@@ -92,7 +92,7 @@ export default function Admin() {
       </div>
 
       {/* banners */}
-      {wrongChain && <div style={banner('warn')}>Switch MetaMask to Arc Testnet (Chain ID 5042002).</div>}
+      {wrongChain && <div style={banner('warn')}>Switch MetaMask to Arc (Chain ID 5042).</div>}
       {!address   && <div style={banner('info')}>Connect your wallet to continue.</div>}
       {address && owner && !isOwner && (
         <div style={banner('err')}>

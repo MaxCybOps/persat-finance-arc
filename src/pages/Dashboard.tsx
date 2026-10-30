@@ -148,7 +148,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3 text-[11px] text-[#a58c7b]">
-            <span>{isMainnet ? 'Arc Mainnet (5042)' : 'Arc Testnet (5042002)'}</span>
+            <span>{isMainnet ? 'Arc Mainnet (5042)' : 'Arc Testnet (5042)'}</span>
             <span>•</span>
             <button
               onClick={() => void refetch()}
@@ -767,7 +767,7 @@ export default function Dashboard() {
               </h3>
             </div>
             <a
-              href={`${chain.explorerBase}/address/${addresses.registry}`}
+              href={`${chain.blockExplorers.default.url}/address/${addresses.registry}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1"

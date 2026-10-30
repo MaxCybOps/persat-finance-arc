@@ -79,7 +79,7 @@ export default function NewDeal() {
           setReceiptConfirmed(true)
           if (receipt.blockNumber) setMinedBlock(receipt.blockNumber)
           clearInterval(interval)
-          toast.success('Deal proposed & confirmed on Arc Testnet!')
+          toast.success('Deal proposed & confirmed on Arc!')
         }
       } catch {
         // Pending next block
@@ -385,11 +385,11 @@ export default function NewDeal() {
             Your wallet is on the wrong network. Click below to switch to Arc Testnet — works with MetaMask, OKX, and any EVM wallet.
           </p>
           <button
-            onClick={() => addArcNetwork('testnet')}
+            onClick={() => addArcNetwork('mainnet')}
             className="w-full py-3 rounded-xl font-bold text-sm"
             style={{ background: 'var(--brand)', color: '#17120f', border: 'none', cursor: 'pointer' }}
           >
-            Switch to Arc Testnet
+            Switch to Arc Mainnet
           </button>
         </div>
       ) : (
@@ -403,7 +403,7 @@ export default function NewDeal() {
           {isPending
             ? 'Confirm in wallet...'
             : isConfirming
-            ? 'Confirming on Arc Testnet...'
+            ? 'Confirming on Arc...'
             : isConfirmed
             ? 'Deal Proposed & Confirmed!'
             : 'Propose Deal'}
@@ -415,7 +415,7 @@ export default function NewDeal() {
         isConfirming={isConfirming}
         isSuccess={isConfirmed}
         error={error ? parseOnchainError(error) : null}
-        explorerUrl={hash ? `${chain.explorerBase}/tx/${hash}` : undefined}
+        explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined}
       />
 
       {/* Transaction & Proposal Status Card - Renders as soon as hash is broadcasted! */}
@@ -433,7 +433,7 @@ export default function NewDeal() {
               </h3>
             </div>
             <a
-              href={`${chain.explorerBase}/tx/${hash}`}
+              href={`${chain.blockExplorers.default.url}/tx/${hash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1 font-['Space_Grotesk']"
@@ -500,7 +500,7 @@ export default function NewDeal() {
                   <span>Telegram</span>
                 </a>
                 <a
-                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a MetaMask wallet on Arc Testnet (Chain ID: 5042002, RPC: https://rpc.testnet.arc.io) to accept.`)}`}
+                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a MetaMask wallet on Arc (Chain ID: 5042, RPC: https://rpc.testnet.arc.io) to accept.`)}`}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#a58c7b]/15 border border-[#a58c7b]/40 text-[#ddc1ae] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#a58c7b]/25 transition-colors"
                 >
                   <span>Email</span>

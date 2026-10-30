@@ -15,8 +15,8 @@ const NAV = [
   { to: '/admin', label: 'Setup', icon: Settings },
 ]
 
-// Accepted Arc chain IDs
-const ARC_CHAIN_IDS = [5042, 5042002]
+// Only Arc Mainnet is supported
+const ARC_CHAIN_IDS = [5042]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
@@ -30,7 +30,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleAddNetwork = async () => {
     setAddingNetwork(true)
     try {
-      await addArcNetwork('testnet')
+      await addArcNetwork('mainnet')
     } finally {
       setAddingNetwork(false)
     }
@@ -47,7 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             disabled={addingNetwork}
             className="px-4 py-1.5 rounded-full bg-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#ffaa45] transition-colors cursor-pointer disabled:opacity-50"
           >
-            {addingNetwork ? 'Adding...' : 'Switch to Arc Testnet'}
+            {addingNetwork ? 'Switching...' : 'Switch to Arc Mainnet'}
           </button>
         </div>
       )}

@@ -79,7 +79,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
           <Input label="Duration (months)" placeholder="6" value={form.durationMonths} onChange={set('durationMonths')} type="number" />
         </div>
         {isWrongChain ? (
-          <div className="rounded-xl p-2 text-sm text-center mb-3" style={{ color: 'var(--danger)' }}>Switch to Arc Testnet</div>
+          <div className="rounded-xl p-2 text-sm text-center mb-3" style={{ color: 'var(--danger)' }}>Switch to Arc Mainnet</div>
         ) : (
           <Button variant="primary" size="md" className="w-full"
             disabled={!isValid || isPending || isConfirming || isSuccess} onClick={submit}>
@@ -88,7 +88,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
         )}
         <TxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess}
           error={error ? parseOnchainError(error) : null}
-          explorerUrl={hash ? `${chain.explorerBase}/tx/${hash}` : undefined} />
+          explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined} />
         {isSuccess && (
           <p className="text-xs text-center mt-2" style={{ color: 'var(--success)' }}>
             Offer submitted. The deal creator will see it on their Dashboard.
@@ -189,7 +189,7 @@ export default function Marketplace() {
     setIsLoading(true)
     try {
       const latestBlock = await arcClient.getBlockNumber()
-      const deploymentBlock = isMainnet ? 27635000n : 68660000n
+      const deploymentBlock = 27635000n // Arc Mainnet
       // Only scan last 12 hours to avoid rate limits — public deals are recent
       const fromBlock = latestBlock - 43200n > deploymentBlock
         ? latestBlock - 43200n
@@ -235,7 +235,7 @@ export default function Marketplace() {
         <div>
           <h1 className="display text-2xl font-bold mb-1" style={{ color: 'var(--ink)' }}>Marketplace</h1>
           <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-            Open lending and borrowing requests on Arc {isMainnet ? 'Mainnet' : 'Testnet'}
+            Open lending and borrowing requests on Arc Mainnet
           </p>
         </div>
         <div className="flex items-center gap-2">

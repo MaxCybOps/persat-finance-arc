@@ -1,6 +1,6 @@
 // oxlint-disable
-export async function addArcNetwork(type: "testnet" | "mainnet") {
-  // Try every known provider injection point
+// Persat Finance runs on Arc Mainnet (Chain ID 5042) exclusively.
+export async function addArcNetwork(_type?: "testnet" | "mainnet") {
   const provider =
     typeof window !== "undefined"
       ? ((window as any).okxwallet ||
@@ -13,18 +13,13 @@ export async function addArcNetwork(type: "testnet" | "mainnet") {
     return false;
   }
 
-  const isTestnet = type === "testnet";
-  const chainIdHex = isTestnet ? "0x4CEF52" : "0x13B2"; // 5042002 = 0x4CEF52, 5042 = 0x13B2
-  const chainName = isTestnet ? "Arc Testnet" : "Arc Mainnet";
-  const rpcUrl = isTestnet ? "https://rpc.testnet.arc.io" : "https://rpc.mainnet.arc.io";
-  const explorerUrl = isTestnet ? "https://explorer.testnet.arc.io" : "https://explorer.arc.io";
-
+  const chainIdHex = "0x13B2"; // 5042 = Arc Mainnet
   const addParams = [{
     chainId: chainIdHex,
-    chainName,
+    chainName: "Arc",
     nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-    rpcUrls: [rpcUrl],
-    blockExplorerUrls: [explorerUrl],
+    rpcUrls: ["https://rpc.mainnet.arc.io"],
+    blockExplorerUrls: ["https://explorer.arc.io"],
   }];
 
   try {
@@ -32,7 +27,6 @@ export async function addArcNetwork(type: "testnet" | "mainnet") {
       method: "wallet_switchEthereumChain",
       params: [{ chainId: chainIdHex }],
     });
-    // Reload so wagmi picks up the new chain cleanly
     window.location.reload();
     return true;
   } catch (switchError: any) {
@@ -46,16 +40,15 @@ export async function addArcNetwork(type: "testnet" | "mainnet") {
           method: "wallet_addEthereumChain",
           params: addParams,
         });
-        // Reload so wagmi picks up the new chain cleanly
         window.location.reload();
         return true;
       } catch (addError) {
-        console.error("Failed to add Arc network:", addError);
-        alert("Could not add Arc Testnet automatically. Please add it manually:\nRPC: https://rpc.testnet.arc.io\nChain ID: 5042002");
+        console.error("Failed to add Arc Mainnet:", addError);
+        alert("Could not add Arc automatically.\nAdd it manually:\nNetwork: Arc\nRPC: https://rpc.mainnet.arc.io\nChain ID: 5042\nSymbol: USDC\nExplorer: https://explorer.arc.io");
         return false;
       }
     }
-    console.error("Failed to switch chain:", switchError);
+    console.error("Failed to switch to Arc Mainnet:", switchError);
     return false;
   }
 }

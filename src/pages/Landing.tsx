@@ -175,7 +175,7 @@ export default function Landing() {
 
   const handleCopyLink = () => {
     const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://persat.finance'
-    navigator.clipboard.writeText(`${origin}/deal/claim/8f9024a-arc-testnet`)
+    navigator.clipboard.writeText(`${origin}/deal/claim/8f9024a-arc-mainnet`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -208,7 +208,7 @@ export default function Landing() {
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#241f1a] border border-[#564334]/40">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
               <span className="font-['Space_Grotesk'] text-[11px] font-bold tracking-widest text-[#ddc1ae] uppercase">
-                ARC TESTNET LIVE
+                ARC MAINNET LIVE
               </span>
             </div>
           </div>
@@ -1332,7 +1332,7 @@ export default function Landing() {
                 a: 'When you create a Direct Deal, an encrypted single-use link is generated. Only the designated counterparty\'s connected wallet can accept the terms. No details are leaked to the public marketplace orderbook.',
               },
               {
-                q: 'What tokens are supported on Arc Testnet?',
+                q: 'What tokens are supported on Arc?',
                 a: 'The protocol natively supports cirBTC (Circle wrapped Bitcoin primitives) as collateral and native Circle USDC for borrowing and interest settlements.',
               },
             ].map((faq, idx) => (
@@ -1420,7 +1420,7 @@ export default function Landing() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]" />
               </span>
               <span className="font-['Space_Grotesk'] text-xs text-[#ebe0d9] font-semibold">
-                Connected to Arc Testnet (Chain ID: 5042002)
+                Connected to Arc (Chain ID: 5042)
               </span>
             </div>
 

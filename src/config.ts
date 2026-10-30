@@ -67,11 +67,10 @@ const connectors = [
 ]
 
 export const config = createConfig({
-  chains: [arcMainnet, arcTestnet],
+  chains: [arcMainnet],
   connectors,
   transports: {
     [arcMainnet.id]: http('https://rpc.mainnet.arc.io', { timeout: 30_000, retryCount: 3 }),
-    [arcTestnet.id]: http('https://rpc.testnet.arc.io', { timeout: 30_000, retryCount: 3 }),
   },
   batch: {
     multicall: false, // Arc has no Multicall3 — disabling prevents 10s timeouts

@@ -44,6 +44,7 @@ export const arcMainnetClient = createPublicClient({
   batch: { multicall: false },
 })
 
-export function getArcClient(isMainnet: boolean) {
-  return isMainnet ? arcMainnetClient : arcTestnetClient
+// Always returns mainnet client — app is mainnet-only
+export function getArcClient(_isMainnet?: boolean) {
+  return arcMainnetClient
 }

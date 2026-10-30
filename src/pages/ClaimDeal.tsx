@@ -203,7 +203,7 @@ export default function ClaimDeal() {
           on {chain?.name ?? 'Arc Testnet'}.
         </p>
         <p className="text-xs mb-6" style={{ color: 'var(--subtle)' }}>
-          Make sure your wallet is connected to Arc Testnet (Chain ID 5042002). If you just received this link, the deal may still be confirming — wait a few seconds and try again.
+          Make sure your wallet is connected to Arc (Chain ID 5042). If you just received this link, the deal may still be confirming — wait a few seconds and try again.
         </p>
         <div className="flex gap-3 justify-center">
           <Button variant="primary" size="sm" onClick={() => void refetch()}>
@@ -427,14 +427,14 @@ export default function ClaimDeal() {
         <div className="rounded-xl p-4 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', border: '1px solid rgba(232,109,122,0.3)', borderRadius: 12 }}>
           <p className="mb-2 font-semibold" style={{ color: 'var(--danger)' }}>Wrong Network</p>
           <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
-            Switch to Arc Testnet to accept this deal. Works with MetaMask, OKX, Brave, or any EVM wallet.
+            Switch to Arc Mainnet to accept this deal. Works with MetaMask, OKX, Brave, or any EVM wallet.
           </p>
           <button
-            onClick={() => addArcNetwork('testnet')}
+            onClick={() => addArcNetwork('mainnet')}
             className="w-full py-3 rounded-xl font-bold text-sm"
             style={{ background: 'var(--brand)', color: '#17120f', border: 'none', cursor: 'pointer' }}
           >
-            Switch to Arc Testnet
+            Switch to Arc Mainnet
           </button>
         </div>
       ) : isProposer ? (
@@ -477,7 +477,7 @@ export default function ClaimDeal() {
           {isPending
             ? 'Confirm in wallet...'
             : isConfirming
-            ? 'Confirming on Arc Testnet...'
+            ? 'Confirming on Arc...'
             : isSuccess
             ? 'Deal Confirmed!'
             : `Accept & Seal Deal as ${claimerRole}`}
@@ -489,7 +489,7 @@ export default function ClaimDeal() {
         isConfirming={isConfirming}
         isSuccess={isSuccess}
         error={error ? parseOnchainError(error) : null}
-        explorerUrl={hash ? `${chain.explorerBase}/tx/${hash}` : undefined}
+        explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined}
       />
 
       {isSuccess && (

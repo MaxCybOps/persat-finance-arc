@@ -659,3 +659,108 @@
 {"level":"debug","message":"[vite] hot updated: /src/main.tsx","timestamp":1793339383061}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339383061}
 {"level":"error","message":"Uncaught IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-0.254368) is negative.","timestamp":1793339383231,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339379431:101:13","stack":"IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-0.254368) is negative.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339379431:101:13)"}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793339766569}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793339807959}
+{"level":"debug","message":"[vite] connected.","timestamp":1793339810580}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339824390}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793339824390}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339824390}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1793339824390}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339824391}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339824391}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339824391}
+{"level":"debug","message":"[vite] hot updated: /src/components/FloatingChatDrawer.tsx","timestamp":1793339824391}
+{"level":"debug","message":"[vite] hot updated: /src/components/AuthModal.tsx","timestamp":1793339824391}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339825924}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339825924}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339825925}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339825925}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339825925}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339835112}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339835112}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339835114}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339835114}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339840728}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339840729}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339840729}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339840729}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339841047}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339841047}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339841048}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339841048}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339847838}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339847838}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339847838}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339847839}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339850178}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339850178}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339850179}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339850179}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339852941}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339852941}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793339852948}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339852948}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339861029}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339861029}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339861031}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339861031}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339861824}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339861824}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339862581}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339862581}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793339863392}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339863392}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793339863394}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339863394}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339864187}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339864187}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339864282}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339864282}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339866211}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339866212}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339866213}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339866214}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1793339867686}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339867687}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1793339867714}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339867714}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793339868498}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339868498}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793339868702}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339868702}
+{"level":"error","message":"Warning: You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it.","timestamp":1793339871174}
+{"level":"debug","message":"[vite] invalidate /src/main.tsx: Could not Fast Refresh (\"true\" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports","timestamp":1793339871176}
+{"level":"debug","message":"[vite] hot updated: /src/main.tsx","timestamp":1793339871176}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339871176}
+{"level":"error","message":"Warning: You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it.","timestamp":1793339871178}
+{"level":"debug","message":"[vite] invalidate /src/main.tsx: Could not Fast Refresh (\"true\" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports","timestamp":1793339871179}
+{"level":"debug","message":"[vite] hot updated: /src/main.tsx","timestamp":1793339871179}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339871179}
+{"level":"error","message":"Uncaught IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-2.12716) is negative.","timestamp":1793339871439,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339860146:101:13","stack":"IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-2.12716) is negative.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339860146:101:13)"}
+{"level":"error","message":"Uncaught IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-2.12716) is negative.","timestamp":1793339871441,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339860146:101:13","stack":"IndexSizeError: Failed to execute 'ellipse' on 'CanvasRenderingContext2D': The major-axis radius provided (-2.12716) is negative.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx?t=1793339860146:101:13)"}
+{"level":"debug","message":"(previous line repeated 2× more)","timestamp":1793339873539}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339873539}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339873539}
+{"level":"debug","message":"(previous line repeated 2× more)","timestamp":1793339873775}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339873775}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339873776}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339885648}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339885649}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793339885650}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339885650}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339886556}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339886557}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793339887089}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339887090}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1793339887364}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339887364}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ManageDeal.tsx","timestamp":1793339887497}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339887497}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339888316}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339888316}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793339888318}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339888318}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339889166}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339889166}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339889168}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339889168}

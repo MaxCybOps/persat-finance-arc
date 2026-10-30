@@ -493,7 +493,7 @@ export default function ManageDeal() {
             isConfirming={isConfirming}
             isSuccess={isSuccess}
             error={error ? parseOnchainError(error) : null}
-            explorerUrl={hash ? `${chain.explorerBase}/tx/${hash}` : undefined}
+            explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined}
           />
         </div>
       )}
@@ -506,7 +506,7 @@ export default function ManageDeal() {
       )}
       {isConnected && isWrongChain && (
         <div className="mt-4 rounded-xl p-3 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042002)
+          Switch your wallet to Arc Mainnet (5042) or Arc Testnet (5042)
         </div>
       )}
 

@@ -71,7 +71,7 @@ export function useUserDeals() {
       }
 
       // Deployment block is the absolute scan floor
-      const deploymentBlock = isMainnet ? 27635000n : 68660000n
+      const deploymentBlock = 27635000n // Arc Mainnet deployment block
       const scanFloor = latestBlock > MAX_SCAN_DEPTH
         ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
         : deploymentBlock
