@@ -813,3 +813,8 @@
 {"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793340982699}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340983064}
 {"level":"debug","message":"[vite] hot updated: /src/pages/Dashboard.tsx","timestamp":1793340983064}
+{"level":"debug","message":"[vite] connected.","timestamp":1793341015762}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793341205952}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342004753}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793342050820}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793342050821}
