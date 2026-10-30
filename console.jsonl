@@ -818,3 +818,5 @@
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342004753}
 {"level":"debug","message":"[vite] hot updated: /src/pages/Admin.tsx","timestamp":1793342050820}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793342050821}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342658093}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342658095}
