@@ -12,7 +12,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ExternalLink,
-  Flame,
   Copy,
   Check,
   CheckCircle,
@@ -392,8 +391,8 @@ export default function Dashboard() {
         {/* ── FAST ACTION TOOLBAR ── */}
         <div className="p-5 rounded-2xl bg-gradient-to-r from-[#201b17] via-[#241f1a] to-[#201b17] border border-[#ff8a00]/30 shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#ff8a00]/15 flex items-center justify-center text-[#ff8a00]">
-              <Flame className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-[#ff8a00]/15 flex items-center justify-center">
+              <img src="/persatlogo.png" alt="Persat" className="w-7 h-7 object-contain" />
             </div>
             <div>
               <h4 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">

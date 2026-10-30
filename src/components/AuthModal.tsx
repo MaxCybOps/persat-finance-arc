@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   ArrowRight,
   LogOut,
-  Flame,
   Lock,
 } from 'lucide-react'
 import { useArcNetwork } from '../hooks/useArcNetwork'
@@ -59,8 +58,8 @@ export default function AuthModal({ isOpen, onClose, destination = '/dashboard' 
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-[#564334]/30 mb-6">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#ff8a00]/15 border border-[#ff8a00]/40 flex items-center justify-center text-[#ff8a00]">
-                  <Flame className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#ff8a00]/15 border border-[#ff8a00]/40 flex items-center justify-center">
+                  <img src="/persatlogo.png" alt="Persat" className="w-6 h-6 object-contain" />
                 </div>
                 <div>
                   <h3 className="font-['Space_Grotesk'] text-lg font-bold text-[#ebe0d9]">

@@ -59,7 +59,7 @@ const connectors = [
             name: 'Persat Finance',
             description: 'Trust-minimized BTC-collateralised lending on Arc',
             url: appOrigin,
-            icons: [`${appOrigin}/logo.svg`],
+            icons: [`${appOrigin}/persatlogo.png`],
           },
         }),
       ]

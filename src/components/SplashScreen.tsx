@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Flame } from 'lucide-react'
 
 interface SplashScreenProps {
   onFinish?: () => void
@@ -65,9 +64,9 @@ export default function SplashScreen({ onFinish, minDuration = 1400 }: SplashScr
               className="absolute w-20 h-20 rounded-full bg-[#ff8a00]/25 blur-lg"
             />
 
-            {/* Central Flame Icon */}
+            {/* Central Logo */}
             <div className="relative z-10 w-16 h-16 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 flex items-center justify-center shadow-[0_0_30px_rgba(255,138,0,0.4)]">
-              <Flame className="w-9 h-9 text-[#ff8a00] animate-pulse" />
+              <img src="/persatlogo.png" alt="Persat" className="w-10 h-10 object-contain" />
             </div>
           </div>
 
