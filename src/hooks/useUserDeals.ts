@@ -27,8 +27,8 @@ export interface LiveDeal {
 
 // Max blocks per getLogs request Arc RPC allows
 const LOG_CHUNK_SIZE = 4500n
-// Scan back 30,000 blocks (~8 hours) from the latest block
-const MAX_SCAN_DEPTH = 30000n
+// Always scan from deployment block — no depth limit so no deal is ever missed
+const MAX_SCAN_DEPTH = 0n
 
 // Global cooldown: prevent multiple page mounts from hammering the RPC
 let lastScanTime = 0
@@ -56,7 +56,9 @@ export function useUserDeals() {
     setError(null)
 
     try {
-      const stored = getStoredDeals(chainId)
+      // Always use mainnet chain ID for storage — wallet may briefly show wrong chain on reconnect
+      const ARC_MAINNET_ID = 5042
+      const stored = getStoredDeals(ARC_MAINNET_ID)
       const storedMap = new Map<string, StoredDeal>()
       for (const s of stored) {
         storedMap.set(s.dealId.toLowerCase(), s)
@@ -70,11 +72,9 @@ export function useUserDeals() {
         latestBlock = 0n
       }
 
-      // Deployment block is the absolute scan floor
+      // Always scan from deployment block — no depth limit
       const deploymentBlock = 27635000n // Arc Mainnet deployment block
-      const scanFloor = latestBlock > MAX_SCAN_DEPTH
-        ? (latestBlock - MAX_SCAN_DEPTH > deploymentBlock ? latestBlock - MAX_SCAN_DEPTH : deploymentBlock)
-        : deploymentBlock
+      const scanFloor = deploymentBlock
 
       // Fetch DealProposed events scanning BACKWARDS from latestBlock
       let proposedLogs: any[] = []
@@ -82,7 +82,7 @@ export function useUserDeals() {
       if (latestBlock > 0n) {
         let toBlock = latestBlock
         let chunksScanned = 0
-        const MAX_CHUNKS = 8 // 8 × 4500 = 36,000 blocks (~10 hrs)
+        const MAX_CHUNKS = 300 // scan up to 1.35M blocks back (~full history at 4500/chunk)
 
         while (toBlock > scanFloor && chunksScanned < MAX_CHUNKS) {
           const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < scanFloor
@@ -100,7 +100,7 @@ export function useUserDeals() {
             const msg = logErr?.message?.toLowerCase() ?? ''
             const isRateLimit = msg.includes('limit') || msg.includes('rate') || msg.includes('too many')
             if (isRateLimit) {
-              await new Promise((r) => setTimeout(r, 3000))
+              await new Promise((r) => setTimeout(r, 1000))
               break
             }
             console.warn(`getLogs chunk ${fromBlock}-${toBlock} failed:`, logErr)
@@ -108,7 +108,7 @@ export function useUserDeals() {
           toBlock = fromBlock - 1n
           chunksScanned++
           // 400ms between chunks to stay within rate limits
-          await new Promise((r) => setTimeout(r, 400))
+          await new Promise((r) => setTimeout(r, 150))
         }
       }
 
@@ -185,7 +185,7 @@ export function useUserDeals() {
                   durationMonths: raw.durationMonths,
                   visibility: 'private',
                   reservedFor: raw.reservedFor,
-                  chainId,
+                  chainId: 5042,
                   createdAt: Date.now(),
                 })
               }
