@@ -200,9 +200,7 @@ export default function Landing() {
           {/* Logo & Network Status */}
           <div className="flex items-center gap-3 sm:gap-4">
             <Link to="/" className="flex items-center gap-2.5 group no-underline">
-              <div className="w-9 h-9 rounded-xl bg-[#ff8a00]/15 flex items-center justify-center border border-[#ff8a00]/40 group-hover:scale-105 transition-transform shadow-[0_0_16px_rgba(255,138,0,0.25)]">
-                <Flame className="w-5 h-5 text-[#ff8a00]" />
-              </div>
+              <img src="/persatlogo.png" alt="Persat Finance" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform" />
               <span className="font-['Space_Grotesk'] text-xl font-bold tracking-wider text-[#ebe0d9]">
                 PERSAT
               </span>

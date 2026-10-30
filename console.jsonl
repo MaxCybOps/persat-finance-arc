@@ -816,3 +816,20 @@
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338163731}
 {"level":"debug","message":"[vite] hot updated: /src/pages/Marketplace.tsx","timestamp":1793338163946}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338163946}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793338558301}
+{"level":"debug","message":"[vite] connected.","timestamp":1793338562331}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793338786632}
+{"level":"debug","message":"[vite] connected.","timestamp":1793338790992}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793338905538}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793338923580}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338923580}
+{"level":"debug","message":"[vite] hot updated: /src/components/Layout.tsx","timestamp":1793338923588}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338923588}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793338931236}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338931237}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793338931326}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338931326}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793338932303}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338932303}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793338932309}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793338932309}

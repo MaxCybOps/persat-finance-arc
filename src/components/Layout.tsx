@@ -63,12 +63,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center shadow-[0_0_12px_rgba(255,138,0,0.3)]"
-            style={{ background: 'rgba(255,138,0,0.15)', border: '1px solid rgba(255,138,0,0.4)' }}
-          >
-            <Flame size={16} className="text-[#ff8a00]" />
-          </div>
+          <img src="/persatlogo.png" alt="Persat Finance" className="w-8 h-8 object-contain" />
           <span className="font-['Space_Grotesk'] font-bold text-base tracking-wider text-[#ebe0d9]">
             PERSAT
           </span>
