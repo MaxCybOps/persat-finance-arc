@@ -1,7 +1,7 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseAbiItem } from 'viem'
 import { Filter, Plus, X, RefreshCw, ExternalLink } from 'lucide-react'
 import { Card, Button, Badge, Input, TxStatus } from '../components/ui'
@@ -20,6 +20,7 @@ import {
 } from '../lib/utils'
 import { REGISTRY_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
+import { getArcClient } from '../lib/arcClient'
 
 interface OfferForm {
   principal: string
@@ -177,17 +178,17 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
 
 export default function Marketplace() {
   const { addresses, chainId, isMainnet } = useArcNetwork()
-  const publicClient = usePublicClient({ chainId })
+  const arcClient = getArcClient(isMainnet)
   const [filterRole, setFilterRole] = useState<'all' | 'borrow' | 'lend'>('all')
   const [dealIds, setDealIds] = useState<`0x${string}`[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [lastScanned, setLastScanned] = useState<number | null>(null)
 
   const scanPublicDeals = useCallback(async () => {
-    if (!publicClient || !addresses.registry) return
+    if (!addresses.registry) return
     setIsLoading(true)
     try {
-      const latestBlock = await publicClient.getBlockNumber()
+      const latestBlock = await arcClient.getBlockNumber()
       const deploymentBlock = isMainnet ? 27635000n : 68660000n
       // Only scan last 12 hours to avoid rate limits — public deals are recent
       const fromBlock = latestBlock - 43200n > deploymentBlock
@@ -203,7 +204,7 @@ export default function Marketplace() {
       while (toBlock > fromBlock && chunks < MAX_CHUNKS) {
         const chunkFrom = toBlock - CHUNK + 1n < fromBlock ? fromBlock : toBlock - CHUNK + 1n
         try {
-          const logs = await publicClient.getLogs({
+          const logs = await arcClient.getLogs({
             address: addresses.registry,
             event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
             fromBlock: chunkFrom,
@@ -223,7 +224,7 @@ export default function Marketplace() {
     } catch { /* ignore */ } finally {
       setIsLoading(false)
     }
-  }, [publicClient, addresses.registry, chainId, isMainnet])
+  }, [arcClient, addresses.registry, chainId, isMainnet])
 
   useEffect(() => { void scanPublicDeals() }, [scanPublicDeals])
 
