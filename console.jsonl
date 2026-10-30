@@ -764,3 +764,16 @@
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339889166}
 {"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793339889168}
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793339889168}
+{"level":"debug","message":"[vite] connected.","timestamp":1793340113804}
+{"level":"debug","message":"[vite] connected.","timestamp":1793340152392}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793340232839}
+{"level":"debug","message":"[vite] hot updated: /src/pages/ClaimDeal.tsx","timestamp":1793340254912}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340254912}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793340266187}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340266187}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793340266205}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340266206}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793340267338}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340267338}
+{"level":"debug","message":"[vite] hot updated: /src/pages/Landing.tsx","timestamp":1793340267529}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793340267529}

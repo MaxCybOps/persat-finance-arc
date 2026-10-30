@@ -141,27 +141,32 @@ export default function ClaimDeal() {
   const isSuccess = isWagmiSuccess || receiptConfirmed
   const isConfirming = Boolean(hash) && !isSuccess
 
+  // Run ONCE when tx confirms — use a ref to prevent re-triggering when deal refetch updates state
+  const successHandledRef = useState(false)
   useEffect(() => {
-    if (isSuccess) {
-      void refetch()
-      if (deal && address) {
-        const borrowerSet = deal.borrower !== '0x0000000000000000000000000000000000000000'
-        const role = borrowerSet ? 'lender' : 'borrower'
-        saveStoredDeal({
-          dealId: normalizedDealId,
-          salt: effectiveSalt ?? undefined,
-          role,
-          principal: formatUsdc(deal.principal),
-          collateral: formatBtc(deal.collateral),
-          rateBps: (Number(deal.rateBps) / 100).toString(),
-          durationMonths: deal.durationMonths,
-          visibility: deal.visibility === 0 ? 'private' : 'public',
-          chainId,
-          createdAt: Date.now(),
-        })
-      }
+    if (!isSuccess || successHandledRef[0]) return
+    successHandledRef[1](true)
+    // Refetch deal state once to reflect new on-chain state
+    void refetch()
+    // Persist to localStorage using the deal data we already have
+    if (deal && address) {
+      const borrowerSet = deal.borrower !== '0x0000000000000000000000000000000000000000'
+      const role = borrowerSet ? 'lender' : 'borrower'
+      saveStoredDeal({
+        dealId: normalizedDealId,
+        salt: effectiveSalt ?? undefined,
+        role,
+        principal: formatUsdc(deal.principal),
+        collateral: formatBtc(deal.collateral),
+        rateBps: (Number(deal.rateBps) / 100).toString(),
+        durationMonths: deal.durationMonths,
+        visibility: deal.visibility === 0 ? 'private' : 'public',
+        chainId,
+        createdAt: Date.now(),
+      })
     }
-  }, [isSuccess, refetch, deal, address, normalizedDealId, effectiveSalt, chainId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess])
 
   if (!hasValidId) {
     return (

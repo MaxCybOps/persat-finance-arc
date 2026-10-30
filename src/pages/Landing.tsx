@@ -93,9 +93,9 @@ function OrbitalCanvas() {
 
       // 2. Concentric solar ripple rings
       for (let i = 1; i <= 5; i++) {
-        const r = Math.min(W, H) * 0.16 * i + Math.sin(t + i) * 6
+        const r = Math.max(1, Math.min(W, H) * 0.16 * i + Math.sin(t + i) * 6)
         ctx.beginPath()
-        ctx.ellipse(cx, cy, r, r * 0.42, 0, 0, Math.PI * 2)
+        ctx.ellipse(cx, cy, r, Math.max(1, r * 0.42), 0, 0, Math.PI * 2)
         ctx.strokeStyle = `rgba(255,186,105,${0.16 - i * 0.024})`
         ctx.lineWidth = 1
         ctx.stroke()
