@@ -82,6 +82,26 @@ export function computeLtv(
   return Number((principalUsdc * 10_000n) / collateralUsdValue)
 }
 
+/**
+ * Compute RLTV (Repayable Loan-to-Value) — collateral value vs total repayable amount.
+ * Protects the lender's yield by checking collateral covers principal + all interest.
+ * Returns a percentage number (e.g. 76.5).
+ */
+export function computeRltv(
+  collateralRaw: bigint,   // satoshis (8 dec)
+  btcPriceUsd: number,     // whole dollars (from Pyth/CoinGecko)
+  principal: bigint,       // USDC 6-dec
+  rateBps: bigint,
+  durationMonths: number,
+): number {
+  if (collateralRaw === 0n || btcPriceUsd === 0 || principal === 0n) return 0
+  const { total } = computeRepayment(principal, rateBps, durationMonths)
+  // collateralValueUsdc (6-dec) = sats * priceUsd / 100
+  const collateralValue = collateralRaw * BigInt(Math.floor(btcPriceUsd)) / 100n
+  if (collateralValue === 0n) return 0
+  return Number((total * 10_000n) / collateralValue) / 100
+}
+
 /** DealState enum values matching the contract */
 export const DealState = {
   Proposed: 0,

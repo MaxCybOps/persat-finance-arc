@@ -34,6 +34,8 @@ import {
   dealStateLabel,
   dealStateColor,
   DealState,
+  computeRltv,
+  computeRepayment,
 } from '../lib/utils'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { useUserDeals, LiveDeal } from '../hooks/useUserDeals'
@@ -61,15 +63,28 @@ export default function Dashboard() {
   // Live Pyth/Oracle BTC Price
   const { priceUsd: btcPrice, isStale: priceStale, source: priceSource } = useBtcPrice()
 
-  // Real Calculated Metrics
-  const collateralBtc = Number(totalCollateralLocked) / 1e8
-  const borrowedUsdc = Number(totalBorrowedUsdc) / 1e6
-  const collateralValueUsd = collateralBtc * btcPrice
-  const aggregateLtv = collateralValueUsd > 0
-    ? ((borrowedUsdc / collateralValueUsd) * 100).toFixed(1)
-    : '0.0'
+  // Aggregate RLTV across all active borrowed deals
+  // RLTV = total repayable / total collateral value — protects lender yield
+  const { deals: allDeals } = useUserDeals()
+  const activeBorrowedDeals = allDeals.filter(
+    d => d.borrower.toLowerCase() === (address?.toLowerCase() ?? '') &&
+    (d.state === DealState.Active || d.state === DealState.Confirmed)
+  )
+  const aggregateRltvNum = (() => {
+    if (activeBorrowedDeals.length === 0) return 0
+    let totalRepayable = 0n
+    let totalCollateralUsdc = 0n
+    for (const d of activeBorrowedDeals) {
+      const { total } = computeRepayment(d.principal, d.rateBps, d.durationMonths)
+      totalRepayable += total
+      totalCollateralUsdc += d.collateral * BigInt(Math.floor(btcPrice)) / 100n
+    }
+    if (totalCollateralUsdc === 0n) return 0
+    return Number((totalRepayable * 10_000n) / totalCollateralUsdc) / 100
+  })()
+  const aggregateRltv = aggregateRltvNum.toFixed(1)
 
-  const ltvNum = parseFloat(aggregateLtv)
+  const ltvNum = aggregateRltvNum
   const isHealthy = ltvNum === 0 || ltvNum <= 50
   const isWarning = ltvNum > 50 && ltvNum <= 75
   const isDanger = ltvNum > 75
@@ -237,7 +252,7 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="font-['Space_Grotesk'] text-xs uppercase font-bold text-[#a58c7b] tracking-wider">
-                  Portfolio Health Factor (LTV)
+                  Portfolio Health Factor (RLTV)
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold uppercase ${
                   isHealthy
@@ -253,10 +268,10 @@ export default function Dashboard() {
               {/* LTV Percentage Big Text */}
               <div className="flex items-baseline gap-2 mb-4">
                 <span className="font-['Space_Grotesk'] text-4xl sm:text-5xl font-bold text-[#ebe0d9]">
-                  {aggregateLtv}%
+                  {aggregateRltv}%
                 </span>
                 <span className="text-xs text-[#a58c7b]">
-                  {ltvNum === 0 ? 'No Active Debt' : 'Current Loan-to-Value'}
+                  {ltvNum === 0 ? 'No Active Debt' : 'Repayable Loan-to-Value'}
                 </span>
               </div>
 
@@ -304,10 +319,10 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  {collateralBtc.toFixed(4)} BTC
+                  {(Number(totalCollateralLocked) / 1e8).toFixed(4)} BTC
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
-                  ≈ ${collateralValueUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
+                  ≈ ${(Number(totalCollateralLocked) / 1e8 * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
                 </div>
               </div>
             </div>
@@ -324,7 +339,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  ${borrowedUsdc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${(Number(totalBorrowedUsdc) / 1e6).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-[#ff8a00] font-semibold mt-0.5">
                   Native USDC Escrow

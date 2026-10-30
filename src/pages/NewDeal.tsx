@@ -15,6 +15,7 @@ import {
   computeRepayment,
   parseOnchainError,
   deriveSaltForCounterparty,
+  computeRltv,
 } from '../lib/utils'
 import { buildShareLink } from '../lib/share'
 import { REGISTRY_ABI } from '../contracts/abis'
@@ -119,15 +120,10 @@ export default function NewDeal() {
     ? computeRepayment(principalRaw, rateBpsRaw, duration)
     : { interest: 0n, total: 0n }
 
-  // LTV calculation (live Pyth price):
-  // collateralRaw = satoshis (8 dec), principalRaw = USDC micro (6 dec), btcPriceUsd = whole dollars
-  // collateralValueUsdc (6-dec) = sats * priceUsd * 1_000_000 / 100_000_000
-  //                              = sats * priceUsd / 100
+  // RLTV: collateral value vs total repayable (principal + interest) — protects lender yield
   const btcPriceBigInt = BigInt(Math.floor(btcPriceUsd))
-  const collateralUsdEst = collateralRaw * btcPriceBigInt / 100n  // result in USDC 6-dec
-  const ltvEst = collateralUsdEst > 0n
-    ? Number((principalRaw * 10_000n) / collateralUsdEst) / 100
-    : 0
+  const collateralUsdEst = collateralRaw * btcPriceBigInt / 100n  // USDC 6-dec
+  const rltvEst = computeRltv(collateralRaw, btcPriceUsd, principalRaw, rateBpsRaw, duration)
 
   const isValid =
     principalRaw > 0n &&
@@ -337,8 +333,8 @@ export default function NewDeal() {
               ['Total repayment', `$${formatUsdc(total)}`],
               ['Collateral', `${formatBtc(collateralRaw)} BTC`],
               ['Collateral Value', collateralUsdEst > 0n ? `$${formatUsdc(collateralUsdEst)}` : '—'],
-              ['Est. LTV', ltvEst > 0 ? `${ltvEst.toFixed(1)}%` : '—'],
-              ['Liquidation LTV', '80%'],
+              ['Est. RLTV', rltvEst > 0 ? `${rltvEst.toFixed(1)}%` : '—'],
+              ['Liquidation RLTV', '80%'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between border-b pb-1" style={{ borderColor: 'var(--border)' }}>
                 <span style={{ color: 'var(--subtle)' }}>{k}</span>
@@ -346,9 +342,9 @@ export default function NewDeal() {
                   className="font-semibold tabular-nums"
                   style={{
                     color:
-                      k === 'Est. LTV' && ltvEst > 75
+                      k === 'Est. RLTV' && rltvEst > 75
                         ? 'var(--danger)'
-                        : k === 'Est. LTV' && ltvEst > 60
+                        : k === 'Est. RLTV' && rltvEst > 60
                         ? '#f7931a'
                         : 'var(--ink)',
                   }}
@@ -358,10 +354,10 @@ export default function NewDeal() {
               </div>
             ))}
           </div>
-          {ltvEst > 75 && (
+          {rltvEst > 75 && (
             <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
               <Info size={12} />
-              LTV is close to the 80% liquidation threshold. Consider adding more collateral.
+              RLTV is close to the 80% liquidation threshold. The collateral may not fully cover repayment — add more collateral to protect the lender.
             </div>
           )}
         </Card>
