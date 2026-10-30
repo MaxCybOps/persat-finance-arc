@@ -820,3 +820,18 @@
 {"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793342050821}
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342658093}
 {"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793342658095}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793344006007}
+{"level":"debug","message":"[vite] connected.","timestamp":1793355641776}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793355710942}
+{"level":"debug","message":"[vite] connected.","timestamp":1793355715226}
+{"level":"error","message":"Warning: You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it.","timestamp":1793355734986}
+{"level":"debug","message":"[vite] invalidate /src/main.tsx: Could not Fast Refresh (\"true\" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports","timestamp":1793355735059}
+{"level":"debug","message":"[vite] hot updated: /src/main.tsx","timestamp":1793355735059}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793355735060}
+{"level":"error","message":"Warning: You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it.","timestamp":1793355735061}
+{"level":"debug","message":"[vite] invalidate /src/main.tsx: Could not Fast Refresh (\"true\" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports","timestamp":1793355735255}
+{"level":"debug","message":"[vite] hot updated: /src/main.tsx","timestamp":1793355735255}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793355735255}
+{"level":"debug","message":"[vite] connected.","timestamp":1793355737941}
+{"level":"debug","message":"(previous line repeated 2× more)","timestamp":1793355738267}
+{"level":"error","message":"Uncaught TypeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite.","timestamp":1793355738267,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24","stack":"TypeError: The provided double value is non-finite.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24)"}

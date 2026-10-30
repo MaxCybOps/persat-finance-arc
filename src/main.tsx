@@ -70,7 +70,16 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ConnectKitProvider>
+        <ConnectKitProvider
+          theme="midnight"
+          options={{
+            hideBalance: false,
+            hideTooltips: false,
+            walletConnectName: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ? undefined : '__disabled__',
+            enforceSupportedChains: false,
+            embedGoogleFonts: false,
+          }}
+        >
           <App />
           <StudioWatermark />
           <Toaster position="top-center" />
