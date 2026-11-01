@@ -1,5 +1,5 @@
 // oxlint-disable
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Copy, Check, Lock, Unlock, Info, ArrowRight, MessageSquare, ExternalLink, CheckCircle2, Sparkles, Send } from 'lucide-react'
@@ -26,6 +26,12 @@ import { DealChat } from '../components/DealChat'
 import { useBtcPrice } from '../hooks/useBtcPrice'
 import { getArcClient } from '../lib/arcClient'
 
+const ERC20_ABI = [
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+] as const
+
+const USDC_MAINNET = '0x3600000000000000000000000000000000000000' as const
+
 type Tab = 'private' | 'public'
 type Role = 'borrower' | 'lender'
 
@@ -49,6 +55,24 @@ export default function NewDeal() {
   const [copied, setCopied] = useState(false)
   const [receiptConfirmed, setReceiptConfirmed] = useState(false)
   const [minedBlock, setMinedBlock] = useState<bigint | null>(null)
+
+  // Wallet balance checks
+  const [usdcBalance, setUsdcBalance] = useState<bigint | null>(null)
+  const [cirBtcBalance, setCirBtcBalance] = useState<bigint | null>(null)
+
+  const fetchBalances = useCallback(async () => {
+    if (!address) return
+    try {
+      const [usdc, cirbtc] = await Promise.all([
+        arcClient.readContract({ address: USDC_MAINNET, abi: ERC20_ABI, functionName: 'balanceOf', args: [address] }),
+        arcClient.readContract({ address: addresses.cirBtc as `0x${string}`, abi: ERC20_ABI, functionName: 'balanceOf', args: [address] }),
+      ])
+      setUsdcBalance(usdc as bigint)
+      setCirBtcBalance(cirbtc as bigint)
+    } catch { /* ignore */ }
+  }, [address, arcClient, addresses.cirBtc])
+
+  useEffect(() => { void fetchBalances() }, [fetchBalances])
 
   const { writeContract, data: hash, isPending, error } = useWriteContract()
 
@@ -131,6 +155,11 @@ export default function NewDeal() {
     rateBpsRaw > 0n &&
     duration > 0 &&
     duration <= 24
+
+  // Balance checks — warn before submission
+  const insufficientUsdc = role === 'lender' && usdcBalance !== null && principalRaw > 0n && usdcBalance < principalRaw
+  const insufficientCirBtc = role === 'borrower' && cirBtcBalance !== null && collateralRaw > 0n && cirBtcBalance < collateralRaw
+  const hasBalanceWarning = insufficientUsdc || insufficientCirBtc
 
   function submit() {
     if (!isValid || !address) return
@@ -358,6 +387,33 @@ export default function NewDeal() {
             <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
               <Info size={12} />
               RLTV is close to the 80% liquidation threshold. The collateral may not fully cover repayment — add more collateral to protect the lender.
+            </div>
+          )}
+
+          {/* Wallet balance check */}
+          {insufficientUsdc && (
+            <div className="flex items-center gap-2 mt-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <Info size={12} />
+              <span>
+                <strong>Insufficient USDC.</strong> You need ${formatUsdc(principalRaw)} USDC to fund this deal but your wallet only has ${usdcBalance !== null ? formatUsdc(usdcBalance) : '...'} USDC on Arc.
+              </span>
+            </div>
+          )}
+          {insufficientCirBtc && (
+            <div className="flex items-center gap-2 mt-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <Info size={12} />
+              <span>
+                <strong>Insufficient cirBTC.</strong> You need {formatBtc(collateralRaw)} cirBTC as collateral but your wallet only has {cirBtcBalance !== null ? formatBtc(cirBtcBalance) : '...'} cirBTC on Arc.
+              </span>
+            </div>
+          )}
+
+          {/* Wallet balances info row */}
+          {address && (usdcBalance !== null || cirBtcBalance !== null) && (
+            <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: 'var(--subtle)' }}>
+              <span>Your wallet: {usdcBalance !== null ? `$${formatUsdc(usdcBalance)} USDC` : '...'}</span>
+              <span>·</span>
+              <span>{cirBtcBalance !== null ? `${formatBtc(cirBtcBalance)} cirBTC` : '...'}</span>
             </div>
           )}
         </Card>

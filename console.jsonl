@@ -856,3 +856,21 @@
 {"level":"debug","message":"(previous line repeated 1× more)","timestamp":1793495726016}
 {"level":"error","message":"Uncaught TypeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite.","timestamp":1793495726017,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24","stack":"TypeError: The provided double value is non-finite.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24)"}
 {"level":"error","message":"Uncaught TypeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite.","timestamp":1793495726017,"source":"https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24","stack":"TypeError: The provided double value is non-finite.\n    at draw (https://iihjx6k8mffgl2vtmmros.preview.studio.arc.io/src/pages/Landing.tsx:92:24)"}
+{"level":"debug","message":"[vite] connected.","timestamp":1793568978314}
+{"level":"debug","message":"[vite] connected.","timestamp":1793569354316}
+{"level":"debug","message":"[vite] connected.","timestamp":1793569413494}
+{"level":"log","message":"[vite] server connection lost. Polling for restart...","timestamp":1793569496136}
+{"level":"debug","message":"[vite] connected.","timestamp":1793569514849}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569523177}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569523178}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569526874}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569526874}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569531033}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569531033}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569533311}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569533311}
+{"level":"debug","message":"[vite] connected.","timestamp":1793569537293}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569546098}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569546098}
+{"level":"debug","message":"[vite] hot updated: /src/pages/NewDeal.tsx","timestamp":1793569546099}
+{"level":"debug","message":"[vite] hot updated: /src/index.css","timestamp":1793569546099}
