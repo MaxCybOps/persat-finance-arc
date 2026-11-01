@@ -75,9 +75,9 @@ createRoot(document.getElementById('root')!).render(
           options={{
             hideBalance: false,
             hideTooltips: false,
-            walletConnectName: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ? undefined : '__disabled__',
             enforceSupportedChains: false,
             embedGoogleFonts: false,
+            initialChainId: 5042,
           }}
         >
           <App />

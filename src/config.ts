@@ -44,22 +44,21 @@ registerChain(arcMainnet.id, arcMainnet.rpcUrls.default.http[0])
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined
 
-const appOrigin =
-  typeof window !== 'undefined' && window.location.origin
-    ? window.location.origin
-    : 'http://localhost:5173'
+// Always use the real production URL — never localhost (causes MetaMask security warning)
+const APP_URL = 'https://persat-finance-arc-mwuz.vercel.app'
 
 const connectors = [
-  injected(),
+  injected({ shimDisconnect: true }),
   ...(projectId
     ? [
         walletConnect({
           projectId,
+          showQrModal: false, // ConnectKit handles its own modal — prevent double QR popup
           metadata: {
             name: 'Persat Finance',
             description: 'Trust-minimized BTC-collateralised lending on Arc',
-            url: appOrigin,
-            icons: [`${appOrigin}/persatlogo.png`],
+            url: APP_URL,
+            icons: [`${APP_URL}/persatlogo.png`],
           },
         }),
       ]
