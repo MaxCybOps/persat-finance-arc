@@ -6,7 +6,9 @@ import { Copy, Check, Lock, Unlock, Info, ArrowRight, MessageSquare, ExternalLin
 import { toast } from 'sonner'
 import { Card, Button, Input, TxStatus } from '../components/ui'
 import {
-  randomDealId,
+  randomDealNonce,
+  deriveDealId,
+  openLinkOnchainSalt,
   randomSalt,
   formatUsdc,
   parseUsdc,
@@ -49,7 +51,12 @@ export default function NewDeal() {
     durationMonths: '',
     reservedFor: '',
   })
-  const [dealId] = useState<`0x${string}`>(randomDealId)
+  // F-08: the deal ID is bound to the connected wallet (first 8 bytes = registry.dealIdPrefix(address))
+  const [dealNonce] = useState<`0x${string}`>(randomDealNonce)
+  const dealId: `0x${string}` = address
+    ? deriveDealId(address, dealNonce)
+    : (`0x${'00'.repeat(8)}${dealNonce.slice(2)}` as `0x${string}`)
+  // F-07: for open private links this is an ephemeral private key that only travels inside the share link
   const [salt] = useState<`0x${string}`>(randomSalt)
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -119,13 +126,18 @@ export default function NewDeal() {
   const isConfirmed = isWagmiSuccess || receiptConfirmed
   const isConfirming = Boolean(hash) && !isConfirmed
 
-  // Compute effective salt: If counterparty address is set, use deterministic derived salt
+  // Compute effective salt: If counterparty address is set, use deterministic derived salt.
+  // effectiveSalt = secret carried by the share link; onchainSalt = value sent to proposeDeal.
+  // Open links (no counterparty): the link carries an ephemeral private key and the chain only
+  // stores its address, so the claim secret never appears on-chain (F-07).
   const hasCounterparty = form.reservedFor.trim().startsWith('0x') && form.reservedFor.trim().length === 42
+  const zeroSalt = ('0x' + '00'.repeat(32)) as `0x${string}`
   const effectiveSalt = tab === 'private'
     ? (hasCounterparty
         ? deriveSaltForCounterparty(dealId, form.reservedFor.trim() as `0x${string}`)
         : salt)
-    : ('0x' + '00'.repeat(32) as `0x${string}`)
+    : zeroSalt
+  const onchainSalt = tab === 'private' && !hasCounterparty ? openLinkOnchainSalt(salt) : effectiveSalt
 
   // Build share link proactively
   useEffect(() => {
@@ -187,7 +199,7 @@ export default function NewDeal() {
       args: [
         dealId,
         role === 'borrower',
-        (tab === 'private' && form.reservedFor.trim()
+        (tab === 'private' && hasCounterparty
           ? form.reservedFor.trim()
           : '0x0000000000000000000000000000000000000000') as `0x${string}`,
         principalRaw,
@@ -195,7 +207,7 @@ export default function NewDeal() {
         rateBpsRaw,
         duration,
         tab === 'private' ? 0 : 1, // Visibility enum
-        effectiveSalt,
+        onchainSalt,
       ],
       chainId,
       // Arc Testnet RPC rejects eth_estimateGas for long calldata ("Invalid params").

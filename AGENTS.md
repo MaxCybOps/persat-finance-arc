@@ -23,6 +23,13 @@ Previous deployer (old contracts, no longer used): `0x5B12Ce46C7194aD57d143bC228
 
 ---
 
+## IMPORTANT: Security review (Nov 2026)
+
+The contracts in `contracts/` were changed after a security review (see `contracts/PersatFinance-design.md` →
+*Security review — November 2026*). The addresses listed above run the **old** code and must be redeployed.
+The current Arc Mainnet deployment uses a publicly mintable mock "cirBTC" and must not hold real funds.
+`PersatEscrowVault` constructor now takes `maxInitialLtvBps` (after `liquidationThresholdBps`).
+
 ## IMPORTANT: Wiring Step Required
 
 The Registry's `setVault(address)` function must be called ONCE to wire the vault into the registry.
@@ -48,8 +55,9 @@ For Arc Mainnet, redeploy with:
 | PersatDealRegistry | `contracts/PersatDealRegistry.sol` |
 | PersatEscrowVault | `contracts/PersatEscrowVault.sol` |
 | IPriceFeed interface | inline in `contracts/PersatEscrowVault.sol` |
+| PythPriceFeedAdapter | `contracts/PythPriceFeedAdapter.sol` |
 | Design doc | `contracts/PersatFinance-design.md` |
-| Unit tests | `contracts/test/PersatDealRegistry.t.sol`, `contracts/test/PersatEscrowVault.t.sol` |
+| Unit tests | `contracts/test/PersatDealRegistry.t.sol`, `contracts/test/PersatEscrowVault.t.sol`, `contracts/test/SecurityFixes.t.sol` |
 | Test helpers | `contracts/test-helpers/MockERC20.sol`, `contracts/test-helpers/MockPriceFeed.sol` |
 
 ---

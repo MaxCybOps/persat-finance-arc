@@ -18,7 +18,21 @@
 
 ## Action Items (living)
 
-_Starts empty — filled per review round._
+### Security review — November 2026 (implemented on branch `fix/security-review`)
+
+| ID | Finding | Change |
+|----|---------|--------|
+| F-01 | Mainnet collateral was a publicly mintable mock | `scripts/deploy-mainnet.cjs` no longer deploys a token; it requires `CIRBTC_ADDRESS` and aborts if `mint()` is callable by anyone, decimals ≠ 8, or the oracle is stale |
+| F-02 | Default gave the lender no remedy | `liquidate` is allowed when LTV ≥ 80% **or** when the loan is unpaid `GRACE_PERIOD` (7 days) after maturity; repayment after maturity adds `LATE_FEE_BPS` (2% of principal) |
+| F-03 / F-04 | Owner could drain unclaimed principal; principal could get stuck | Principal (minus fee) is transferred lender → borrower in `activateLoan`; `claimPrincipal` / `claimableUsdc` removed; the vault never holds user USDC |
+| F-05 | No LTV check at activation | `activateLoan` reads the oracle and requires `(principal + interest) / collateralValue ≤ maxInitialLtvBps` (constructor arg, 65% recommended, must be < liquidation threshold) |
+| F-06 | Liquidation ignored interest, no keeper incentive | Debt = principal + interest (+ late fee); caller receives `LIQUIDATION_BONUS_BPS` (3% of the lender's share) out of the borrower surplus only |
+| F-07 | Open private-link secret readable from calldata / front-runnable | Open links (no `reservedFor`) store an ephemeral signer address; claim via `claimDealWithSignature` with a signature bound to `msg.sender`. Reserved links keep `claimDeal(salt)` |
+| F-08 | Deal ID squatting | First 8 bytes of `dealId` must equal `dealIdPrefix(msg.sender)` |
+| F-09 | Self-matching; counter-offers not withdrawable | `SelfMatch` checks on propose/claim/counter-offer/accept; new `cancelCounterOffer` |
+| F-10 | Testnet oracle writable by anyone | New `contracts/PythPriceFeedAdapter.sol` (Chainlink-compatible wrapper over Pyth `getPriceUnsafe`) |
+
+Regression tests: `contracts/test/SecurityFixes.t.sol`. **Contracts must be redeployed for these fixes to take effect; the frontend on this branch targets the new ABI.**
 
 ---
 
@@ -56,7 +70,7 @@ _Starts empty — filled per review round._
 4. **Terms hash** computed as `keccak256(abi.encode(dealId, borrower, lender, principal, collateral, rateBps, durationMonths))` at Confirmed transition; stored immutably; must match at every subsequent state change.
 5. **Atomic activation:** single call deposits cirBTC from borrower into vault, transfers USDC principal from lender to borrower, deducts protocol fee.
 6. **Repayment:** borrower repays `principal + interest`; interest = `principal * rateBps * durationMonths / (10000 * 12)`; contract releases cirBTC to borrower and USDC to lender atomically.
-7. **Liquidation:** permissionless call when `collateral_usd_value / principal < 1 / liquidationThreshold (80%)`. Lender receives USDC equivalent of collateral, excess collateral (if any) returned to borrower.
+7. **Liquidation:** permissionless call when `(principal + interest) / collateral_usd_value ≥ liquidationThreshold (80%)`, or when the loan is unpaid 7 days after maturity. Lender receives cirBTC worth the debt (principal + interest, + 2% late fee after maturity); the caller receives a 3% bonus from the surplus; the remaining collateral is returned to borrower.
 8. **Protocol fee:** collected at activation, configurable by `feeAdmin` up to `MAX_FEE_BPS` (e.g. 50 bps = 0.5%).
 
 ### Security
@@ -187,7 +201,7 @@ sequenceDiagram
 | Activation — fee | USDC: lender → feeRecipient | feeRecipient.USDC += fee |
 | Repayment — interest+principal | USDC: borrower → lender | lender.USDC += principal+interest |
 | Repayment — collateral release | cirBTC: vault → borrower | vault.cirBTC -= collateral |
-| Liquidation — debt repay | USDC vault allowance → lender | lender made whole in USDC |
+| Liquidation — debt repay | cirBTC: vault → lender (worth principal + interest) | lender made whole in cirBTC at oracle price |
 | Liquidation — excess collateral | cirBTC: vault → borrower | no cirBTC stranded in vault |
 
 **Resting-state invariant:** The vault holds cirBTC only for Active deals. For Completed, Liquidated, or Cancelled deals the vault holds zero cirBTC for that deal.

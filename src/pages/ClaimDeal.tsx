@@ -28,7 +28,8 @@ import { addArcNetwork } from '../lib/networkUtils'
 import { getArcClient } from '../lib/arcClient'
 import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
 import { DealChat } from '../components/DealChat'
-import { keccak256, encodeAbiParameters, parseAbiParameters, decodeFunctionData } from 'viem'
+import { keccak256, encodeAbiParameters, parseAbiParameters, isHex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 export default function ClaimDeal() {
   const { token: dealIdParam } = useParams<{ token: string }>()
@@ -265,16 +266,58 @@ export default function ClaimDeal() {
     deal.reservedFor !== '0x0000000000000000000000000000000000000000' &&
     address?.toLowerCase() !== deal.reservedFor.toLowerCase()
 
-  function claim() {
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+  const isOpenLink = deal.visibility === 0 && deal.reservedFor === ZERO_ADDRESS
+
+  async function claim() {
     if (!hasValidId || !effectiveSalt || !address) return
-    writeContract({
-      address: addresses.registry,
-      abi: REGISTRY_ABI,
-      functionName: 'claimDeal',
-      args: [normalizedDealId, effectiveSalt],
-      chainId,
-      gas: 200_000n,
-    })
+
+    if (!isOpenLink) {
+      writeContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDeal',
+        args: [normalizedDealId, effectiveSalt],
+        chainId,
+        gas: 200_000n,
+      })
+      return
+    }
+
+    // F-07: open link — the URL carries an ephemeral key. Sign "this deal goes to <my wallet>" with it,
+    // so a copied link or a front-run transaction cannot redirect the deal to another wallet.
+    try {
+      if (!isHex(effectiveSalt) || effectiveSalt.length !== 66) throw new Error('bad key')
+      const linkAccount = privateKeyToAccount(effectiveSalt)
+      const expectedSigner = await arcClient.readContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimSigner',
+        args: [normalizedDealId],
+      })
+      if (expectedSigner.toLowerCase() !== linkAccount.address.toLowerCase()) {
+        toast.error('This claim link is invalid or has already been used.', { duration: 8000 })
+        return
+      }
+      const digest = await arcClient.readContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDigest',
+        args: [normalizedDealId, address],
+      })
+      const signature = await linkAccount.signMessage({ message: { raw: digest } })
+      writeContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDealWithSignature',
+        args: [normalizedDealId, signature],
+        chainId,
+        gas: 250_000n,
+      })
+    } catch (e) {
+      console.error('Open-link claim failed:', e)
+      toast.error('This claim link is invalid or incomplete. Ask the creator for the full link.', { duration: 8000 })
+    }
   }
 
   return (

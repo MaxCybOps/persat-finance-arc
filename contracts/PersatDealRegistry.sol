@@ -5,6 +5,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     enum DealState {
@@ -61,12 +63,17 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     error FeeTooHigh();
     error VaultAlreadySet();
     error NotVault();
+    error InvalidDealId();
+    error SignatureRequired();
+    error InvalidSignature();
+    error SelfMatch();
 
     event DealProposed(bytes16 indexed dealId, address indexed proposer, Visibility visibility);
     event DealConfirmed(bytes16 indexed dealId, address indexed borrower, address indexed lender, bytes32 termsHash);
     event DealCancelled(bytes16 indexed dealId, address indexed cancelledBy);
     event CounterOfferSubmitted(bytes16 indexed dealId, uint256 indexed offerId, address indexed proposer);
     event CounterOfferCancelled(bytes16 indexed dealId, uint256 indexed offerId);
+    event CounterOfferWithdrawn(bytes16 indexed dealId, uint256 indexed offerId, address indexed proposer);
     event FeeUpdated(uint256 oldFeeBps, uint256 newFeeBps);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
     event VaultSet(address vault);
@@ -82,6 +89,13 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     address public immutable usdc;
     address public immutable cirBtc;
     uint256 public constant MAX_COUNTER_OFFERS = 50;
+
+    /// @notice Domain tag for open private-link claim signatures.
+    bytes32 public constant CLAIM_TYPEHASH = keccak256("PersatFinance.ClaimDeal");
+
+    /// @notice Ephemeral signer authorised to approve the claimer of an open private deal
+    ///         (private deal with no reserved counterparty). Its private key lives only in the share link.
+    mapping(bytes16 => address) public claimSigner;
 
     mapping(bytes16 => bool) private _dealExists;
 
@@ -116,6 +130,8 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         bytes32 salt
     ) external whenNotPaused {
         if (_dealExists[dealId]) revert DealAlreadyExists();
+        // F-08: the first 8 bytes of the ID are bound to the proposer, so nobody can squat someone else's ID.
+        if (bytes8(dealId) != dealIdPrefix(msg.sender)) revert InvalidDealId();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
 
         Deal storage deal = deals[dealId];
@@ -136,8 +152,16 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         }
 
         if (visibility == Visibility.Private) {
+            if (reservedFor == msg.sender) revert SelfMatch();
             deal.reservedFor = reservedFor;
             deal.claimToken = keccak256(abi.encode(dealId, salt));
+            if (reservedFor == address(0)) {
+                // F-07: open link. `salt` carries the address of an ephemeral signer (left-padded to 32 bytes).
+                // The claimer must present that signer's signature over their own address, so reading the
+                // calldata or front-running the claim transaction is useless.
+                if (uint256(salt) >> 160 != 0 || uint256(salt) == 0) revert InvalidClaimToken();
+                claimSigner[dealId] = address(uint160(uint256(salt)));
+            }
         } else {
             if (salt != bytes32(0)) revert InvalidClaimToken();
             deal.reservedFor = address(0);
@@ -155,11 +179,40 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (deal.visibility != Visibility.Private) revert InvalidTerms();
         if (deal.state != DealState.Proposed) revert InvalidState(deal.state, DealState.Proposed);
 
+        if (claimSigner[dealId] != address(0)) revert SignatureRequired();
+
         bytes32 expectedToken = keccak256(abi.encode(dealId, salt));
         if (deal.claimToken != expectedToken) revert InvalidClaimToken();
         if (usedClaimTokens[expectedToken]) revert ClaimTokenAlreadyUsed();
         if (deal.reservedFor != address(0) && msg.sender != deal.reservedFor) revert Unauthorized();
 
+        _bindClaimer(dealId, deal, expectedToken);
+    }
+
+    /// @notice Claim an open private deal. `signature` is an EIP-191 signature, by the deal's ephemeral
+    ///         claim signer, of `claimDigest(dealId, msg.sender)`.
+    function claimDealWithSignature(bytes16 dealId, bytes calldata signature) external whenNotPaused {
+        Deal storage deal = _getDealStorage(dealId);
+
+        if (deal.visibility != Visibility.Private) revert InvalidTerms();
+        if (deal.state != DealState.Proposed) revert InvalidState(deal.state, DealState.Proposed);
+
+        address signer = claimSigner[dealId];
+        if (signer == address(0)) revert InvalidClaimToken();
+
+        bytes32 digest = MessageHashUtils.toEthSignedMessageHash(claimDigest(dealId, msg.sender));
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError || recovered != signer) revert InvalidSignature();
+
+        bytes32 token = deal.claimToken;
+        if (usedClaimTokens[token]) revert ClaimTokenAlreadyUsed();
+        delete claimSigner[dealId];
+
+        _bindClaimer(dealId, deal, token);
+    }
+
+    function _bindClaimer(bytes16 dealId, Deal storage deal, bytes32 usedToken) internal {
+        if (msg.sender == deal.borrower || msg.sender == deal.lender) revert SelfMatch();
         if (deal.borrower == address(0) && deal.lender != address(0)) {
             deal.borrower = msg.sender;
         } else if (deal.lender == address(0) && deal.borrower != address(0)) {
@@ -168,7 +221,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
             revert InvalidTerms();
         }
 
-        usedClaimTokens[expectedToken] = true;
+        usedClaimTokens[usedToken] = true;
         deal.claimToken = bytes32(0);
         deal.reservedFor = address(0);
 
@@ -190,6 +243,8 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
 
         if (deal.visibility != Visibility.Public) revert InvalidTerms();
         if (deal.state != DealState.Proposed) revert InvalidState(deal.state, DealState.Proposed);
+        // F-09: the initiator cannot answer their own order (would create a deal with borrower == lender).
+        if (msg.sender == deal.borrower || msg.sender == deal.lender) revert SelfMatch();
         if (counterOffers[dealId].length >= MAX_COUNTER_OFFERS) revert MaxCounterOffersReached();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
 
@@ -209,6 +264,21 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         emit CounterOfferSubmitted(dealId, offerId, msg.sender);
     }
 
+    /// @notice F-09: the proposer of a counter-offer can withdraw it while the deal is still open.
+    function cancelCounterOffer(bytes16 dealId, uint256 offerId) external {
+        Deal storage deal = _getDealStorage(dealId);
+        if (deal.state != DealState.Proposed) revert InvalidState(deal.state, DealState.Proposed);
+
+        CounterOffer[] storage offers = counterOffers[dealId];
+        if (offerId >= offers.length) revert OfferNotFound();
+        CounterOffer storage offer = offers[offerId];
+        if (!offer.active) revert OfferNotFound();
+        if (offer.proposer != msg.sender) revert Unauthorized();
+
+        offer.active = false;
+        emit CounterOfferWithdrawn(dealId, offerId, msg.sender);
+    }
+
     function acceptCounterOffer(bytes16 dealId, uint256 offerId) external whenNotPaused {
         Deal storage deal = _getDealStorage(dealId);
 
@@ -221,6 +291,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
 
         CounterOffer storage selected = offers[offerId];
         if (!selected.active) revert OfferNotFound();
+        if (selected.proposer == msg.sender) revert SelfMatch();
 
         deal.principal = selected.principal;
         deal.collateral = selected.collateral;
@@ -337,6 +408,16 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     function getCounterOffers(bytes16 dealId) external view returns (CounterOffer[] memory) {
         if (!_dealExists[dealId]) revert DealNotFound();
         return counterOffers[dealId];
+    }
+
+    /// @notice Required first 8 bytes of any deal ID proposed by `proposer`.
+    function dealIdPrefix(address proposer) public pure returns (bytes8) {
+        return bytes8(keccak256(abi.encode(proposer)));
+    }
+
+    /// @notice Message the ephemeral claim signer must sign (EIP-191) to let `claimer` take an open private deal.
+    function claimDigest(bytes16 dealId, address claimer) public view returns (bytes32) {
+        return keccak256(abi.encode(CLAIM_TYPEHASH, block.chainid, address(this), dealId, claimer));
     }
 
     function computeTermsHash(bytes16 dealId) external view returns (bytes32) {

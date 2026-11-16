@@ -28,7 +28,7 @@ abstract contract VaultFixture is Test {
     address internal stranger     = makeAddr("stranger");
 
     // Deal terms
-    bytes16 internal constant DEAL_ID    = bytes16(keccak256("vault-deal-1"));
+    bytes16 internal DEAL_ID; // bound to the borrower (see dealIdPrefix)
     uint256 internal constant PRINCIPAL  = 10_000e6;   // 10 000 USDC (6 dec)
     uint256 internal constant COLLATERAL = 1e8;        // 1 cirBTC  (8 dec)
     uint256 internal constant RATE_BPS   = 500;        // 5% annual
@@ -39,6 +39,7 @@ abstract contract VaultFixture is Test {
     int256  internal constant BTC_PRICE_8DEC = 60_000_00000000;
     uint256 internal constant STALENESS     = 3600;
     uint256 internal constant LIQ_BPS       = 8000; // 80%
+    uint256 internal constant MAX_INIT_LTV  = 6500; // 65%
 
     bytes32 internal constant SALT = bytes32(uint256(0xdeadcafe));
 
@@ -63,6 +64,7 @@ abstract contract VaultFixture is Test {
             address(priceFeed),
             STALENESS,
             LIQ_BPS,
+            MAX_INIT_LTV,
             feeRecipient,
             FEE_BPS,
             owner
@@ -71,6 +73,12 @@ abstract contract VaultFixture is Test {
         // Wire vault into registry
         vm.prank(owner);
         registry.setVault(address(vault));
+        DEAL_ID = _idFor(borrower, "vault-deal-1");
+    }
+
+    /// Deal ID whose first 8 bytes are bound to `proposer` (F-08).
+    function _idFor(address proposer, bytes memory tag) internal view returns (bytes16) {
+        return bytes16(bytes.concat(registry.dealIdPrefix(proposer), bytes8(keccak256(tag))));
     }
 
     // ── Deal-building helpers ────────────────────────────────────────────────
@@ -79,7 +87,7 @@ abstract contract VaultFixture is Test {
     function _confirmDeal(bytes16 dealId) internal {
         vm.prank(borrower);
         registry.proposeDeal(
-            dealId, true, address(0),
+            dealId, true, lender,
             PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
             PersatDealRegistry.Visibility.Private,
             SALT
@@ -92,7 +100,7 @@ abstract contract VaultFixture is Test {
     function _activateLoan(bytes16 dealId) internal {
         _confirmDeal(dealId);
 
-        uint256 lenderNeeds     = PRINCIPAL; // principal − fee comes from vault, fee goes to feeRecipient
+        uint256 lenderNeeds     = PRINCIPAL; // principal − fee goes to the borrower, fee to feeRecipient
 
         // Seed balances
         cirBtc.mint(borrower, COLLATERAL);
@@ -108,11 +116,9 @@ abstract contract VaultFixture is Test {
         vault.activateLoan(dealId);
     }
 
-    /// Activate + claim principal so borrower has funds for repayment.
+    /// Activate; the borrower receives the principal (minus fee) directly (F-03 / F-04).
     function _activateAndClaim(bytes16 dealId) internal {
         _activateLoan(dealId);
-        vm.prank(borrower);
-        vault.claimPrincipal(dealId);
     }
 }
 
@@ -139,7 +145,7 @@ contract VaultDeployTest is VaultFixture {
         vm.expectRevert(PersatEscrowVault.ZeroAddress.selector);
         new PersatEscrowVault(
             address(0), address(usdc), address(cirBtc),
-            address(priceFeed), STALENESS, LIQ_BPS,
+            address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
             feeRecipient, FEE_BPS, owner
         );
     }
@@ -148,7 +154,7 @@ contract VaultDeployTest is VaultFixture {
         vm.expectRevert(PersatEscrowVault.FeeTooHigh.selector);
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
-            address(priceFeed), STALENESS, LIQ_BPS,
+            address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
             feeRecipient, 51, owner
         );
     }
@@ -157,7 +163,7 @@ contract VaultDeployTest is VaultFixture {
         vm.expectRevert(PersatEscrowVault.InvalidParameter.selector);
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
-            address(priceFeed), 0, LIQ_BPS,
+            address(priceFeed), 0, LIQ_BPS, MAX_INIT_LTV,
             feeRecipient, FEE_BPS, owner
         );
     }
@@ -166,7 +172,7 @@ contract VaultDeployTest is VaultFixture {
         vm.expectRevert(PersatEscrowVault.InvalidParameter.selector);
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
-            address(priceFeed), STALENESS, 0,
+            address(priceFeed), STALENESS, 0, MAX_INIT_LTV,
             feeRecipient, FEE_BPS, owner
         );
     }
@@ -175,7 +181,7 @@ contract VaultDeployTest is VaultFixture {
         vm.expectRevert(PersatEscrowVault.InvalidParameter.selector);
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
-            address(priceFeed), STALENESS, 10_001,
+            address(priceFeed), STALENESS, 10_001, MAX_INIT_LTV,
             feeRecipient, FEE_BPS, owner
         );
     }
@@ -201,10 +207,12 @@ contract VaultActivateLoanTest is VaultFixture {
         assertEq(vault.lockedCollateral(DEAL_ID), COLLATERAL);
     }
 
-    function test_ActivateLoan_ClaimableUsdcStored() public {
-        uint256 expectedClaimable = PRINCIPAL - (PRINCIPAL * FEE_BPS / 10_000);
+    function test_ActivateLoan_PrincipalPaidDirectlyToBorrower() public {
+        uint256 expected = PRINCIPAL - (PRINCIPAL * FEE_BPS / 10_000);
+        uint256 before = usdc.balanceOf(borrower);
         _activateLoan(DEAL_ID);
-        assertEq(vault.claimableUsdc(DEAL_ID), expectedClaimable);
+        assertEq(usdc.balanceOf(borrower) - before, expected);
+        assertEq(usdc.balanceOf(address(vault)), 0, "vault must never custody user USDC");
     }
 
     function test_ActivateLoan_FeeDeductedToRecipient() public {
@@ -257,58 +265,7 @@ contract VaultActivateLoanTest is VaultFixture {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. claimPrincipal
-// ─────────────────────────────────────────────────────────────────────────────
-
-contract VaultClaimPrincipalTest is VaultFixture {
-    function test_ClaimPrincipal_BorrowerReceivesUsdc() public {
-        uint256 expectedClaimable = PRINCIPAL - (PRINCIPAL * FEE_BPS / 10_000);
-        _activateLoan(DEAL_ID);
-
-        uint256 borrowerBefore = usdc.balanceOf(borrower);
-        vm.prank(borrower);
-        vault.claimPrincipal(DEAL_ID);
-
-        assertEq(usdc.balanceOf(borrower) - borrowerBefore, expectedClaimable);
-    }
-
-    function test_ClaimPrincipal_ClaimableZeroedAfterClaim() public {
-        _activateLoan(DEAL_ID);
-        vm.prank(borrower);
-        vault.claimPrincipal(DEAL_ID);
-
-        assertEq(vault.claimableUsdc(DEAL_ID), 0);
-    }
-
-    function test_ClaimPrincipal_EmitsEvent() public {
-        uint256 expectedClaimable = PRINCIPAL - (PRINCIPAL * FEE_BPS / 10_000);
-        _activateLoan(DEAL_ID);
-
-        vm.expectEmit(true, true, false, true, address(vault));
-        emit PersatEscrowVault.PrincipalClaimed(DEAL_ID, borrower, expectedClaimable);
-        vm.prank(borrower);
-        vault.claimPrincipal(DEAL_ID);
-    }
-
-    function test_RevertClaimPrincipal_NotBorrower() public {
-        _activateLoan(DEAL_ID);
-
-        vm.expectRevert(PersatEscrowVault.NotBorrower.selector);
-        vm.prank(stranger);
-        vault.claimPrincipal(DEAL_ID);
-    }
-
-    function test_RevertClaimPrincipal_AlreadyClaimed() public {
-        _activateLoan(DEAL_ID);
-        vm.prank(borrower);
-        vault.claimPrincipal(DEAL_ID);
-
-        vm.expectRevert(PersatEscrowVault.InvalidParameter.selector);
-        vm.prank(borrower);
-        vault.claimPrincipal(DEAL_ID);
-    }
-}
+// 3. claimPrincipal — removed: principal is now paid to the borrower at activation (F-03 / F-04).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. repayLoan
@@ -329,7 +286,7 @@ contract VaultRepayLoanTest is VaultFixture {
     }
 
     /// @dev Fund borrower for repayment.
-    /// Borrower received `claimableAmount` from claimPrincipal; they need
+    /// Borrower received `claimableAmount` at activation; they need
     /// `totalRepayment` to repay → shortfall = totalRepayment - claimableAmount
     ///                                        = feeAmount + interest.
     function _fundBorrowerForRepay() internal {
@@ -403,8 +360,16 @@ contract VaultRepayLoanTest is VaultFixture {
         assertEq(uint8(d.state), uint8(PersatDealRegistry.DealState.Defaulted));
 
         _fundBorrowerForRepay();
+        uint256 lateFee = PRINCIPAL * vault.LATE_FEE_BPS() / 10_000;
+        usdc.mint(borrower, lateFee);
+        vm.prank(borrower);
+        usdc.approve(address(vault), totalRepayment + lateFee);
+        assertEq(vault.amountDue(DEAL_ID), totalRepayment + lateFee);
+
+        uint256 lenderBefore = usdc.balanceOf(lender);
         vm.prank(borrower);
         vault.repayLoan(DEAL_ID);
+        assertEq(usdc.balanceOf(lender) - lenderBefore, totalRepayment + lateFee);
 
         d = registry.getDeal(DEAL_ID);
         assertEq(uint8(d.state), uint8(PersatDealRegistry.DealState.Completed));
@@ -474,11 +439,13 @@ contract VaultLiquidateTest is VaultFixture {
 
         vault.liquidate(DEAL_ID);
 
-        uint256 lenderGain   = cirBtc.balanceOf(lender)   - lenderBefore;
-        uint256 borrowerGain = cirBtc.balanceOf(borrower) - borrowerBefore;
+        uint256 lenderGain     = cirBtc.balanceOf(lender)   - lenderBefore;
+        uint256 borrowerGain   = cirBtc.balanceOf(borrower) - borrowerBefore;
+        uint256 liquidatorGain = cirBtc.balanceOf(address(this));
 
-        // Total distributed = locked collateral
-        assertEq(lenderGain + borrowerGain, COLLATERAL);
+        // Total distributed = locked collateral (lender + liquidator bonus + borrower surplus)
+        assertEq(lenderGain + borrowerGain + liquidatorGain, COLLATERAL);
+        assertGt(liquidatorGain, 0, "liquidator should earn a bonus");
         assertGt(lenderGain,   0, "lender should receive cirBTC");
         assertGt(borrowerGain, 0, "borrower should receive excess cirBTC");
     }
@@ -547,10 +514,10 @@ contract VaultLiquidateTest is VaultFixture {
     // --- Not active ---
 
     function test_RevertLiquidate_NotActive_ProposedState() public {
-        bytes16 dealId2 = bytes16(keccak256("deal-proposed"));
+        bytes16 dealId2 = _idFor(borrower, "deal-proposed");
         vm.prank(borrower);
         registry.proposeDeal(
-            dealId2, true, address(0), PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
+            dealId2, true, lender, PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
             PersatDealRegistry.Visibility.Private, bytes32(uint256(0x777))
         );
         vm.expectRevert(PersatEscrowVault.DealNotActive.selector);
@@ -604,10 +571,10 @@ contract VaultMarkDefaultTest is VaultFixture {
 
     function test_RevertMarkDefault_NotActive() public {
         // Deal that was never activated
-        bytes16 dealId2 = bytes16(keccak256("deal-not-active"));
+        bytes16 dealId2 = _idFor(borrower, "deal-not-active");
         vm.prank(borrower);
         registry.proposeDeal(
-            dealId2, true, address(0), PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
+            dealId2, true, lender, PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
             PersatDealRegistry.Visibility.Private, bytes32(uint256(0x888))
         );
         vm.expectRevert(PersatEscrowVault.DealNotActive.selector);
@@ -723,15 +690,17 @@ contract VaultHandler is Test {
 
     function activateNewDeal() external {
         _dealCounter++;
-        bytes16 dealId = bytes16(keccak256(abi.encode("handler-deal", _dealCounter)));
         bytes32 salt   = keccak256(abi.encode(BASE_SALT, _dealCounter));
 
         address borrowerAddr = address(uint160(uint256(keccak256(abi.encode("borrower", _dealCounter)))));
         address lenderAddr   = address(uint160(uint256(keccak256(abi.encode("lender",   _dealCounter)))));
+        bytes16 dealId = bytes16(bytes.concat(
+            registry.dealIdPrefix(borrowerAddr), bytes8(keccak256(abi.encode("handler-deal", _dealCounter)))
+        ));
 
         vm.prank(borrowerAddr);
         registry.proposeDeal(
-            dealId, true, address(0),
+            dealId, true, lenderAddr,
             PRINCIPAL, COLLATERAL, RATE_BPS, DURATION,
             PersatDealRegistry.Visibility.Private,
             salt
@@ -766,6 +735,7 @@ contract VaultInvariantTest is Test {
     int256  internal constant BTC_PRICE = 60_000_00000000;
     uint256 internal constant STALENESS = 3600;
     uint256 internal constant LIQ_BPS   = 8000;
+    uint256 internal constant MAX_INIT_LTV = 6500;
     uint256 internal constant FEE_BPS   = 10;
 
     function setUp() public {
@@ -778,7 +748,7 @@ contract VaultInvariantTest is Test {
         );
         vault = new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
-            address(priceFeed), STALENESS, LIQ_BPS,
+            address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
             feeRecipient, FEE_BPS, owner
         );
         vm.prank(owner);
@@ -828,16 +798,17 @@ contract VaultInterestFuzzTest is VaultFixture {
 
     /// @dev Full round-trip fuzz: activate + repay, check lender balance delta.
     function testFuzz_ActivateRepay_RoundTrip(uint64 principal, uint16 rateBps, uint8 durationMonths) public {
-        principal      = uint64(bound(principal,      1e6,  100_000e6));
+        // Bounded so that principal + interest stays <= 65% of 1 BTC @ $60k (max initial LTV, F-05)
+        principal      = uint64(bound(principal,      1e6,  30_000e6));
         rateBps        = uint16(bound(rateBps,        1,    2_000));         // up to 20%
         durationMonths = uint8(bound(durationMonths,  1,    12));
 
-        bytes16 dealId = bytes16(keccak256(abi.encode("fuzz-vault-deal", principal, rateBps, durationMonths)));
+        bytes16 dealId = _idFor(borrower, abi.encode("fuzz-vault-deal", principal, rateBps, durationMonths));
         bytes32 salt   = keccak256(abi.encode(dealId, "fuzz"));
 
         vm.prank(borrower);
         registry.proposeDeal(
-            dealId, true, address(0),
+            dealId, true, lender,
             principal, COLLATERAL, rateBps, durationMonths,
             PersatDealRegistry.Visibility.Private,
             salt
@@ -854,15 +825,12 @@ contract VaultInterestFuzzTest is VaultFixture {
         vm.prank(borrower);
         vault.activateLoan(dealId);
 
-        // Borrower claims principal
-        vm.prank(borrower);
-        vault.claimPrincipal(dealId);
-
+        // Borrower received principal - fee directly at activation (F-03 / F-04)
         uint256 feeAmt         = uint256(principal) * FEE_BPS / 10_000;
         uint256 interest       = uint256(principal) * uint256(rateBps) * uint256(durationMonths) / (10_000 * 12);
         uint256 totalRepayment = uint256(principal) + interest;
 
-        // Borrower received (principal - feeAmt) from claimPrincipal.
+        // Borrower received (principal - feeAmt) at activation.
         // They need totalRepayment for repay → shortfall = feeAmt + interest.
         uint256 shortfall = feeAmt + interest;
         usdc.mint(borrower, shortfall);

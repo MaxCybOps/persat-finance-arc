@@ -107,10 +107,17 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
     address: addresses.registry, abi: REGISTRY_ABI,
     functionName: 'getDeal', args: [dealId], chainId,
   })
-  const { data: offers } = useReadContract({
+  const { data: offers, refetch: refetchOffers } = useReadContract({
     address: addresses.registry, abi: REGISTRY_ABI,
     functionName: 'getCounterOffers', args: [dealId], chainId,
   })
+
+  // F-09: a proposer can withdraw their own counter-offer while the order is open
+  const { writeContract: writeWithdraw, data: withdrawHash, isPending: isWithdrawing } = useWriteContract()
+  const { isSuccess: withdrawDone } = useWaitForTransactionReceipt({
+    hash: withdrawHash, chainId, query: { enabled: Boolean(withdrawHash) },
+  })
+  useEffect(() => { if (withdrawDone) void refetchOffers() }, [withdrawDone, refetchOffers])
 
   // Only show Public (visibility=1) deals in Proposed state
   if (!deal || deal.state !== DealState.Proposed || deal.visibility !== 1) return null
@@ -119,6 +126,18 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
   const isOwn = address?.toLowerCase() === deal.borrower.toLowerCase() ||
     address?.toLowerCase() === deal.lender.toLowerCase()
   const isBorrowRequest = deal.borrower !== '0x0000000000000000000000000000000000000000'
+  const myOffer = offers?.find((o) => o.active && address && o.proposer.toLowerCase() === address.toLowerCase())
+
+  function withdrawOffer(offerId: bigint) {
+    writeWithdraw({
+      address: addresses.registry,
+      abi: REGISTRY_ABI,
+      functionName: 'cancelCounterOffer',
+      args: [dealId, offerId],
+      chainId,
+      gas: 100_000n,
+    })
+  }
 
   return (
     <>
@@ -158,7 +177,13 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
               View
             </Link>
           </div>
-          {!isOwn && (
+          {!isOwn && myOffer && (
+            <Button variant="ghost" size="sm" disabled={isWithdrawing} onClick={() => withdrawOffer(myOffer.offerId)}>
+              <X size={12} />
+              {isWithdrawing ? 'Withdrawing…' : 'Withdraw my offer'}
+            </Button>
+          )}
+          {!isOwn && !myOffer && (
             <Button variant="secondary" size="sm" onClick={() => setShowModal(true)}>
               <Plus size={12} />
               Offer Terms

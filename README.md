@@ -18,6 +18,10 @@ Built with [Arc Studio](https://studio.arc.io)
 
 ### Arc Mainnet (Chain ID 5042)
 
+> ⚠️ **Do not use the deployment below with real funds.** It predates the November 2026 security review: its
+> "cirBTC" (`0x9b6e…54c4`) is a test token that **anyone can mint**, and it runs the old contract code.
+> Redeploy with `scripts/deploy-mainnet.cjs` (see *Deploy contracts* below) and update the frontend addresses.
+
 | Contract | Address | Explorer |
 |---|---|---|
 | PersatDealRegistry | `0x46725a32b46f5388be1237e2847694fdecab3b3c` | [View on Explorer](https://explorer.arc.io/address/0x46725a32b46f5388be1237e2847694fdecab3b3c) |
@@ -86,7 +90,7 @@ bun run build
 ### Test contracts
 
 ```bash
-bun run contracts:test          # all 107 unit + fuzz tests
+bun run contracts:test          # all unit, fuzz, invariant and security-regression tests
 bun run contracts:build         # compile only
 ```
 
@@ -116,8 +120,34 @@ See [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md) for step-by-step instructions includi
 
 ---
 
-## One-time wiring
+## Protocol rules (after the November 2026 security review)
 
-The owner of PersatDealRegistry must call `setVault(0x79a374...)` once to connect the vault.  
-Owner is `0x5B12Ce46C7194aD57d143bC22847224047b1Ef42` (platform deployer wallet).  
-Use the Contracts panel ABI tool or a self-deploy wallet to execute this call.
+| Rule | Value |
+|---|---|
+| Max LTV to activate a loan | 65% — `(principal + interest) / collateral value` |
+| Liquidation threshold | 80% (same formula), permissionless |
+| Overdue loans | liquidatable by anyone 7 days after maturity, whatever the LTV |
+| Late fee | 2% of principal if repaid after maturity |
+| Liquidator bonus | 3% of the lender's share, paid from the borrower's surplus only |
+| Principal | sent directly to the borrower at activation (the vault never holds user USDC) |
+| Open private links | carry an ephemeral key; claims are signed for the claimer's wallet |
+
+Full list of findings and changes: `contracts/PersatFinance-design.md` → *Security review — November 2026*.
+
+## Deploy contracts
+
+```bash
+forge build
+# 1. Safety checks only (no transaction):
+DRY_RUN=1 CIRBTC_ADDRESS=<official cirBTC from Circle> node scripts/deploy-mainnet.cjs
+# 2. Deploy registry + vault and wire them (setVault is called by the script):
+CIRBTC_ADDRESS=<official cirBTC> DEPLOYER_PRIVATE_KEY=<key> node scripts/deploy-mainnet.cjs
+```
+
+The script refuses to deploy if the collateral token can be minted by an arbitrary address, does not have
+8 decimals, or if the oracle is stale. After deploying, update `MAINNET_*` addresses in
+`src/contracts/addresses.ts` and the deployment block in `src/hooks/useUserDeals.ts` / `src/pages/Marketplace.tsx`.
+
+On testnet, deploy `PythPriceFeedAdapter` (Pyth `0x2880aB155794e7179c9eE2e38200202908C17B43`, BTC/USD price id
+`0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43`) and pass it as the vault oracle instead of
+`MockPriceFeed`. Pyth is pull-based: price updates must be pushed for the feed to stay fresh.

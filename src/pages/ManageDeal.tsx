@@ -7,7 +7,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from 'wagmi'
-import { AlertTriangle, Zap, RotateCcw, ShieldCheck, ShieldAlert, ArrowDown, XCircle, Check } from 'lucide-react'
+import { AlertTriangle, Zap, RotateCcw, ShieldCheck, ShieldAlert, XCircle, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Badge, Stat, TxStatus } from '../components/ui'
 import {
@@ -30,7 +30,11 @@ import { DealChat } from '../components/DealChat'
 // Computed once at module load — stable reference safe to use in render
 const PAGE_LOAD_SEC = Math.floor(new Date().valueOf() / 1000)
 
-type Action = 'activateLoan' | 'claimPrincipal' | 'repayLoan' | 'liquidate' | 'markDefault'
+type Action = 'activateLoan' | 'repayLoan' | 'liquidate' | 'markDefault'
+
+// Mirrors PersatEscrowVault constants (security review F-02)
+const LATE_FEE_BPS = 200n
+const GRACE_PERIOD_SEC = 7 * 24 * 3600
 
 export default function ManageDeal() {
   const { id: dealIdParam } = useParams<{ id: string }>()
@@ -60,13 +64,16 @@ export default function ManageDeal() {
     query: { enabled: hasValidId && deal?.state === DealState.Active },
   })
 
-  const { data: claimableUsdc } = useReadContract({
+  const isOpenLoan = deal?.state === DealState.Active || deal?.state === DealState.Defaulted
+
+  // Exact amount the borrower owes right now (principal + interest, + late fee after maturity)
+  const { data: amountDue, refetch: refetchDue } = useReadContract({
     address: addresses.vault,
     abi: VAULT_ABI,
-    functionName: 'claimableUsdc',
+    functionName: 'amountDue',
     args: [normalizedDealId],
     chainId,
-    query: { enabled: hasValidId && deal?.state === DealState.Active },
+    query: { enabled: hasValidId && isOpenLoan },
   })
 
   // cirBTC allowance check (borrower needs to approve vault before activating)
@@ -80,13 +87,13 @@ export default function ManageDeal() {
   })
 
   // USDC allowance check (borrower needs to approve vault before repaying; lender before activating)
-  const { data: usdcAllowance } = useReadContract({
+  const { data: usdcAllowance, refetch: refetchUsdcAllowance } = useReadContract({
     address: addresses.usdc,
     abi: ERC20_APPROVE_ABI,
     functionName: 'allowance',
     args: [address ?? '0x0000000000000000000000000000000000000000', addresses.vault],
     chainId,
-    query: { enabled: !!address && deal?.state === DealState.Confirmed },
+    query: { enabled: !!address && (deal?.state === DealState.Confirmed || isOpenLoan) },
   })
 
   // Counter-offers (only relevant for proposer on Proposed deals)
@@ -118,9 +125,11 @@ export default function ManageDeal() {
     if (isSuccess) {
       void refetch()
       void refetchOffers()
+      void refetchDue()
+      void refetchUsdcAllowance()
       toast.success('Transaction confirmed')
     }
-  }, [isSuccess, refetch, refetchOffers])
+  }, [isSuccess, refetch, refetchOffers, refetchDue, refetchUsdcAllowance])
 
   if (!dealIdParam || !hasValidId) {
     return (
@@ -173,6 +182,13 @@ export default function ManageDeal() {
     (cirBtcAllowance === undefined || cirBtcAllowance < deal.collateral)
   const needsUsdcApproval = isLender && deal.state === DealState.Confirmed &&
     (usdcAllowance === undefined || usdcAllowance < deal.principal)
+
+  // Repayment: approve the worst case (late fee included) so a repay right after maturity never fails
+  const dueNow = amountDue ?? total
+  const repayApprovalAmount = total + (deal.principal * LATE_FEE_BPS) / 10_000n
+  const needsRepayApproval = isBorrower &&
+    (deal.state === DealState.Active || deal.state === DealState.Defaulted) &&
+    (usdcAllowance === undefined || usdcAllowance < dueNow)
 
   function dispatch(action: Action) {
     if (!hasValidId || !address) return
@@ -230,6 +246,7 @@ export default function ManageDeal() {
     ? Number(deal.activatedAt) + Number(deal.durationMonths) * 30 * 24 * 3600
     : null
   const isPastMaturity = maturityTs !== null && PAGE_LOAD_SEC > maturityTs
+  const isPastGrace = maturityTs !== null && PAGE_LOAD_SEC > maturityTs + GRACE_PERIOD_SEC
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -350,16 +367,9 @@ export default function ManageDeal() {
             {formatBtc(lockedCollateral)} cirBTC
           </p>
           <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-            Liquidation triggers at 80% LTV. Oracle price needed for live calculation.
+            Liquidation triggers at 80% LTV (principal + interest vs. collateral), or 7 days after maturity if
+            the loan is unpaid. A 2% late fee applies to repayments made after maturity.
           </p>
-          {claimableUsdc !== undefined && claimableUsdc > 0n && (
-            <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-              <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-                Unclaimed principal:{' '}
-                <strong style={{ color: 'var(--accent)' }}>${formatUsdc(claimableUsdc)}</strong>
-              </p>
-            </div>
-          )}
         </Card>
       )}
 
@@ -411,6 +421,10 @@ export default function ManageDeal() {
               <Zap size={15} />
               Activate Loan
             </Button>
+            <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
+              Activation requires a loan-to-value of at most 65% at the current BTC price.
+              The principal (minus the protocol fee) is sent straight to your wallet.
+            </p>
           </>
         )}
 
@@ -427,17 +441,17 @@ export default function ManageDeal() {
           </Button>
         )}
 
-        {/* Active — claim principal (borrower) */}
-        {deal.state === DealState.Active && isBorrower && claimableUsdc !== undefined && claimableUsdc > 0n && (
+        {/* Active — approve USDC for repayment (borrower) */}
+        {needsRepayApproval && (
           <Button
-            variant="primary"
+            variant="secondary"
             size="lg"
             className="w-full"
             disabled={isPending || isConfirming}
-            onClick={() => dispatch('claimPrincipal')}
+            onClick={() => approveToken('usdc', repayApprovalAmount)}
           >
-            <ArrowDown size={15} />
-            Claim ${formatUsdc(claimableUsdc)} USDC
+            <ShieldCheck size={15} />
+            Approve USDC for Repayment
           </Button>
         )}
 
@@ -447,11 +461,11 @@ export default function ManageDeal() {
             variant={deal.state === DealState.Defaulted ? 'danger' : 'secondary'}
             size="lg"
             className="w-full"
-            disabled={isPending || isConfirming}
+            disabled={needsRepayApproval || isPending || isConfirming}
             onClick={() => dispatch('repayLoan')}
           >
             <RotateCcw size={15} />
-            Repay ${formatUsdc(total)}
+            Repay ${formatUsdc(dueNow)}{dueNow > total ? ' (incl. late fee)' : ''}
           </Button>
         )}
 
@@ -480,7 +494,7 @@ export default function ManageDeal() {
             onClick={() => dispatch('liquidate')}
           >
             <Zap size={13} />
-            Trigger Liquidation (permissionless)
+            {isPastGrace ? 'Liquidate Overdue Loan (permissionless)' : 'Trigger Liquidation (permissionless)'}
           </Button>
         )}
       </div>
