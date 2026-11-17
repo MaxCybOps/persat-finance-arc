@@ -20,12 +20,6 @@ interface IPriceFeed {
     function decimals() external view returns (uint8);
 }
 
-/// @notice Escrow for Persat Finance loans.
-/// @dev Security review fixes (Nov 2026):
-///  - F-02: an overdue loan (maturity + GRACE_PERIOD) can be liquidated regardless of LTV; late repayment pays LATE_FEE_BPS.
-///  - F-03 / F-04: principal is paid to the borrower at activation; the vault never holds user USDC.
-///  - F-05: activation requires LTV <= maxInitialLtvBps.
-///  - F-06: liquidation debt includes interest (and late fee); the caller earns LIQUIDATION_BONUS_BPS from the borrower surplus.
 contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -62,13 +56,9 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
 
     uint256 public constant MAX_FEE_BPS = 50;
-    /// @notice Length of one loan month.
     uint256 public constant LOAN_MONTH = 30 days;
-    /// @notice After maturity + GRACE_PERIOD an unpaid loan can be liquidated whatever its LTV.
     uint256 public constant GRACE_PERIOD = 7 days;
-    /// @notice Flat penalty (on principal) owed when the loan is settled after maturity.
     uint256 public constant LATE_FEE_BPS = 200;
-    /// @notice Reward to the liquidation caller, as bps of the collateral owed to the lender, paid from the borrower surplus.
     uint256 public constant LIQUIDATION_BONUS_BPS = 300;
 
     IPriceFeed public immutable priceFeed;
@@ -133,7 +123,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (msg.sender != deal.borrower) revert NotBorrower();
         if (_computeTermsHash(deal) != deal.termsHash) revert TermsHashMismatch();
 
-        // F-05: refuse to open a loan that is already close to liquidation.
         uint256 price = _readPrice();
         uint256 ltvBps = _ltvBps(_principalPlusInterest(deal), _cirBtcToUsdcValue(deal.collateral, price));
         if (ltvBps > maxInitialLtvBps) revert InitialLtvTooHigh(ltvBps, maxInitialLtvBps);
@@ -149,7 +138,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
 
         lockedCollateral[dealId] = actualCollateral;
 
-        // F-03 / F-04: pay the borrower directly. The vault never custodies user USDC.
         IERC20(usdc).safeTransferFrom(deal.lender, deal.borrower, borrowerPrincipal);
         if (feeAmount > 0) {
             IERC20(usdc).safeTransferFrom(deal.lender, feeRecipient, feeAmount);
@@ -185,8 +173,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         emit LoanRepaid(dealId, totalRepayment, collateralToRelease);
     }
 
-    /// @notice Permissionless. Allowed when LTV >= liquidationThresholdBps, or (F-02) when the loan is
-    ///         unpaid past maturity + GRACE_PERIOD, whatever its LTV.
     function liquidate(bytes16 dealId) public nonReentrant {
         PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
 
@@ -199,7 +185,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 collateralAmount = lockedCollateral[dealId];
         uint256 collateralUsdValue = _cirBtcToUsdcValue(collateralAmount, btcUsdPrice);
 
-        // F-06: the lender is owed principal + interest (+ late fee once matured), not principal only.
         uint256 debtUsdc = _amountDue(deal);
         uint256 ltvBps = _ltvBps(debtUsdc, collateralUsdValue);
         bool overdue = block.timestamp > _maturity(deal) + GRACE_PERIOD;
@@ -234,24 +219,16 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         emit LoanDefaulted(dealId);
     }
 
-    // ─── Views for the frontend ──────────────────────────────────────────────
-
-    /// @notice USDC the borrower must approve and pay to repay now (includes the late fee after maturity).
     function amountDue(bytes16 dealId) external view returns (uint256) {
         return _amountDue(registry.getDeal(dealId));
     }
 
-    /// @notice Timestamp after which the loan is overdue (0 if not activated).
     function maturityOf(bytes16 dealId) external view returns (uint256) {
         PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
         if (deal.activatedAt == 0) return 0;
         return _maturity(deal);
     }
 
-    // ─── Admin ───────────────────────────────────────────────────────────────
-
-    /// @notice Recover tokens sent to the vault by mistake. cirBTC (user collateral) can never be withdrawn.
-    ///         Since F-03 the vault never holds user USDC, so any USDC here was sent by mistake.
     function rescueERC20(address token, address recipient, uint256 amount) external onlyOwner {
         if (recipient == address(0)) revert ZeroAddress();
         if (token == cirBtc) revert CircBTCRescueBlocked();
@@ -280,8 +257,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     function unpause() external onlyOwner {
         _unpause();
     }
-
-    // ─── Internals ───────────────────────────────────────────────────────────
 
     function _readPrice() internal view returns (uint256) {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
