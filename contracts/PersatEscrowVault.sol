@@ -35,6 +35,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     error FeeTooHigh();
     error CircBTCRescueBlocked();
     error InvalidParameter();
+    error InitialLtvTooHigh(uint256 ltvBps, uint256 maxLtvBps);
 
     event LoanActivated(
         bytes16 indexed dealId,
@@ -43,20 +44,27 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 principal,
         uint256 collateral,
         uint256 fee,
-        uint256 claimableUsdcAmount
+        uint256 disbursedToBorrower
     );
     event LoanRepaid(bytes16 indexed dealId, uint256 totalRepayment, uint256 collateralReleased);
     event LoanLiquidated(bytes16 indexed dealId, address indexed liquidator, uint256 btcUsdPrice, uint256 ltvBps);
+    event LiquidationSettled(
+        bytes16 indexed dealId, uint256 toLender, uint256 toLiquidator, uint256 toBorrower, bool overdue
+    );
     event LoanDefaulted(bytes16 indexed dealId);
     event FeeUpdated(uint256 oldFeeBps, uint256 newFeeBps);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
-    event PrincipalClaimed(bytes16 indexed dealId, address indexed borrower, uint256 amount);
 
     uint256 public constant MAX_FEE_BPS = 50;
+    uint256 public constant LOAN_MONTH = 30 days;
+    uint256 public constant GRACE_PERIOD = 7 days;
+    uint256 public constant LATE_FEE_BPS = 200;
+    uint256 public constant LIQUIDATION_BONUS_BPS = 300;
 
     IPriceFeed public immutable priceFeed;
     uint256 public immutable stalenessThreshold;
     uint256 public immutable liquidationThresholdBps;
+    uint256 public immutable maxInitialLtvBps;
     uint8 public immutable priceFeedDecimals;
     uint8 public immutable cirBtcDecimals;
     address public immutable usdc;
@@ -64,7 +72,6 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     PersatDealRegistry public immutable registry;
 
     mapping(bytes16 => uint256) public lockedCollateral;
-    mapping(bytes16 => uint256) public claimableUsdc;
 
     address public feeRecipient;
     uint256 public feeBps;
@@ -76,6 +83,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         address priceFeed_,
         uint256 stalenessThreshold_,
         uint256 liquidationThresholdBps_,
+        uint256 maxInitialLtvBps_,
         address feeRecipient_,
         uint256 feeBps_,
         address initialOwner
@@ -89,6 +97,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (feeBps_ > MAX_FEE_BPS) revert FeeTooHigh();
         if (stalenessThreshold_ == 0) revert InvalidParameter();
         if (liquidationThresholdBps_ == 0 || liquidationThresholdBps_ > 10_000) revert InvalidParameter();
+        if (maxInitialLtvBps_ == 0 || maxInitialLtvBps_ >= liquidationThresholdBps_) revert InvalidParameter();
 
         registry = PersatDealRegistry(registry_);
         usdc = usdc_;
@@ -96,6 +105,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         priceFeed = IPriceFeed(priceFeed_);
         stalenessThreshold = stalenessThreshold_;
         liquidationThresholdBps = liquidationThresholdBps_;
+        maxInitialLtvBps = maxInitialLtvBps_;
         feeRecipient = feeRecipient_;
         feeBps = feeBps_;
 
@@ -113,6 +123,10 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (msg.sender != deal.borrower) revert NotBorrower();
         if (_computeTermsHash(deal) != deal.termsHash) revert TermsHashMismatch();
 
+        uint256 price = _readPrice();
+        uint256 ltvBps = _ltvBps(_principalPlusInterest(deal), _cirBtcToUsdcValue(deal.collateral, price));
+        if (ltvBps > maxInitialLtvBps) revert InitialLtvTooHigh(ltvBps, maxInitialLtvBps);
+
         registry.setDealActive(dealId, block.timestamp);
 
         uint256 feeAmount = deal.principal * feeBps / 10_000;
@@ -120,33 +134,18 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
 
         uint256 collateralBefore = IERC20(cirBtc).balanceOf(address(this));
         IERC20(cirBtc).safeTransferFrom(deal.borrower, address(this), deal.collateral);
-        uint256 collateralAfter = IERC20(cirBtc).balanceOf(address(this));
-        uint256 actualCollateral = collateralAfter - collateralBefore;
+        uint256 actualCollateral = IERC20(cirBtc).balanceOf(address(this)) - collateralBefore;
 
         lockedCollateral[dealId] = actualCollateral;
 
-        IERC20(usdc).safeTransferFrom(deal.lender, address(this), borrowerPrincipal);
-        claimableUsdc[dealId] = borrowerPrincipal;
+        IERC20(usdc).safeTransferFrom(deal.lender, deal.borrower, borrowerPrincipal);
         if (feeAmount > 0) {
             IERC20(usdc).safeTransferFrom(deal.lender, feeRecipient, feeAmount);
         }
 
-        emit LoanActivated(dealId, deal.borrower, deal.lender, deal.principal, actualCollateral, feeAmount, borrowerPrincipal);
-    }
-
-    function claimPrincipal(bytes16 dealId) external nonReentrant {
-        PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
-
-        if (deal.borrower != msg.sender) revert NotBorrower();
-        if (deal.state != PersatDealRegistry.DealState.Active) revert DealNotActive();
-
-        uint256 amount = claimableUsdc[dealId];
-        if (amount == 0) revert InvalidParameter();
-
-        claimableUsdc[dealId] = 0;
-        IERC20(usdc).safeTransfer(deal.borrower, amount);
-
-        emit PrincipalClaimed(dealId, deal.borrower, amount);
+        emit LoanActivated(
+            dealId, deal.borrower, deal.lender, deal.principal, actualCollateral, feeAmount, borrowerPrincipal
+        );
     }
 
     function repayLoan(bytes16 dealId) external nonReentrant {
@@ -160,8 +159,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (msg.sender != deal.borrower) revert NotBorrower();
         if (_computeTermsHash(deal) != deal.termsHash) revert TermsHashMismatch();
 
-        uint256 interest = deal.principal * deal.rateBps * deal.durationMonths / (10_000 * 12);
-        uint256 totalRepayment = deal.principal + interest;
+        uint256 totalRepayment = _amountDue(deal);
         uint256 collateralToRelease = lockedCollateral[dealId];
 
         // Both Active and Defaulted repayments are treated as Completed — borrower cured the debt.
@@ -183,57 +181,52 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (!isActive && !isDefaulted) revert DealNotActive();
         if (_computeTermsHash(deal) != deal.termsHash) revert TermsHashMismatch();
 
-        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
-            priceFeed.latestRoundData();
-        if (answeredInRound < roundId) revert OracleInvalidPrice();
-        if (startedAt == 0) revert OracleInvalidPrice();
-        if (answer <= 0) revert OracleInvalidPrice();
-        if (block.timestamp - updatedAt > stalenessThreshold) revert OracleStale();
-
-        uint256 btcUsdPrice = uint256(answer);
+        uint256 btcUsdPrice = _readPrice();
         uint256 collateralAmount = lockedCollateral[dealId];
-
         uint256 collateralUsdValue = _cirBtcToUsdcValue(collateralAmount, btcUsdPrice);
-        if (collateralUsdValue == 0) revert InsufficientLTV();
 
-        uint256 ltvBps = deal.principal * 10_000 / collateralUsdValue;
-        if (ltvBps < liquidationThresholdBps) revert LTVHealthy();
+        uint256 debtUsdc = _amountDue(deal);
+        uint256 ltvBps = _ltvBps(debtUsdc, collateralUsdValue);
+        bool overdue = block.timestamp > _maturity(deal) + GRACE_PERIOD;
+        if (ltvBps < liquidationThresholdBps && !overdue) revert LTVHealthy();
 
         // CEI: clear state before transfers.
         delete lockedCollateral[dealId];
         registry.setDealLiquidated(dealId);
 
-        uint256 debtUsdc = deal.principal;
-        if (collateralUsdValue >= debtUsdc) {
-            uint256 collateralForLender = _usdcToCirBtcAmount(debtUsdc, btcUsdPrice);
-            if (collateralForLender > collateralAmount) {
-                collateralForLender = collateralAmount;
-            }
+        uint256 toLender = _usdcToCirBtcAmount(debtUsdc, btcUsdPrice);
+        if (toLender > collateralAmount) toLender = collateralAmount;
+        uint256 surplus = collateralAmount - toLender;
+        uint256 toLiquidator = toLender * LIQUIDATION_BONUS_BPS / 10_000;
+        if (toLiquidator > surplus) toLiquidator = surplus;
+        uint256 toBorrower = surplus - toLiquidator;
 
-            uint256 collateralForBorrower = collateralAmount - collateralForLender;
-            if (collateralForLender > 0) {
-                IERC20(cirBtc).safeTransfer(deal.lender, collateralForLender);
-            }
-            if (collateralForBorrower > 0) {
-                IERC20(cirBtc).safeTransfer(deal.borrower, collateralForBorrower);
-            }
-        } else {
-            if (collateralAmount > 0) {
-                IERC20(cirBtc).safeTransfer(deal.lender, collateralAmount);
-            }
-        }
+        if (toLender > 0) IERC20(cirBtc).safeTransfer(deal.lender, toLender);
+        if (toLiquidator > 0) IERC20(cirBtc).safeTransfer(msg.sender, toLiquidator);
+        if (toBorrower > 0) IERC20(cirBtc).safeTransfer(deal.borrower, toBorrower);
 
         emit LoanLiquidated(dealId, msg.sender, btcUsdPrice, ltvBps);
+        emit LiquidationSettled(dealId, toLender, toLiquidator, toBorrower, overdue);
     }
 
     function markDefault(bytes16 dealId) external nonReentrant {
         PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
 
         if (deal.state != PersatDealRegistry.DealState.Active) revert DealNotActive();
-        if (block.timestamp <= deal.activatedAt + uint256(deal.durationMonths) * 30 days) revert DealNotActive();
+        if (block.timestamp <= _maturity(deal)) revert DealNotActive();
 
         registry.setDealDefaulted(dealId);
         emit LoanDefaulted(dealId);
+    }
+
+    function amountDue(bytes16 dealId) external view returns (uint256) {
+        return _amountDue(registry.getDeal(dealId));
+    }
+
+    function maturityOf(bytes16 dealId) external view returns (uint256) {
+        PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
+        if (deal.activatedAt == 0) return 0;
+        return _maturity(deal);
     }
 
     function rescueERC20(address token, address recipient, uint256 amount) external onlyOwner {
@@ -263,6 +256,37 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function _readPrice() internal view returns (uint256) {
+        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
+            priceFeed.latestRoundData();
+        if (answeredInRound < roundId) revert OracleInvalidPrice();
+        if (startedAt == 0) revert OracleInvalidPrice();
+        if (answer <= 0) revert OracleInvalidPrice();
+        if (updatedAt > block.timestamp || block.timestamp - updatedAt > stalenessThreshold) revert OracleStale();
+        return uint256(answer);
+    }
+
+    function _maturity(PersatDealRegistry.Deal memory deal) internal pure returns (uint256) {
+        return deal.activatedAt + uint256(deal.durationMonths) * LOAN_MONTH;
+    }
+
+    function _principalPlusInterest(PersatDealRegistry.Deal memory deal) internal pure returns (uint256) {
+        return deal.principal + deal.principal * deal.rateBps * deal.durationMonths / (10_000 * 12);
+    }
+
+    function _amountDue(PersatDealRegistry.Deal memory deal) internal view returns (uint256) {
+        uint256 due = _principalPlusInterest(deal);
+        if (deal.activatedAt != 0 && block.timestamp > _maturity(deal)) {
+            due += deal.principal * LATE_FEE_BPS / 10_000;
+        }
+        return due;
+    }
+
+    function _ltvBps(uint256 debtUsdc, uint256 collateralUsdValue) internal pure returns (uint256) {
+        if (collateralUsdValue == 0) return type(uint256).max;
+        return debtUsdc * 10_000 / collateralUsdValue;
     }
 
     function _computeTermsHash(PersatDealRegistry.Deal memory deal) internal pure returns (bytes32) {

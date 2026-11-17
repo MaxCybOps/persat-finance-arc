@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { keccak256, encodePacked } from 'viem'
+import { keccak256, encodePacked, encodeAbiParameters, concat, slice, pad } from 'viem'
+import { privateKeyToAddress } from 'viem/accounts'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -146,12 +147,29 @@ export function randomSalt(): `0x${string}` {
     .join('')}`
 }
 
-/** Generate a random bytes16 deal ID */
-export function randomDealId(): `0x${string}` {
-  const arr = crypto.getRandomValues(new Uint8Array(16))
+/** Random 8-byte nonce used as the second half of a deal ID */
+export function randomDealNonce(): `0x${string}` {
+  const arr = crypto.getRandomValues(new Uint8Array(8))
   return `0x${Array.from(arr)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')}`
+}
+
+/**
+ * Deal ID bound to its proposer (security fix F-08): the first 8 bytes must equal
+ * bytes8(keccak256(abi.encode(proposer))), mirroring PersatDealRegistry.dealIdPrefix().
+ */
+export function deriveDealId(proposer: `0x${string}`, nonce: `0x${string}`): `0x${string}` {
+  const prefix = slice(keccak256(encodeAbiParameters([{ type: 'address' }], [proposer])), 0, 8)
+  return concat([prefix, nonce]) as `0x${string}`
+}
+
+/**
+ * Open private links (no reserved counterparty) use an ephemeral key pair (security fix F-07).
+ * The private key travels only inside the share link; the chain stores its address (left-padded to 32 bytes).
+ */
+export function openLinkOnchainSalt(claimKey: `0x${string}`): `0x${string}` {
+  return pad(privateKeyToAddress(claimKey), { size: 32 })
 }
 
 /** Empty 16-byte deal ID (0x + 32 zeros) */
@@ -190,6 +208,11 @@ export function parseOnchainError(error: unknown): string {
   if (msg.includes('ltvhealthy')) return 'LTV is healthy — liquidation not available.'
   if (msg.includes('oraclestale')) return 'Price oracle is stale. Try again shortly.'
   if (msg.includes('invalidclaimtoken')) return 'This claim link is invalid or already used.'
+  if (msg.includes('invalidsignature')) return 'This claim link is invalid (signature check failed).'
+  if (msg.includes('signaturerequired')) return 'This open link must be claimed with its full invitation URL.'
+  if (msg.includes('selfmatch')) return 'You cannot take the other side of your own deal.'
+  if (msg.includes('invaliddealid')) return 'Deal ID does not match your wallet. Reload the page and try again.'
+  if (msg.includes('initialltvtoohigh')) return 'Loan-to-value is above the 65% maximum at the current BTC price. Add collateral or lower the amount.'
   if (msg.includes('dealnotfound')) return 'Deal not found on this network.'
   if (msg.includes('dealalreadyexists')) return 'A deal with this ID already exists. Refresh to generate a new one.'
   if (msg.includes('invalidterms')) return 'Invalid deal terms. Please check amounts and duration.'

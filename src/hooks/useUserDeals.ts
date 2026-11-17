@@ -1,6 +1,6 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
-import { parseAbiItem, decodeFunctionData, keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
+import { parseAbiItem, keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { useArcNetwork } from './useArcNetwork'
 import { getArcClient } from '../lib/arcClient'
 import { REGISTRY_ABI } from '../contracts/abis'
@@ -161,18 +161,9 @@ export function useUserDeals() {
                 }
               }
 
-              // Recover salt from original proposeDeal tx input
-              if (!salt && txMap.has(idLower)) {
-                try {
-                  const tx = await client.getTransaction({ hash: txMap.get(idLower)! })
-                  const decoded = decodeFunctionData({ abi: REGISTRY_ABI, data: tx.input })
-                  if (decoded.functionName === 'proposeDeal' && decoded.args?.[8]) {
-                    salt = decoded.args[8] as `0x${string}`
-                  }
-                } catch {
-                  // Ignore recovery error
-                }
-              }
+              // Security fix F-07: open-link secrets are never recovered from on-chain calldata.
+              // The proposeDeal calldata only holds the ephemeral signer address; the claim key
+              // exists solely in the creator's share link / localStorage.
 
               if (salt) {
                 saveStoredDeal({

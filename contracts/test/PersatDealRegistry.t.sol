@@ -24,7 +24,7 @@ abstract contract RegistryFixture is Test {
     address internal stranger    = makeAddr("stranger");
 
     // Default deal parameters
-    bytes16 internal constant DEAL_ID     = bytes16(keccak256("deal-1"));
+    bytes16 internal DEAL_ID; // bound to the borrower (see dealIdPrefix)
     uint256 internal constant PRINCIPAL   = 10_000e6;   // 10 000 USDC
     uint256 internal constant COLLATERAL  = 1e8;        // 1 cirBTC (8 dec)
     uint256 internal constant RATE_BPS    = 1000;       // 10%
@@ -42,9 +42,15 @@ abstract contract RegistryFixture is Test {
             FEE_BPS,
             owner
         );
+        DEAL_ID = _idFor(borrower, "deal-1");
     }
 
     // ── helpers ────────────────────────────────────────────────────────────
+
+    /// Deal ID whose first 8 bytes are bound to `proposer` (F-08).
+    function _idFor(address proposer, bytes memory tag) internal view returns (bytes16) {
+        return bytes16(bytes.concat(registry.dealIdPrefix(proposer), bytes8(keccak256(tag))));
+    }
 
     /// Propose a private deal where msg.sender is the borrower.
     function _proposePrivateBorrower(bytes16 dealId, bytes32 salt, address reservedFor)
@@ -129,7 +135,7 @@ contract RegistryProposeDealPrivateBorrowerTest is RegistryFixture {
     bytes32 internal constant SALT = bytes32(uint256(0xdeadbeef));
 
     function test_PrivateDeal_CreatedInProposedState() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         PersatDealRegistry.Deal memory d = registry.getDeal(DEAL_ID);
 
         assertEq(uint8(d.state),      uint8(PersatDealRegistry.DealState.Proposed));
@@ -137,7 +143,7 @@ contract RegistryProposeDealPrivateBorrowerTest is RegistryFixture {
     }
 
     function test_PrivateDeal_FieldsCorrect() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         PersatDealRegistry.Deal memory d = registry.getDeal(DEAL_ID);
 
         assertEq(d.dealId,         DEAL_ID);
@@ -151,7 +157,7 @@ contract RegistryProposeDealPrivateBorrowerTest is RegistryFixture {
 
     function test_PrivateDeal_ClaimTokenSet() public {
         bytes32 expectedToken = keccak256(abi.encode(DEAL_ID, SALT));
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         PersatDealRegistry.Deal memory d = registry.getDeal(DEAL_ID);
         assertEq(d.claimToken, expectedToken);
     }
@@ -167,9 +173,9 @@ contract RegistryProposeDealPrivateBorrowerTest is RegistryFixture {
     }
 
     function test_RevertPropose_DealAlreadyExists() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.expectRevert(PersatDealRegistry.DealAlreadyExists.selector);
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
     }
 
     function test_RevertPropose_ZeroPrincipal() public {
@@ -214,6 +220,11 @@ contract RegistryProposeDealPrivateBorrowerTest is RegistryFixture {
 // ─────────────────────────────────────────────────────────────────────────────
 
 contract RegistryProposeDealPublicLenderTest is RegistryFixture {
+    function setUp() public override {
+        super.setUp();
+        DEAL_ID = _idFor(lender, "deal-1"); // lender is the proposer here
+    }
+
     function test_PublicDeal_CreatedInProposedState() public {
         vm.prank(lender);
         registry.proposeDeal(
@@ -257,7 +268,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     bytes32 internal constant SALT = bytes32(uint256(0xcafebabe));
 
     function test_ClaimDeal_ValidSalt_StateConfirmed() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
 
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
@@ -268,7 +279,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     }
 
     function test_ClaimDeal_BindsCounterparty() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -278,7 +289,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     }
 
     function test_ClaimDeal_TermsHashStored() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -291,7 +302,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     }
 
     function test_ClaimDeal_ClaimTokenInvalidatedAfterClaim() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         bytes32 token = keccak256(abi.encode(DEAL_ID, SALT));
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
@@ -305,7 +316,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     }
 
     function test_ClaimDeal_EmitsDealConfirmed() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
 
         // Must emit with correct borrower/lender — but termsHash is not known at test time
         // so we check only topics 1-3 (indexed), skip data check.
@@ -316,7 +327,7 @@ contract RegistryClaimDealTest is RegistryFixture {
     }
 
     function test_RevertClaim_WrongSalt() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
 
         bytes32 wrongSalt = bytes32(uint256(0x1234));
         vm.expectRevert(PersatDealRegistry.InvalidClaimToken.selector);
@@ -361,7 +372,7 @@ contract RegistryClaimDealTest is RegistryFixture {
         // guard is defence-in-depth against implementation changes rather than
         // a currently reachable branch. We verify the guard is set correctly
         // by reading the usedClaimTokens mapping directly.
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -404,7 +415,7 @@ contract RegistryClaimDealTest is RegistryFixture {
 
     function test_RevertClaim_NotInProposedState() public {
         // Create and immediately cancel
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(borrower);
         registry.cancelDeal(DEAL_ID);
 
@@ -564,7 +575,7 @@ contract RegistryCancelDealTest is RegistryFixture {
     bytes32 internal constant SALT = bytes32(uint256(0xabcd));
 
     function test_CancelDeal_BorrowerCanCancelProposed() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
 
         vm.expectEmit(true, true, false, false, address(registry));
         emit PersatDealRegistry.DealCancelled(DEAL_ID, borrower);
@@ -577,7 +588,7 @@ contract RegistryCancelDealTest is RegistryFixture {
     }
 
     function test_CancelDeal_BorrowerCanCancelConfirmed() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -589,7 +600,7 @@ contract RegistryCancelDealTest is RegistryFixture {
     }
 
     function test_CancelDeal_LenderCanCancel() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -601,7 +612,7 @@ contract RegistryCancelDealTest is RegistryFixture {
     }
 
     function test_RevertCancelDeal_Stranger() public {
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.expectRevert(PersatDealRegistry.Unauthorized.selector);
         vm.prank(stranger);
         registry.cancelDeal(DEAL_ID);
@@ -609,7 +620,7 @@ contract RegistryCancelDealTest is RegistryFixture {
 
     function test_RevertCancelDeal_ActiveDeal() public {
         // To get to Active we need to wire the vault — use a mock vault address
-        _proposePrivateBorrower(DEAL_ID, SALT, address(0));
+        _proposePrivateBorrower(DEAL_ID, SALT, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, SALT);
 
@@ -684,7 +695,7 @@ contract RegistrySetVaultTest is RegistryFixture {
     /// Helper: propose + confirm + wire a fake vault, return the vault addr.
     function _setupVaultWithPrivateDeal() internal returns (address fakeVault) {
         bytes32 salt = bytes32(uint256(0x99));
-        _proposePrivateBorrower(DEAL_ID, salt, address(0));
+        _proposePrivateBorrower(DEAL_ID, salt, lender);
         vm.prank(lender);
         registry.claimDeal(DEAL_ID, salt);
 
@@ -729,14 +740,14 @@ contract RegistryFuzzTest is RegistryFixture {
         rateBps        = uint16(bound(rateBps,         1, 10_000));
         durationMonths = uint8(bound(durationMonths,   1, 120));
 
-        bytes16 dealId = bytes16(keccak256(abi.encode(principal, collateral, rateBps, durationMonths)));
+        bytes16 dealId = _idFor(borrower, abi.encode(principal, collateral, rateBps, durationMonths));
         bytes32 salt   = keccak256(abi.encode(dealId, "fuzz-salt"));
 
         vm.prank(borrower);
         registry.proposeDeal(
             dealId,
             true,
-            address(0),
+            lender,
             principal,
             collateral,
             rateBps,
