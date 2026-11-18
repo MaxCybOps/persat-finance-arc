@@ -30,6 +30,15 @@ The contracts in `contracts/` were changed after a security review (see `contrac
 The current Arc Mainnet deployment uses a publicly mintable mock "cirBTC" and must not hold real funds.
 `PersatEscrowVault` constructor now takes `maxInitialLtvBps` (after `liquidationThresholdBps`).
 
+Audit round 2 + bridge analysis (branch `fix/audit-round2-bridge`, see the design doc):
+- `PersatDealRegistry` constructor is now `(usdc, cirBtc, initialOwner)` (unused fee settings removed).
+- `PersatEscrowVault` constructor takes `pegGuard` after `maxInitialLtvBps` (`CirBtcPoolTwap` on mainnet, `address(0)` to disable).
+- Payouts fall back to `claimable[token][account]` + `withdraw(token)` when a transfer fails (Circle freeze/pause).
+- Liquidators repay the lender in USDC; interest is pro rata (1-month minimum); fee changes wait 4 days.
+- Deals are listed on-chain (`getUserDeals`, `getPublicDeals`); the frontend no longer scans event logs.
+- `src/contracts/addresses.mainnet.json` is the frontend's source of mainnet addresses and is rewritten by `scripts/deploy-mainnet.cjs`. Ship the frontend only together with the redeployed contracts.
+- Mainnet deploy: `CIRBTC_ADDRESS=0x171A4217b86A807A64eB94757Db6849fb4bDbAA0 OWNER_ADDRESS=<Safe> node scripts/deploy-mainnet.cjs` (run with `DRY_RUN=1` first). The Safe must then call `acceptOwnership()` on both contracts.
+
 ## IMPORTANT: Wiring Step Required
 
 The Registry's `setVault(address)` function must be called ONCE to wire the vault into the registry.
@@ -43,7 +52,7 @@ Call: `PersatDealRegistry.setVault(0x59241023610c71c56154e5c6d56821a750ff2e76)`
 For Arc Mainnet, redeploy with:
 - cirBTC: real cirBTC ERC-20 address on Arc mainnet
 - priceFeed: Chainlink BTC/USD proxy `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De` (8 decimals, 86400s heartbeat)
-- stalenessThreshold: 86400 (24 hours)
+- stalenessThreshold: 93600 (26 hours: 24 h heartbeat + 2 h margin)
 - MockPriceFeed and MockERC20 are NOT used on mainnet
 
 ---
@@ -57,8 +66,9 @@ For Arc Mainnet, redeploy with:
 | IPriceFeed interface | inline in `contracts/PersatEscrowVault.sol` |
 | PythPriceFeedAdapter | `contracts/PythPriceFeedAdapter.sol` |
 | Design doc | `contracts/PersatFinance-design.md` |
-| Unit tests | `contracts/test/PersatDealRegistry.t.sol`, `contracts/test/PersatEscrowVault.t.sol`, `contracts/test/SecurityFixes.t.sol` |
-| Test helpers | `contracts/test-helpers/MockERC20.sol`, `contracts/test-helpers/MockPriceFeed.sol` |
+| CirBtcPoolTwap (peg guard) | `contracts/CirBtcPoolTwap.sol` |
+| Unit tests | `contracts/test/PersatDealRegistry.t.sol`, `contracts/test/PersatEscrowVault.t.sol`, `contracts/test/SecurityFixes.t.sol`, `contracts/test/AuditRound2.t.sol` |
+| Test helpers | `contracts/test-helpers/MockERC20.sol`, `contracts/test-helpers/MockPriceFeed.sol`, `contracts/test-helpers/MockFiatToken.sol`, `contracts/test-helpers/MockUniswapV3Pool.sol` |
 
 ---
 

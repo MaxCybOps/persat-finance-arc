@@ -34,6 +34,25 @@
 
 Regression tests: `contracts/test/SecurityFixes.t.sol`. **Contracts must be redeployed for these fixes to take effect; the frontend on this branch targets the new ABI.**
 
+### Audit round 2 and bridge analysis — November 2026 (branch `fix/audit-round2-bridge`)
+
+| ID | Finding | Change |
+|----|---------|--------|
+| N-01 | Deals discovered by scanning a fixed block window (Arc RPC caps `eth_getLogs` at 10,000 blocks) | Registry keeps an on-chain index: `getUserDeals(user, offset, limit)` (deals a user proposed, claimed, won or was reserved for) and `getPublicDeals(offset, limit)`; the frontend reads it instead of scanning logs |
+| N-03 | 50 counter-offer slots could be exhausted by submit/withdraw | Only active offers count (`activeCounterOffers`), one active offer per address (`ActiveOfferExists`); `acceptCounterOffer` no longer loops over all offers |
+| N-04 | Dead oracle froze overdue loans | If the oracle is unusable and the loan has been liquidatable-by-date for `ORACLE_FAILURE_DELAY` (30 days), the lender can claim the whole collateral (`OracleFailureClaim`) |
+| N-05 | Nothing expired | Proposals and their counter-offers expire after `PROPOSAL_TTL` (30 days, `isExpired`); a confirmed deal must be activated within `ACTIVATION_WINDOW` (72 h, `activationDeadline`) |
+| N-06 / B-1 | Push payments: a frozen party blocked repayment or liquidation | Every payout tries a direct transfer and, if it fails, credits `claimable[token][account]` for a later `withdraw(token)` to the same address; `rescueERC20` cannot touch credited balances |
+| B-2 | A token pause could cause an unfair liquidation | No liquidation while USDC or cirBTC is paused; `notePause()` records a pause, which delays overdue liquidation until `PAUSE_CURE_PERIOD` (3 days) after the last observation and waives the late fee when the pause started during the grace period |
+| B-3 / N-12 | Collateral valued as BTC, not cirBTC | Optional `pegGuard` (`CirBtcPoolTwap`, 30-min TWAP of the cirBTC/USDC pool): activation reverts with `CirBtcDepegged` if cirBTC trades more than `MAX_PEG_DEVIATION_BPS` (2%) from the BTC/USD feed |
+| B-4 / N-12 | Lender paid in cirBTC after liquidation | A liquidator repays the lender in USDC (up to the collateral value / 1.03) and receives the matching cirBTC plus 3%; surplus goes to the borrower. The lender can still liquidate alone and take the cirBTC |
+| N-10 | Single key; fee could change between confirmation and activation | Fee changes are queued for `FEE_CHANGE_DELAY` (4 days, longer than the activation window); the deploy script requires `OWNER_ADDRESS` to be a contract (multisig) and hands ownership over with Ownable2Step |
+| N-11 | Full-term interest on early repayment | Interest accrues pro rata with a one-month minimum; activation LTV still uses full-term interest |
+| N-13 | Staleness limit equal to the 24 h heartbeat | Deploy script uses 26 h (93,600 s) |
+| Info | Unused fee settings in the registry | Removed; the registry constructor is now `(usdc, cirBtc, owner)` |
+
+Regression tests: `contracts/test/AuditRound2.t.sol` (tokens mimic Circle's blacklist and pause). `CirBtcPoolTwapForkTest` checks the TWAP against Chainlink on a local fork of Arc Mainnet when `ARC_FORK_RPC` is set.
+
 ---
 
 ## 1. Goals / Non-Goals
@@ -266,8 +285,8 @@ struct Deal {
 |----------|--------|-------------|--------|--------------|
 | `proposeDeal(...)` | borrower or lender | Creates Deal in Proposed | `DealProposed` | zero address, zero amount, zero rate, zero duration |
 | `claimDeal(dealId, token)` | counterparty (private) | Sets lender/borrower, state→Confirmed, termsHash locked | `DealConfirmed` | token mismatch, token already used, deal not Proposed, wrong visibility |
-| `submitCounterOffer(dealId, amount, rateBps, durationMonths)` | any address (public) | Adds CounterOffer record | `CounterOfferSubmitted` | deal not Public/Proposed, deal already Confirmed |
-| `acceptCounterOffer(dealId, offerId)` | original proposer | Sets counterparty, updates terms, state→Confirmed, termsHash locked, cancels other offers | `DealConfirmed`, `CounterOfferCancelled` | not proposer, offer not found, deal not Public/Proposed |
+| `submitCounterOffer(dealId, amount, rateBps, durationMonths)` | any address (public) | Adds CounterOffer record | `CounterOfferSubmitted` | deal not Public/Proposed, expired, caller already has an active offer, 50 active offers |
+| `acceptCounterOffer(dealId, offerId)` | original proposer | Sets counterparty, updates terms, state→Confirmed, termsHash locked; other offers can no longer be accepted | `DealConfirmed` | not proposer, offer not found, deal not Public/Proposed, expired |
 | `cancelDeal(dealId)` | borrower or lender | state→Cancelled | `DealCancelled` | state not Proposed or Confirmed (pre-Funding) |
 
 ### 8.2 PersatEscrowVault
@@ -277,8 +296,10 @@ struct Deal {
 | Function | Caller | State Change | Events | Reverts When |
 |----------|--------|-------------|--------|--------------|
 | `activateLoan(dealId)` | borrower | state→Active; cirBTC in; USDC out; fee out | `LoanActivated` | state not Confirmed, termsHash mismatch, zero address, insufficient allowances |
-| `repayLoan(dealId)` | borrower | state→Completed; USDC in; cirBTC out | `LoanRepaid` | state not Active, termsHash mismatch, insufficient USDC allowance |
-| `liquidate(dealId)` | anyone | state→Liquidated; cirBTC seized; USDC to lender; excess cirBTC to borrower | `LoanLiquidated` | state not Active, LTV healthy, oracle stale, termsHash mismatch |
+| `repayLoan(dealId)` | borrower | state→Completed; USDC in; USDC to lender and cirBTC to borrower (or credited if the transfer fails) | `LoanRepaid` | state not Active/Defaulted, termsHash mismatch, insufficient USDC allowance |
+| `liquidate(dealId)` | anyone | state→Liquidated; liquidator pays the lender in USDC and receives cirBTC + 3%; surplus to borrower | `LoanLiquidated`, `LiquidationSettled` | state not Active/Defaulted, LTV healthy and not overdue, oracle stale, token paused |
+| `withdraw(token)` | anyone with a credit | Sends `claimable[token][caller]` to the caller | `Withdrawn` | nothing owed |
+| `notePause()` | anyone | Records that USDC or cirBTC is paused | `TokenPauseNoted` | neither token paused |
 | `markDefault(dealId)` | anyone (after term expiry) | state→Defaulted | `LoanDefaulted` | state not Active, not past maturity |
 
 ---

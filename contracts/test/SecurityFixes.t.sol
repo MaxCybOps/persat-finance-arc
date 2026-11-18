@@ -39,9 +39,9 @@ contract SecurityFixesTest is Test {
         usdc = new MockERC20("USDC", "USDC", 6);
         cirBtc = new MockERC20("cirBTC", "cirBTC", 8);
         feed = new MockPriceFeed(8, PRICE, block.timestamp);
-        registry = new PersatDealRegistry(address(usdc), address(cirBtc), feeRecipient, FEE_BPS, owner);
+        registry = new PersatDealRegistry(address(usdc), address(cirBtc), owner);
         vault = new PersatEscrowVault(
-            address(registry), address(usdc), address(cirBtc), address(feed), 86400, 8000, 6500, feeRecipient, FEE_BPS, owner
+            address(registry), address(usdc), address(cirBtc), address(feed), 86400, 8000, 6500, address(0), feeRecipient, FEE_BPS, owner
         );
         vm.prank(owner);
         registry.setVault(address(vault));
@@ -55,6 +55,12 @@ contract SecurityFixesTest is Test {
         usdc.approve(address(vault), type(uint256).max);
         cirBtc.approve(address(vault), type(uint256).max);
         vm.stopPrank();
+
+        usdc.mint(keeper, 1_000_000e6);
+        vm.prank(keeper);
+        usdc.approve(address(vault), type(uint256).max);
+        usdc.mint(address(this), 1_000_000e6);
+        usdc.approve(address(vault), type(uint256).max);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -96,24 +102,21 @@ contract SecurityFixesTest is Test {
         // After the grace period the lender (or a keeper) can recover what is owed
         vm.warp(maturity + vault.GRACE_PERIOD() + 1);
         feed.setFresh();
-        uint256 lenderBefore = cirBtc.balanceOf(lender);
+        uint256 lenderBefore = usdc.balanceOf(lender);
         vm.prank(keeper);
         vault.liquidate(id);
 
-        uint256 owedWithLateFee = OWED + PRINCIPAL * vault.LATE_FEE_BPS() / 10_000; // 10,800 USDC
-        uint256 expectedBtc = owedWithLateFee * 1e8 * 100 / uint256(PRICE);
-        assertEq(cirBtc.balanceOf(lender) - lenderBefore, expectedBtc, "lender gets debt + late fee in BTC");
-        assertGt(cirBtc.balanceOf(keeper), 0, "keeper rewarded");
-        assertEq(
-            cirBtc.balanceOf(lender) - lenderBefore + cirBtc.balanceOf(keeper) + (cirBtc.balanceOf(borrower) - 9e8),
-            COLLATERAL,
-            "all collateral distributed"
-        );
+        uint256 owedWithLateFee = OWED + PRINCIPAL * vault.LATE_FEE_BPS() / 10_000;
+        uint256 seized = owedWithLateFee * 10_300 / 10_000 * 1e8 * 100 / uint256(PRICE);
+        assertEq(usdc.balanceOf(lender) - lenderBefore, owedWithLateFee, "lender repaid debt + late fee in USDC");
+        assertEq(cirBtc.balanceOf(keeper), seized, "keeper takes debt + bonus in cirBTC");
+        assertEq(cirBtc.balanceOf(keeper) + (cirBtc.balanceOf(borrower) - 9e8), COLLATERAL, "all collateral distributed");
         assertEq(uint8(registry.getDeal(id).state), uint8(PersatDealRegistry.DealState.Liquidated));
     }
 
     function test_F02_LateRepaymentPaysLateFee() public {
         bytes16 id = _activate("f02b", PRINCIPAL, COLLATERAL);
+        vm.warp(vault.maturityOf(id));
         assertEq(vault.amountDue(id), OWED);
         vm.warp(vault.maturityOf(id) + 1);
         uint256 lateFee = PRINCIPAL * vault.LATE_FEE_BPS() / 10_000;
@@ -190,7 +193,7 @@ contract SecurityFixesTest is Test {
     function test_F05_ConstructorRejectsMaxLtvAboveThreshold() public {
         vm.expectRevert(PersatEscrowVault.InvalidParameter.selector);
         new PersatEscrowVault(
-            address(registry), address(usdc), address(cirBtc), address(feed), 86400, 8000, 8000, feeRecipient, FEE_BPS, owner
+            address(registry), address(usdc), address(cirBtc), address(feed), 86400, 8000, 8000, address(0), feeRecipient, FEE_BPS, owner
         );
     }
 
@@ -201,22 +204,24 @@ contract SecurityFixesTest is Test {
         feed.setAnswer(12_000e8); // LTV = 10,600 / 12,000 = 88%
         feed.setFresh();
 
+        uint256 debt = vault.amountDue(id);
+        uint256 lenderBefore = usdc.balanceOf(lender);
         vm.prank(keeper);
         vault.liquidate(id);
 
-        uint256 lenderBtc = cirBtc.balanceOf(lender);
-        assertEq(lenderBtc * 12_000 / 1e8, 10_599, "lender gets ~10,600 USDC of BTC (rounding down)");
-        assertEq(cirBtc.balanceOf(keeper), lenderBtc * vault.LIQUIDATION_BONUS_BPS() / 10_000);
+        assertEq(usdc.balanceOf(lender) - lenderBefore, debt, "lender gets the full debt in USDC");
+        assertEq(cirBtc.balanceOf(keeper), debt * 10_300 / 10_000 * 1e8 / 12_000e6, "keeper gets debt + 3%");
     }
 
-    function test_F06_UnderwaterLenderTakesAll_NoBonus() public {
+    function test_F06_UnderwaterKeeperRepaysCollateralValue() public {
         bytes16 id = _activate("f06b", PRINCIPAL, COLLATERAL);
-        feed.setAnswer(8_000e8); // collateral worth less than the debt
+        feed.setAnswer(8_000e8);
         feed.setFresh();
+        uint256 lenderBefore = usdc.balanceOf(lender);
         vm.prank(keeper);
         vault.liquidate(id);
-        assertEq(cirBtc.balanceOf(lender), COLLATERAL);
-        assertEq(cirBtc.balanceOf(keeper), 0);
+        assertEq(usdc.balanceOf(lender) - lenderBefore, uint256(8_000e6) * 10_000 / 10_300);
+        assertEq(cirBtc.balanceOf(keeper), COLLATERAL);
     }
 
     // ── F-07: open private links can no longer be claimed by copying the secret ──
@@ -396,9 +401,9 @@ contract PythAdapterTest is Test {
         pyth.set(60_000e8, -8, block.timestamp);
         MockERC20 usdc = new MockERC20("USDC", "USDC", 6);
         MockERC20 btc = new MockERC20("cirBTC", "cirBTC", 8);
-        PersatDealRegistry reg = new PersatDealRegistry(address(usdc), address(btc), address(1), 0, address(this));
+        PersatDealRegistry reg = new PersatDealRegistry(address(usdc), address(btc), address(this));
         PersatEscrowVault v = new PersatEscrowVault(
-            address(reg), address(usdc), address(btc), address(adapter), 3600, 8000, 6500, address(1), 0, address(this)
+            address(reg), address(usdc), address(btc), address(adapter), 3600, 8000, 6500, address(0), address(1), 0, address(this)
         );
         assertEq(v.priceFeedDecimals(), 8);
     }

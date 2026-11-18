@@ -18,7 +18,6 @@ abstract contract RegistryFixture is Test {
     MockERC20 internal cirBtc;
 
     address internal owner       = makeAddr("owner");
-    address internal feeRecipient= makeAddr("feeRecipient");
     address internal borrower    = makeAddr("borrower");
     address internal lender      = makeAddr("lender");
     address internal stranger    = makeAddr("stranger");
@@ -29,19 +28,12 @@ abstract contract RegistryFixture is Test {
     uint256 internal constant COLLATERAL  = 1e8;        // 1 cirBTC (8 dec)
     uint256 internal constant RATE_BPS    = 1000;       // 10%
     uint8   internal constant DURATION    = 6;          // 6 months
-    uint256 internal constant FEE_BPS     = 10;         // 0.1%
 
     function setUp() public virtual {
         usdc   = new MockERC20("Mock USDC", "mUSDC", 6);
         cirBtc = new MockERC20("Mock cirBTC", "mcirBTC", 8);
 
-        registry = new PersatDealRegistry(
-            address(usdc),
-            address(cirBtc),
-            feeRecipient,
-            FEE_BPS,
-            owner
-        );
+        registry = new PersatDealRegistry(address(usdc), address(cirBtc), owner);
         DEAL_ID = _idFor(borrower, "deal-1");
     }
 
@@ -97,8 +89,6 @@ contract RegistryDeployTest is RegistryFixture {
     function test_ConstructorSetsImmutables() public view {
         assertEq(registry.usdc(),          address(usdc));
         assertEq(registry.cirBtc(),        address(cirBtc));
-        assertEq(registry.feeRecipient(),  feeRecipient);
-        assertEq(registry.feeBps(),        FEE_BPS);
         assertEq(registry.owner(),         owner);
     }
 
@@ -108,22 +98,17 @@ contract RegistryDeployTest is RegistryFixture {
 
     function test_RevertConstructor_ZeroUsdc() public {
         vm.expectRevert(PersatDealRegistry.ZeroAddress.selector);
-        new PersatDealRegistry(address(0), address(cirBtc), feeRecipient, FEE_BPS, owner);
+        new PersatDealRegistry(address(0), address(cirBtc), owner);
     }
 
     function test_RevertConstructor_ZeroCirBtc() public {
         vm.expectRevert(PersatDealRegistry.ZeroAddress.selector);
-        new PersatDealRegistry(address(usdc), address(0), feeRecipient, FEE_BPS, owner);
+        new PersatDealRegistry(address(usdc), address(0), owner);
     }
 
-    function test_RevertConstructor_ZeroFeeRecipient() public {
-        vm.expectRevert(PersatDealRegistry.ZeroAddress.selector);
-        new PersatDealRegistry(address(usdc), address(cirBtc), address(0), FEE_BPS, owner);
-    }
-
-    function test_RevertConstructor_FeeTooHigh() public {
-        vm.expectRevert(PersatDealRegistry.FeeTooHigh.selector);
-        new PersatDealRegistry(address(usdc), address(cirBtc), feeRecipient, 51, owner);
+    function test_RevertConstructor_ZeroOwner() public {
+        vm.expectRevert();
+        new PersatDealRegistry(address(usdc), address(cirBtc), address(0));
     }
 }
 
@@ -532,19 +517,27 @@ contract RegistryAcceptCounterOfferTest is RegistryFixture {
         assertNotEq(d.termsHash, bytes32(0));
     }
 
-    function test_AcceptCounterOffer_OtherOffersCancelled() public {
+    function test_AcceptCounterOffer_OtherOffersNoLongerAcceptable() public {
         address lender2 = makeAddr("lender2");
         vm.prank(lender2);
         registry.submitCounterOffer(DEAL_ID, PRINCIPAL * 2, COLLATERAL, RATE_BPS, DURATION);
-
-        vm.expectEmit(true, true, false, false, address(registry));
-        emit PersatDealRegistry.CounterOfferCancelled(DEAL_ID, 1);
 
         vm.prank(borrower);
         registry.acceptCounterOffer(DEAL_ID, 0);
 
         PersatDealRegistry.CounterOffer[] memory offers = registry.getCounterOffers(DEAL_ID);
-        assertFalse(offers[1].active); // second offer cancelled
+        assertFalse(offers[0].active);
+        assertEq(registry.activeCounterOffers(DEAL_ID), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PersatDealRegistry.InvalidState.selector,
+                PersatDealRegistry.DealState.Confirmed,
+                PersatDealRegistry.DealState.Proposed
+            )
+        );
+        vm.prank(borrower);
+        registry.acceptCounterOffer(DEAL_ID, 1);
     }
 
     function test_AcceptCounterOffer_EmitsDealConfirmed() public {

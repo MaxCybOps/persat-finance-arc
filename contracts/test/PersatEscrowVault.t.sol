@@ -49,13 +49,7 @@ abstract contract VaultFixture is Test {
 
         priceFeed = new MockPriceFeed(8, BTC_PRICE_8DEC, block.timestamp);
 
-        registry = new PersatDealRegistry(
-            address(usdc),
-            address(cirBtc),
-            feeRecipient,
-            FEE_BPS,
-            owner
-        );
+        registry = new PersatDealRegistry(address(usdc), address(cirBtc), owner);
 
         vault = new PersatEscrowVault(
             address(registry),
@@ -65,6 +59,7 @@ abstract contract VaultFixture is Test {
             STALENESS,
             LIQ_BPS,
             MAX_INIT_LTV,
+            address(0),
             feeRecipient,
             FEE_BPS,
             owner
@@ -146,7 +141,7 @@ contract VaultDeployTest is VaultFixture {
         new PersatEscrowVault(
             address(0), address(usdc), address(cirBtc),
             address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
-            feeRecipient, FEE_BPS, owner
+            address(0), feeRecipient, FEE_BPS, owner
         );
     }
 
@@ -155,7 +150,7 @@ contract VaultDeployTest is VaultFixture {
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
             address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
-            feeRecipient, 51, owner
+            address(0), feeRecipient, 51, owner
         );
     }
 
@@ -164,7 +159,7 @@ contract VaultDeployTest is VaultFixture {
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
             address(priceFeed), 0, LIQ_BPS, MAX_INIT_LTV,
-            feeRecipient, FEE_BPS, owner
+            address(0), feeRecipient, FEE_BPS, owner
         );
     }
 
@@ -173,7 +168,7 @@ contract VaultDeployTest is VaultFixture {
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
             address(priceFeed), STALENESS, 0, MAX_INIT_LTV,
-            feeRecipient, FEE_BPS, owner
+            address(0), feeRecipient, FEE_BPS, owner
         );
     }
 
@@ -182,7 +177,7 @@ contract VaultDeployTest is VaultFixture {
         new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
             address(priceFeed), STALENESS, 10_001, MAX_INIT_LTV,
-            feeRecipient, FEE_BPS, owner
+            address(0), feeRecipient, FEE_BPS, owner
         );
     }
 }
@@ -290,6 +285,8 @@ contract VaultRepayLoanTest is VaultFixture {
     /// `totalRepayment` to repay → shortfall = totalRepayment - claimableAmount
     ///                                        = feeAmount + interest.
     function _fundBorrowerForRepay() internal {
+        uint256 maturity = vault.maturityOf(DEAL_ID);
+        if (block.timestamp < maturity) vm.warp(maturity);
         uint256 shortfall = totalRepayment - claimableAmount; // fee + interest
         usdc.mint(borrower, shortfall);
         vm.prank(borrower);
@@ -403,8 +400,9 @@ contract VaultLiquidateTest is VaultFixture {
     function setUp() public override {
         super.setUp();
         _activateLoan(DEAL_ID);
-        // Fresh oracle at current block.timestamp (already set in MockPriceFeed constructor)
         priceFeed.setFresh();
+        usdc.mint(address(this), 1_000_000e6);
+        usdc.approve(address(vault), type(uint256).max);
     }
 
     // --- LTV healthy → revert ---
@@ -428,38 +426,42 @@ contract VaultLiquidateTest is VaultFixture {
         assertEq(uint8(d.state), uint8(PersatDealRegistry.DealState.Liquidated));
     }
 
-    function test_Liquidate_LenderReceivesCirBtcEquivalentOfDebt() public {
-        // BTC = $11 000 → collateralUsdValue ≈ $11 000 ≥ $10 000 (debt)
-        // So lender gets usdcToCirBtcAmount(10_000e6) of the 1 BTC collateral,
-        // rest (excess) goes to borrower.
+    function test_Liquidate_LenderPaidInUsdc_LiquidatorTakesCollateralWithBonus() public {
         priceFeed.setAnswer(11_000_00000000);
+        uint256 debt = vault.amountDue(DEAL_ID);
 
-        uint256 lenderBefore   = cirBtc.balanceOf(lender);
-        uint256 borrowerBefore = cirBtc.balanceOf(borrower);
+        uint256 lenderUsdcBefore = usdc.balanceOf(lender);
+        uint256 borrowerBefore   = cirBtc.balanceOf(borrower);
 
         vault.liquidate(DEAL_ID);
 
-        uint256 lenderGain     = cirBtc.balanceOf(lender)   - lenderBefore;
-        uint256 borrowerGain   = cirBtc.balanceOf(borrower) - borrowerBefore;
-        uint256 liquidatorGain = cirBtc.balanceOf(address(this));
-
-        // Total distributed = locked collateral (lender + liquidator bonus + borrower surplus)
-        assertEq(lenderGain + borrowerGain + liquidatorGain, COLLATERAL);
-        assertGt(liquidatorGain, 0, "liquidator should earn a bonus");
-        assertGt(lenderGain,   0, "lender should receive cirBTC");
-        assertGt(borrowerGain, 0, "borrower should receive excess cirBTC");
+        uint256 seized = debt * 10_300 / 10_000 * 1e8 * 100 / uint256(11_000_00000000);
+        assertEq(usdc.balanceOf(lender) - lenderUsdcBefore, debt, "lender repaid in USDC");
+        assertEq(cirBtc.balanceOf(lender), 0, "lender receives no cirBTC");
+        assertEq(cirBtc.balanceOf(address(this)), seized, "liquidator gets debt + 3% in cirBTC");
+        assertEq(cirBtc.balanceOf(borrower) - borrowerBefore, COLLATERAL - seized, "surplus to borrower");
     }
 
-    function test_Liquidate_AllCollateralToLender_WhenDebtExceedsCollateral() public {
-        // BTC = $5 000 → collateralUsdValue = $5 000 < $10 000 (debt)
-        // Lender gets all collateral, borrower gets 0.
+    function test_Liquidate_Underwater_LiquidatorRepaysCollateralValueOnly() public {
         priceFeed.setAnswer(5_000_00000000);
 
-        uint256 lenderBefore = cirBtc.balanceOf(lender);
+        uint256 lenderUsdcBefore = usdc.balanceOf(lender);
         vault.liquidate(DEAL_ID);
 
-        assertEq(cirBtc.balanceOf(lender) - lenderBefore, COLLATERAL);
+        assertEq(usdc.balanceOf(lender) - lenderUsdcBefore, uint256(5_000e6) * 10_000 / 10_300);
+        assertEq(cirBtc.balanceOf(address(this)), COLLATERAL);
         assertEq(vault.lockedCollateral(DEAL_ID), 0);
+    }
+
+    function test_Liquidate_LenderCanLiquidateWithoutUsdc() public {
+        priceFeed.setAnswer(5_000_00000000);
+
+        uint256 lenderUsdcBefore = usdc.balanceOf(lender);
+        vm.prank(lender);
+        vault.liquidate(DEAL_ID);
+
+        assertEq(usdc.balanceOf(lender), lenderUsdcBefore);
+        assertEq(cirBtc.balanceOf(lender), COLLATERAL);
     }
 
     function test_Liquidate_EmitsLoanLiquidated() public {
@@ -587,15 +589,19 @@ contract VaultMarkDefaultTest is VaultFixture {
 // ─────────────────────────────────────────────────────────────────────────────
 
 contract VaultAdminTest is VaultFixture {
-    function test_SetFeeBps_Owner() public {
+    function test_SetFeeBps_TakesEffectOnlyAfterDelay() public {
         vm.prank(owner);
         vault.setFeeBps(20);
-        assertEq(vault.feeBps(), 20);
+        assertEq(vault.feeBps(), FEE_BPS);
+        assertEq(vault.currentFeeBps(), FEE_BPS);
+
+        skip(vault.FEE_CHANGE_DELAY());
+        assertEq(vault.currentFeeBps(), 20);
     }
 
-    function test_SetFeeBps_EmitsEvent() public {
+    function test_SetFeeBps_EmitsQueuedEvent() public {
         vm.expectEmit(false, false, false, true, address(vault));
-        emit PersatEscrowVault.FeeUpdated(FEE_BPS, 20);
+        emit PersatEscrowVault.FeeChangeQueued(20, block.timestamp + vault.FEE_CHANGE_DELAY());
         vm.prank(owner);
         vault.setFeeBps(20);
     }
@@ -743,13 +749,11 @@ contract VaultInvariantTest is Test {
         cirBtc    = new MockERC20("Mock cirBTC", "mcirBTC", 8);
         priceFeed = new MockPriceFeed(8, BTC_PRICE, block.timestamp);
 
-        registry  = new PersatDealRegistry(
-            address(usdc), address(cirBtc), feeRecipient, FEE_BPS, owner
-        );
+        registry  = new PersatDealRegistry(address(usdc), address(cirBtc), owner);
         vault = new PersatEscrowVault(
             address(registry), address(usdc), address(cirBtc),
             address(priceFeed), STALENESS, LIQ_BPS, MAX_INIT_LTV,
-            feeRecipient, FEE_BPS, owner
+            address(0), feeRecipient, FEE_BPS, owner
         );
         vm.prank(owner);
         registry.setVault(address(vault));
@@ -824,6 +828,7 @@ contract VaultInterestFuzzTest is VaultFixture {
 
         vm.prank(borrower);
         vault.activateLoan(dealId);
+        vm.warp(vault.maturityOf(dealId));
 
         // Borrower received principal - fee directly at activation (F-03 / F-04)
         uint256 feeAmt         = uint256(principal) * FEE_BPS / 10_000;

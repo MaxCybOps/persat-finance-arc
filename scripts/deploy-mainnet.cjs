@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Persat Finance — Arc Mainnet Deployment Script
  *
  * Target: Arc Mainnet (Chain ID 5042)
@@ -9,12 +9,18 @@
  * You must pass the official cirBTC address published by Circle:
  *
  *   CIRBTC_ADDRESS=0x...            (required) official cirBTC ERC-20 on Arc Mainnet
+ *   OWNER_ADDRESS=0x...             (required) multisig (e.g. Safe) that will own both contracts
  *   DEPLOYER_PRIVATE_KEY=0x...      (required unless DRY_RUN=1)
- *   FEE_RECIPIENT=0x...             (optional, defaults to deployer)
+ *   FEE_RECIPIENT=0x...             (optional, defaults to OWNER_ADDRESS)
+ *   CIRBTC_USDC_POOL=0x...          (optional) cirBTC/USDC pool used by the peg guard
  *   DRY_RUN=1                       (optional) run every safety check, send no transaction
  *
  * The script aborts if the collateral token can be minted by an arbitrary address,
- * does not have 8 decimals, or if the oracle is not a fresh BTC/USD feed.
+ * does not have 8 decimals, if the oracle is not a fresh BTC/USD feed, if the owner is not
+ * a contract (multisig), or if the pool's TWAP is not within 2% of the oracle.
+ *
+ * Ownership is transferred with Ownable2Step: the multisig must call acceptOwnership()
+ * on the registry and on the vault to complete the handover.
  */
 
 const fs = require('fs');
@@ -42,9 +48,11 @@ loadEnv();
 
 const ARC_MAINNET_USDC = '0x3600000000000000000000000000000000000000';
 const ARC_MAINNET_CHAINLINK_FEED = '0xa109B535C70C8Be9995be64Bb6751AcDB27e03De';
+const ARC_MAINNET_CIRBTC_USDC_POOL = '0x82916bee18fCEF517B26C72d7Cb5F13694E1dB41';
+const TWAP_WINDOW = 1800;
 
 // Protocol parameters
-const STALENESS_THRESHOLD = 86400n; // 24h (Chainlink heartbeat)
+const STALENESS_THRESHOLD = 93600n; // 26h: 24h Chainlink heartbeat + 2h margin (N-13)
 const LIQUIDATION_THRESHOLD_BPS = 8000n; // 80%
 const MAX_INITIAL_LTV_BPS = 6500n; // 65% (F-05)
 const FEE_BPS = 25n; // 0.25%
@@ -70,6 +78,14 @@ const FEED_ABI = [
       { name: 'updatedAt', type: 'uint256' }, { name: 'answeredInRound', type: 'uint80' },
     ],
   },
+];
+
+const POOL_ABI = [
+  { name: 'token0', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+  { name: 'token1', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+];
+const OWNABLE_ABI = [
+  { name: 'transferOwnership', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'newOwner', type: 'address' }], outputs: [] },
 ];
 
 function fail(msg) {
@@ -125,6 +141,22 @@ async function assertSafeOracle(publicClient, feed) {
   console.log('✔ Oracle is a fresh BTC/USD feed');
 }
 
+async function assertMultisigOwner(publicClient, owner) {
+  const code = await publicClient.getCode({ address: owner });
+  if (!code || code === '0x') fail(`OWNER_ADDRESS ${owner} is not a contract. Use a multisig such as a Safe (N-10).`);
+  console.log('✔ Owner is a contract (multisig)');
+}
+
+async function assertPool(publicClient, pool, cirBtc) {
+  const [t0, t1] = await Promise.all([
+    publicClient.readContract({ address: pool, abi: POOL_ABI, functionName: 'token0' }),
+    publicClient.readContract({ address: pool, abi: POOL_ABI, functionName: 'token1' }),
+  ]);
+  const pair = [getAddress(t0), getAddress(t1)].sort().join();
+  if (pair !== [cirBtc, getAddress(ARC_MAINNET_USDC)].sort().join()) fail(`pool ${pool} is not a cirBTC/USDC pool.`);
+  console.log('✔ Peg-guard pool is cirBTC/USDC');
+}
+
 async function main() {
   const dryRun = process.env.DRY_RUN === '1';
   console.log('====================================================');
@@ -142,9 +174,16 @@ async function main() {
   const chainId = await publicClient.getChainId();
   if (chainId !== 5042) fail(`connected to chain ${chainId}, expected Arc Mainnet (5042).`);
 
-  // ── Safety checks (F-01) ──
+  const rawOwner = process.env.OWNER_ADDRESS;
+  if (!rawOwner || !isAddress(rawOwner)) fail('OWNER_ADDRESS is missing or invalid (multisig that will own the contracts).');
+  const ownerAddress = getAddress(rawOwner);
+  const poolAddress = getAddress(process.env.CIRBTC_USDC_POOL || ARC_MAINNET_CIRBTC_USDC_POOL);
+
+  // ── Safety checks (F-01, N-10) ──
   await assertSafeCollateral(publicClient, cirBtcAddress);
   await assertSafeOracle(publicClient, ARC_MAINNET_CHAINLINK_FEED);
+  await assertMultisigOwner(publicClient, ownerAddress);
+  await assertPool(publicClient, poolAddress, cirBtcAddress);
 
   if (dryRun) {
     console.log('\nDRY RUN complete: all safety checks passed, no transaction sent.\n');
@@ -155,7 +194,7 @@ async function main() {
   if (!rawKey) fail('No private key found. Set DEPLOYER_PRIVATE_KEY in .env (never commit it).');
   const account = privateKeyToAccount(rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`);
   const walletClient = createWalletClient({ account, chain: arc, transport: http() });
-  const feeRecipient = process.env.FEE_RECIPIENT ? getAddress(process.env.FEE_RECIPIENT) : account.address;
+  const feeRecipient = process.env.FEE_RECIPIENT ? getAddress(process.env.FEE_RECIPIENT) : ownerAddress;
   console.log('\nDeployer Wallet Address:', account.address);
   console.log('Fee recipient          :', feeRecipient);
 
@@ -166,15 +205,28 @@ async function main() {
   // Load contract artifacts
   const registryJson = JSON.parse(fs.readFileSync('contracts/out/PersatDealRegistry.sol/PersatDealRegistry.json', 'utf8'));
   const vaultJson = JSON.parse(fs.readFileSync('contracts/out/PersatEscrowVault.sol/PersatEscrowVault.json', 'utf8'));
+  const twapJson = JSON.parse(fs.readFileSync('contracts/out/CirBtcPoolTwap.sol/CirBtcPoolTwap.json', 'utf8'));
+
+  // ── Step 0: Deploy the cirBTC peg guard (B-3) ──
+  console.log('Step 0: Deploying CirBtcPoolTwap (peg guard)...');
+  const twapHash = await walletClient.deployContract({
+    abi: twapJson.abi,
+    bytecode: twapJson.bytecode.object,
+    args: [poolAddress, cirBtcAddress, ARC_MAINNET_USDC, TWAP_WINDOW],
+  });
+  const pegGuardAddress = (await publicClient.waitForTransactionReceipt({ hash: twapHash })).contractAddress;
+  const twapPrice = await publicClient.readContract({ address: pegGuardAddress, abi: twapJson.abi, functionName: 'twapPriceE18' });
+  console.log('-> CirBtcPoolTwap deployed at:', pegGuardAddress, `(cirBTC TWAP $${(Number(twapPrice) / 1e18).toFixed(2)})\n`);
 
   // ── Step 1: Deploy PersatDealRegistry ──
   console.log('Step 1: Deploying PersatDealRegistry...');
   const registryHash = await walletClient.deployContract({
     abi: registryJson.abi,
     bytecode: registryJson.bytecode.object,
-    args: [ARC_MAINNET_USDC, cirBtcAddress, feeRecipient, FEE_BPS, account.address],
+    args: [ARC_MAINNET_USDC, cirBtcAddress, account.address],
   });
-  const registryAddress = (await publicClient.waitForTransactionReceipt({ hash: registryHash })).contractAddress;
+  const registryReceipt = await publicClient.waitForTransactionReceipt({ hash: registryHash });
+  const registryAddress = registryReceipt.contractAddress;
   console.log('-> PersatDealRegistry deployed at:', registryAddress, '\n');
 
   // ── Step 2: Deploy PersatEscrowVault ──
@@ -190,6 +242,7 @@ async function main() {
       STALENESS_THRESHOLD,        // stalenessThreshold_
       LIQUIDATION_THRESHOLD_BPS,  // liquidationThresholdBps_
       MAX_INITIAL_LTV_BPS,        // maxInitialLtvBps_
+      pegGuardAddress,            // pegGuard_
       feeRecipient,               // feeRecipient_
       FEE_BPS,                    // feeBps_
       account.address,            // initialOwner
@@ -209,12 +262,23 @@ async function main() {
   await publicClient.waitForTransactionReceipt({ hash: setVaultHash });
   console.log('-> Protocol wired successfully!\n');
 
+  // ── Step 3b: Hand ownership to the multisig (N-10) ──
+  console.log('Step 3b: Transferring ownership to', ownerAddress);
+  for (const target of [registryAddress, vaultAddress]) {
+    const h = await walletClient.writeContract({ address: target, abi: OWNABLE_ABI, functionName: 'transferOwnership', args: [ownerAddress] });
+    await publicClient.waitForTransactionReceipt({ hash: h });
+  }
+  console.log('-> Pending. The multisig must call acceptOwnership() on both contracts.\n');
+
   // ── Step 4: Save Deployed Addresses ──
   const deployedAddresses = {
     network: 'Arc Mainnet',
     chainId: 5042,
     deployedAt: new Date().toISOString(),
     deployer: account.address,
+    owner: ownerAddress,
+    deployBlock: Number(registryReceipt.blockNumber),
+    pegGuard: pegGuardAddress,
     registry: registryAddress,
     vault: vaultAddress,
     cirBtc: cirBtcAddress,
