@@ -10,8 +10,10 @@
  *  https://studio.arc.io
  */
 
-import './tracing'
-import './console-capture'
+if (import.meta.env.DEV) {
+  void import('./tracing')
+  void import('./console-capture')
+}
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

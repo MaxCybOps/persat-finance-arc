@@ -1,8 +1,8 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { Copy, Check, Lock, Unlock, Info, ArrowRight, MessageSquare, ExternalLink, CheckCircle2, Sparkles, Send } from 'lucide-react'
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { Copy, Check, Lock, Unlock, Info, ArrowRight, ExternalLink, CheckCircle2, Sparkles, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Input, TxStatus } from '../components/ui'
 import {
@@ -20,11 +20,11 @@ import {
   computeRltv,
 } from '../lib/utils'
 import { buildShareLink } from '../lib/share'
-import { REGISTRY_ABI } from '../contracts/abis'
+import { REGISTRY_ABI, VAULT_ABI } from '../contracts/abis'
+import GetFundsPanel from '../components/GetFundsPanel'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { addArcNetwork } from '../lib/networkUtils'
 import { saveStoredDeal } from '../lib/dealStorage'
-import { DealChat } from '../components/DealChat'
 import { useBtcPrice } from '../hooks/useBtcPrice'
 import { getArcClient } from '../lib/arcClient'
 
@@ -40,7 +40,15 @@ type Role = 'borrower' | 'lender'
 export default function NewDeal() {
   const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
   const arcClient = getArcClient(isMainnet)
-  const { priceUsd: btcPriceUsd, isStale: priceStale, source: priceSource } = useBtcPrice()
+  const { priceUsd: btcPriceUsd, hasPrice, isStale: priceStale, source: priceSource } = useBtcPrice()
+  const { data: maxInitialLtvBps } = useReadContract({
+    address: addresses.vault, abi: VAULT_ABI, functionName: 'maxInitialLtvBps', chainId,
+  })
+  const { data: liquidationThresholdBps } = useReadContract({
+    address: addresses.vault, abi: VAULT_ABI, functionName: 'liquidationThresholdBps', chainId,
+  })
+  const maxInitPct = maxInitialLtvBps !== undefined ? Number(maxInitialLtvBps) / 100 : 65
+  const liqPct = liquidationThresholdBps !== undefined ? Number(liquidationThresholdBps) / 100 : 80
 
   const [tab, setTab] = useState<Tab>('private')
   const [role, setRole] = useState<Role>('borrower')
@@ -141,8 +149,8 @@ export default function NewDeal() {
 
   // Build share link proactively
   useEffect(() => {
-    void buildShareLink(`/deal/claim/${dealId}?salt=${effectiveSalt}`).then(setShareLink)
-  }, [dealId, effectiveSalt])
+    void buildShareLink(tab === 'private' ? `/deal/claim/${dealId}#key=${effectiveSalt}` : `/deal/claim/${dealId}`).then(setShareLink)
+  }, [dealId, effectiveSalt, tab])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -161,12 +169,15 @@ export default function NewDeal() {
   const collateralUsdEst = collateralRaw * btcPriceBigInt / 100n  // USDC 6-dec
   const rltvEst = computeRltv(collateralRaw, btcPriceUsd, principalRaw, rateBpsRaw, duration)
 
+  const ltvTooHigh = hasPrice && rltvEst > maxInitPct
+
   const isValid =
     principalRaw > 0n &&
     collateralRaw > 0n &&
     rateBpsRaw > 0n &&
     duration > 0 &&
-    duration <= 24
+    duration <= 24 &&
+    !ltvTooHigh
 
   // Balance checks — warn before submission
   const insufficientUsdc = role === 'lender' && usdcBalance !== null && principalRaw > 0n && usdcBalance < principalRaw
@@ -212,7 +223,7 @@ export default function NewDeal() {
       chainId,
       // Arc Testnet RPC rejects eth_estimateGas for long calldata ("Invalid params").
       // Setting gas manually bypasses the estimate and sends directly to MetaMask.
-      gas: 300_000n,
+      gas: 450_000n,
     })
   }
 
@@ -365,7 +376,7 @@ export default function NewDeal() {
           {/* Live BTC price indicator */}
           <div className="flex items-center gap-2 mb-3 text-xs" style={{ color: 'var(--subtle)' }}>
             <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-green-500'}`} />
-            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> <span style={{ color: priceStale ? '#f59e0b' : '#10b981' }}>({priceStale ? 'stale' : priceSource})</span></span>
+            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>{hasPrice ? `$${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</strong> <span style={{ color: priceStale ? '#f59e0b' : '#10b981' }}>({priceStale ? 'stale' : priceSource})</span></span>
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {[
@@ -374,8 +385,9 @@ export default function NewDeal() {
               ['Total repayment', `$${formatUsdc(total)}`],
               ['Collateral', `${formatBtc(collateralRaw)} BTC`],
               ['Collateral Value', collateralUsdEst > 0n ? `$${formatUsdc(collateralUsdEst)}` : '—'],
-              ['Est. RLTV', rltvEst > 0 ? `${rltvEst.toFixed(1)}%` : '—'],
-              ['Liquidation RLTV', '80%'],
+              ['Est. RLTV', hasPrice && rltvEst > 0 ? `${rltvEst.toFixed(1)}%` : '—'],
+              ['Max to activate', `${maxInitPct}%`],
+              ['Liquidation RLTV', `${liqPct}%`],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between border-b pb-1" style={{ borderColor: 'var(--border)' }}>
                 <span style={{ color: 'var(--subtle)' }}>{k}</span>
@@ -383,9 +395,9 @@ export default function NewDeal() {
                   className="font-semibold tabular-nums"
                   style={{
                     color:
-                      k === 'Est. RLTV' && rltvEst > 75
+                      k === 'Est. RLTV' && rltvEst > maxInitPct
                         ? 'var(--danger)'
-                        : k === 'Est. RLTV' && rltvEst > 60
+                        : k === 'Est. RLTV' && rltvEst > maxInitPct - 5
                         ? '#f7931a'
                         : 'var(--ink)',
                   }}
@@ -395,10 +407,16 @@ export default function NewDeal() {
               </div>
             ))}
           </div>
-          {rltvEst > 75 && (
+          {ltvTooHigh && (
             <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
               <Info size={12} />
-              RLTV is close to the 80% liquidation threshold. The collateral may not fully cover repayment — add more collateral to protect the lender.
+              RLTV is above {maxInitPct}%, the maximum the vault accepts at activation. Add collateral or lower the amount, otherwise the loan could never be activated.
+            </div>
+          )}
+          {!hasPrice && (
+            <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+              <Info size={12} />
+              BTC price unavailable right now, so the loan-to-value cannot be checked. The vault will still refuse activation above {maxInitPct}%.
             </div>
           )}
 
@@ -417,6 +435,17 @@ export default function NewDeal() {
               <span>
                 <strong>Insufficient cirBTC.</strong> You need {formatBtc(collateralRaw)} cirBTC as collateral but your wallet only has {cirBtcBalance !== null ? formatBtc(cirBtcBalance) : '...'} cirBTC on Arc.
               </span>
+            </div>
+          )}
+
+          {insufficientCirBtc && (
+            <div className="mt-3">
+              <GetFundsPanel need="cirBtc" required={collateralRaw} title="Get cirBTC for your collateral" />
+            </div>
+          )}
+          {insufficientUsdc && (
+            <div className="mt-3">
+              <GetFundsPanel need="usdc" required={principalRaw} title="Bring USDC to Arc" />
             </div>
           )}
 
@@ -450,7 +479,7 @@ export default function NewDeal() {
         <div className="rounded-xl p-4 text-sm text-center" style={{ background: 'rgba(232,109,122,0.1)', border: '1px solid rgba(232,109,122,0.3)', borderRadius: 12 }}>
           <p className="mb-3 font-semibold" style={{ color: 'var(--danger)' }}>Wrong Network</p>
           <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
-            Your wallet is on the wrong network. Click below to switch to Arc Testnet — works with MetaMask, OKX, and any EVM wallet.
+            Your wallet is on the wrong network. Click below to switch to Arc Mainnet — works with MetaMask, OKX, and any EVM wallet.
           </p>
           <button
             onClick={() => addArcNetwork('mainnet')}
@@ -568,7 +597,9 @@ export default function NewDeal() {
                   <span>Telegram</span>
                 </a>
                 <a
-                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a MetaMask wallet on Arc (Chain ID: 5042, RPC: https://rpc.testnet.arc.io) to accept.`)}`}
+                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a wallet connected to Arc (Chain ID: 5042, RPC: https://rpc.mainnet.arc.io) to accept. Treat this link like a password: anyone who has it can take the deal.
+
+The invitation expires 30 days after it was created.`)}`}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#a58c7b]/15 border border-[#a58c7b]/40 text-[#ddc1ae] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#a58c7b]/25 transition-colors"
                 >
                   <span>Email</span>
@@ -578,10 +609,9 @@ export default function NewDeal() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-[var(--border)] mt-4">
-            <Link to={`/deal/claim/${dealId}?salt=${effectiveSalt}`} className="flex-1">
+            <Link to={tab === 'private' ? `/deal/claim/${dealId}#key=${effectiveSalt}` : `/deal/claim/${dealId}`} className="flex-1">
               <Button variant="primary" size="sm" className="w-full flex items-center justify-center gap-1.5">
-                <MessageSquare size={14} />
-                <span>Open Deal Room & Live Chat</span>
+                <span>Open Deal Page</span>
                 <ArrowRight size={14} />
               </Button>
             </Link>
@@ -592,28 +622,6 @@ export default function NewDeal() {
             </Link>
           </div>
         </Card>
-      )}
-
-      {/* Embedded Live Deal Chat */}
-      {hash && (
-        <div className="mt-6">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-            <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
-              Deal Negotiation & Chat Channel
-            </h3>
-          </div>
-          <p className="text-xs text-[#a58c7b] mb-2">
-            Your counterparty can join this room via the invitation link above. Send notes or coordinate loan terms right here:
-          </p>
-          <DealChat
-            dealId={dealId}
-            borrower={role === 'borrower' ? address! : ''}
-            lender={role === 'lender' ? address! : ''}
-            currentAddress={address}
-            dealStateLabel={isConfirmed ? 'Proposed' : 'Broadcasting'}
-          />
-        </div>
       )}
 
       {hash && tab === 'public' && (

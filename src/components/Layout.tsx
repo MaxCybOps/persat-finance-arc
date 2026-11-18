@@ -4,7 +4,6 @@ import { ConnectKitButton } from 'connectkit'
 import { useAccount, useChainId } from 'wagmi'
 import { LayoutDashboard, Plus, ShoppingCart, Settings, Flame, Wifi } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { FloatingChatDrawer } from './FloatingChatDrawer'
 import { addArcNetwork } from '../lib/networkUtils'
 import { useState } from 'react'
 
@@ -126,7 +125,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 pb-20 md:pb-8">{children}</main>
 
       {/* Global Floating P2P Deal Negotiation Drawer */}
-      <FloatingChatDrawer />
     </div>
   )
 }

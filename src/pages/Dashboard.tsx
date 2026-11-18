@@ -21,7 +21,6 @@ import {
   RefreshCw,
   Inbox,
   Share2,
-  MessageSquare,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -105,7 +104,7 @@ export default function Dashboard() {
   const handleCopyClaimLink = (deal: LiveDeal) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const link = deal.salt
-      ? `${origin}/deal/claim/${deal.dealId}?salt=${deal.salt}`
+      ? `${origin}/deal/claim/${deal.dealId}#key=${deal.salt}`
       : `${origin}/deal/claim/${deal.dealId}`
     navigator.clipboard.writeText(link)
     setCopiedDealId(deal.dealId)
@@ -234,7 +233,7 @@ export default function Dashboard() {
 
               <div className="flex items-center gap-3">
                 <Link
-                  to={`/deal/claim/${incomingDeals[0].dealId}${incomingDeals[0].salt ? `?salt=${incomingDeals[0].salt}` : ''}`}
+                  to={`/deal/claim/${incomingDeals[0].dealId}${incomingDeals[0].salt ? `#key=${incomingDeals[0].salt}` : ''}`}
                   className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
                 >
                   Review & Accept Deal →
@@ -564,14 +563,6 @@ export default function Dashboard() {
                           </button>
                         )}
 
-                        <Link
-                          to={`/deal/${deal.dealId}/manage`}
-                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
-                          title="Open Deal Negotiation Chat"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
-                          <span>Chat</span>
-                        </Link>
 
                         <Link
                           to={`/deal/${deal.dealId}/manage`}
@@ -636,14 +627,6 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Link
                           to={`/deal/${deal.dealId}/manage`}
-                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
-                          title="Open Deal Negotiation Chat"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
-                          <span>Chat</span>
-                        </Link>
-                        <Link
-                          to={`/deal/${deal.dealId}/manage`}
                           className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
                         >
                           View & Collect
@@ -703,13 +686,13 @@ export default function Dashboard() {
                             </p>
                             <p>
                               <strong className="text-[#ff8a00]">You (Lender):</strong> Would supply{' '}
-                              <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a guaranteed{' '}
+                              <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a fixed{' '}
                               <strong className="text-[#10b981]">{formatBps(deal.rateBps)} fixed APR</strong> over{' '}
                               <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
                             </p>
                             <p className="text-[#a58c7b]">
-                              ⏱ If the borrower fails to repay, you may claim their{' '}
-                              <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral (fully insured by smart contract escrow).
+                              ⏱ If the borrower fails to repay, the loan can be liquidated: you are repaid in USDC by a liquidator, or you can take the{' '}
+                              <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral held in escrow. This is not insurance: if cirBTC loses value faster than liquidation happens, you can lose money.
                             </p>
                           </div>
 
@@ -723,14 +706,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
                         <Link
-                          to={`/deal/${deal.dealId}/manage`}
-                          className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] hover:text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors flex items-center gap-1.5 no-underline shrink-0"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-[#ff8a00]" />
-                          <span>Chat with Borrower</span>
-                        </Link>
-                        <Link
-                          to={`/deal/claim/${deal.dealId}${deal.salt ? `?salt=${deal.salt}` : ''}`}
+                          to={`/deal/claim/${deal.dealId}${deal.salt ? `#key=${deal.salt}` : ''}`}
                           className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
                         >
                           Review & Accept Deal →

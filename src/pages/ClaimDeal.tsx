@@ -1,6 +1,6 @@
 // oxlint-disable
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -27,14 +27,24 @@ import { useArcNetwork } from '../hooks/useArcNetwork'
 import { addArcNetwork } from '../lib/networkUtils'
 import { getArcClient } from '../lib/arcClient'
 import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
-import { DealChat } from '../components/DealChat'
 import { keccak256, encodeAbiParameters, parseAbiParameters, isHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+function readClaimKey(): `0x${string}` | null {
+  if (typeof window === 'undefined') return null
+  const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('key')
+  if (fromHash && isHex(fromHash)) return fromHash as `0x${string}`
+  const legacy = new URLSearchParams(window.location.search).get('salt')
+  if (legacy && isHex(legacy)) {
+    window.history.replaceState(null, '', `${window.location.pathname}#key=${legacy}`)
+    return legacy as `0x${string}`
+  }
+  return null
+}
+
 export default function ClaimDeal() {
   const { token: dealIdParam } = useParams<{ token: string }>()
-  const [searchParams] = useSearchParams()
-  const saltParam = searchParams.get('salt') as `0x${string}` | null
+  const saltParam = readClaimKey()
 
   const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
 
@@ -232,7 +242,7 @@ export default function ClaimDeal() {
           Private Deal Claim Link Required
         </h2>
         <p className="text-sm mb-4" style={{ color: 'var(--subtle)' }}>
-          This is a private deal encrypted with a secret salt. Please ask the deal creator to send you their full invitation link containing the salt parameter.
+          This private deal can only be accepted with its full invitation link. Ask the deal creator for the complete link (the part after # holds the claim key).
         </p>
         <Link to="/dashboard">
           <Button variant="secondary" size="sm">
@@ -279,7 +289,7 @@ export default function ClaimDeal() {
         functionName: 'claimDeal',
         args: [normalizedDealId, effectiveSalt],
         chainId,
-        gas: 200_000n,
+        gas: 250_000n,
       })
       return
     }
@@ -312,7 +322,7 @@ export default function ClaimDeal() {
         functionName: 'claimDealWithSignature',
         args: [normalizedDealId, signature],
         chainId,
-        gas: 250_000n,
+        gas: 300_000n,
       })
     } catch (e) {
       console.error('Open-link claim failed:', e)
@@ -557,15 +567,6 @@ export default function ClaimDeal() {
           </Link>
         </Card>
       )}
-
-      {/* P2P Live Deal Chat & Negotiation Box */}
-      <DealChat
-        dealId={normalizedDealId}
-        borrower={deal.borrower}
-        lender={deal.lender}
-        currentAddress={address}
-        dealStateLabel={dealStateLabel(deal.state)}
-      />
     </div>
   )
 }

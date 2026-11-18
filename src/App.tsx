@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -8,15 +9,17 @@ import NewDeal from './pages/NewDeal'
 import ClaimDeal from './pages/ClaimDeal'
 import Marketplace from './pages/Marketplace'
 import ManageDeal from './pages/ManageDeal'
-import Admin from './pages/Admin'
+
+const Admin = import.meta.env.DEV ? lazy(() => import('./pages/Admin')) : null
 
 const OWNER = '0x96cb116869808e935b870e94517f6f58cded5cde'
 
 function AdminRoute() {
   const { address } = useAccount()
+  if (!Admin) return <Navigate to="/" replace />
   if (!address) return <Navigate to="/" replace />
   if (address.toLowerCase() !== OWNER) return <Navigate to="/" replace />
-  return <Layout><Admin /></Layout>
+  return <Layout><Suspense fallback={null}><Admin /></Suspense></Layout>
 }
 
 export default function App() {
@@ -31,7 +34,7 @@ export default function App() {
           <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
           <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
           <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
-          <Route path="/admin" element={<AdminRoute />} />
+          {import.meta.env.DEV && <Route path="/admin" element={<AdminRoute />} />}
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

@@ -161,7 +161,7 @@ export function randomDealNonce(): `0x${string}` {
  */
 export function deriveDealId(proposer: `0x${string}`, nonce: `0x${string}`): `0x${string}` {
   const prefix = slice(keccak256(encodeAbiParameters([{ type: 'address' }], [proposer])), 0, 8)
-  return concat([prefix, nonce]) as `0x${string}`
+  return concat([prefix, nonce])
 }
 
 /**

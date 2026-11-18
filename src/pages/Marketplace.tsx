@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseAbiItem } from 'viem'
 import { Filter, Plus, X, RefreshCw, ExternalLink } from 'lucide-react'
 import { Card, Button, Badge, Input, TxStatus } from '../components/ui'
 import {
@@ -52,7 +51,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
       functionName: 'submitCounterOffer',
       args: [dealId, principalRaw, collateralRaw, rateBpsRaw, duration],
       chainId,
-      gas: 200_000n,
+      gas: 300_000n,
     })
   }
 
@@ -99,7 +98,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
   )
 }
 
-function OrderCard({ dealId }: { dealId: `0x${string}` }) {
+function OrderCard({ dealId, filter }: { dealId: `0x${string}`; filter: 'all' | 'borrow' | 'lend' }) {
   const { address, addresses, chainId } = useArcNetwork()
   const [showModal, setShowModal] = useState(false)
 
@@ -111,6 +110,10 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
     address: addresses.registry, abi: REGISTRY_ABI,
     functionName: 'getCounterOffers', args: [dealId], chainId,
   })
+  const { data: expired } = useReadContract({
+    address: addresses.registry, abi: REGISTRY_ABI,
+    functionName: 'isExpired', args: [dealId], chainId,
+  })
 
   // F-09: a proposer can withdraw their own counter-offer while the order is open
   const { writeContract: writeWithdraw, data: withdrawHash, isPending: isWithdrawing } = useWriteContract()
@@ -120,12 +123,13 @@ function OrderCard({ dealId }: { dealId: `0x${string}` }) {
   useEffect(() => { if (withdrawDone) void refetchOffers() }, [withdrawDone, refetchOffers])
 
   // Only show Public (visibility=1) deals in Proposed state
-  if (!deal || deal.state !== DealState.Proposed || deal.visibility !== 1) return null
+  if (!deal || deal.state !== DealState.Proposed || deal.visibility !== 1 || expired) return null
 
   const activeOffers = offers ? offers.filter((o) => o.active).length : 0
   const isOwn = address?.toLowerCase() === deal.borrower.toLowerCase() ||
     address?.toLowerCase() === deal.lender.toLowerCase()
   const isBorrowRequest = deal.borrower !== '0x0000000000000000000000000000000000000000'
+  if ((filter === 'borrow' && !isBorrowRequest) || (filter === 'lend' && isBorrowRequest)) return null
   const myOffer = offers?.find((o) => o.active && address && o.proposer.toLowerCase() === address.toLowerCase())
 
   function withdrawOffer(offerId: bigint) {
@@ -213,36 +217,15 @@ export default function Marketplace() {
     if (!addresses.registry) return
     setIsLoading(true)
     try {
-      const latestBlock = await arcClient.getBlockNumber()
-      const deploymentBlock = 27635000n // Arc Mainnet
-      // Only scan last 12 hours to avoid rate limits — public deals are recent
-      const fromBlock = latestBlock - 43200n > deploymentBlock
-        ? latestBlock - 43200n
-        : deploymentBlock
-
-      const ids = new Set<string>()
-      let toBlock = latestBlock
-      let chunks = 0
-      const CHUNK = 4500n
-      const MAX_CHUNKS = 10
-
-      while (toBlock > fromBlock && chunks < MAX_CHUNKS) {
-        const chunkFrom = toBlock - CHUNK + 1n < fromBlock ? fromBlock : toBlock - CHUNK + 1n
-        try {
-          const logs = await arcClient.getLogs({
-            address: addresses.registry,
-            event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
-            fromBlock: chunkFrom,
-            toBlock,
-          })
-          for (const log of logs) {
-            if (log.args?.dealId) ids.add(normalizeDealId(log.args.dealId).toLowerCase())
-          }
-        } catch { /* rate limit — stop */ break }
-        toBlock = chunkFrom - 1n
-        chunks++
-        await new Promise((r) => setTimeout(r, 300))
-      }
+      const count = (await arcClient.readContract({
+        address: addresses.registry, abi: REGISTRY_ABI, functionName: 'publicDealCount',
+      })) as bigint
+      const PAGE = 100n
+      const offset = count > PAGE ? count - PAGE : 0n
+      const page = (await arcClient.readContract({
+        address: addresses.registry, abi: REGISTRY_ABI, functionName: 'getPublicDeals', args: [offset, PAGE],
+      })) as readonly `0x${string}`[]
+      const ids = new Set<string>([...page].reverse().map((id) => normalizeDealId(id).toLowerCase()))
 
       setDealIds(Array.from(ids) as `0x${string}`[])
       setLastScanned(Date.now())
@@ -321,14 +304,14 @@ export default function Marketplace() {
         </div>
       ) : dealIds.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {dealIds.map((id) => <OrderCard key={id} dealId={id} />)}
+          {dealIds.map((id) => <OrderCard key={id} dealId={id} filter={filterRole} />)}
         </div>
       ) : (
         <Card className="text-center py-16">
           <Filter size={32} className="mx-auto mb-4" style={{ color: 'var(--subtle)' }} />
           <h2 className="display text-lg font-bold mb-2" style={{ color: 'var(--ink)' }}>No open orders yet</h2>
           <p className="text-sm mb-6 max-w-sm mx-auto" style={{ color: 'var(--subtle)' }}>
-            Be the first to post a public lending or borrowing request. Anyone with Arc Testnet USDC can submit an offer.
+            Be the first to post a public lending or borrowing request. Anyone with USDC on Arc can submit an offer.
           </p>
           <Link to="/deal/new">
             <Button variant="primary">
@@ -345,7 +328,9 @@ export default function Marketplace() {
         <ul className="text-xs space-y-1" style={{ color: 'var(--subtle)' }}>
           <li>Counter-offers let you propose your preferred terms: principal, rate, duration, and collateral.</li>
           <li>Both parties negotiate until the deal creator accepts — all terms are locked on-chain.</li>
-          <li>When one offer is accepted, all others are cancelled atomically by the smart contract.</li>
+          <li>Once one offer is accepted, no other offer on that order can be accepted.</li>
+          <li>Each address can have one active offer per order. Orders expire 30 days after posting.</li>
+          <li>After an offer is accepted, the borrower has 72 hours to activate the loan.</li>
           <li>An accepted offer binds both parties with an immutable on-chain hash.</li>
         </ul>
       </Card>

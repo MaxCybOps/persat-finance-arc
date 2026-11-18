@@ -29,7 +29,8 @@ import {
 } from 'lucide-react'
 import AuthModal from '../components/AuthModal'
 import SplashScreen from '../components/SplashScreen'
-import { REGISTRY_ADDRESS, ESCROW_VAULT_ADDRESS } from '../contracts/addresses'
+import { MAINNET_REGISTRY_ADDRESS, MAINNET_VAULT_ADDRESS } from '../contracts/addresses'
+import { useBtcPrice } from '../hooks/useBtcPrice'
 
 // 3D Orbital Solar Canvas
 function OrbitalCanvas() {
@@ -155,7 +156,7 @@ export default function Landing() {
   // Interactive Loan Agreement State
   const [btcAmount, setBtcAmount] = useState<string>('1.25')
   const [usdcAmount, setUsdcAmount] = useState<string>('24375.10')
-  const btcPrice = 117290.5
+  const { priceUsd: btcPrice } = useBtcPrice()
 
   const parsedBtc = parseFloat(btcAmount) || 0
   const parsedUsdc = parseFloat(usdcAmount) || 0
@@ -166,7 +167,7 @@ export default function Landing() {
   // Interactive Loan Calculator State
   const [calcBtc, setCalcBtc] = useState<number>(1.0)
   const [calcDuration, setCalcDuration] = useState<number>(30)
-  const calcMaxBorrow = (calcBtc * btcPrice * 0.7).toFixed(0)
+  const calcMaxBorrow = (calcBtc * btcPrice * 0.65 / (1 + 0.082 * calcDuration / 365)).toFixed(0)
   const calcInterest = ((parseFloat(calcMaxBorrow) * 0.082 * calcDuration) / 365).toFixed(0)
   const calcLiquidationPrice = (parseFloat(calcMaxBorrow) / (calcBtc * 0.8)).toFixed(0)
 
@@ -208,7 +209,7 @@ export default function Landing() {
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#241f1a] border border-[#564334]/40">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
               <span className="font-['Space_Grotesk'] text-[11px] font-bold tracking-widest text-[#ddc1ae] uppercase">
-                ARC MAINNET LIVE
+                BETA · NOT AUDITED
               </span>
             </div>
           </div>
@@ -564,8 +565,8 @@ export default function Landing() {
               </div>
 
               <div className="pt-3 border-t border-[#564334]/20 mt-3 text-[11px] text-[#a58c7b] flex items-center justify-between">
-                <span>Oracle Provider: Pyth Network</span>
-                <span className="text-[#10b981]">Heartbeat: 400ms</span>
+                <span>Oracle: Chainlink BTC/USD on Arc</span>
+                <span className="text-[#10b981]">Heartbeat: 24h</span>
               </div>
             </motion.div>
 
@@ -731,7 +732,7 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── SECTION 2: LIVE ON-CHAIN STATS TICKER (Scroll Fade In) ── */}
+        {/* ── SECTION 2: PROTOCOL PARAMETERS (Scroll Fade In) ── */}
         <motion.section
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -746,10 +747,10 @@ export default function Landing() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
-                  Total Escrow Value
+                  Max LTV at Activation
                 </div>
                 <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#ebe0d9] font-bold">
-                  $1,420,000+ <span className="text-xs text-[#ff8a00]">USDC</span>
+                  65% <span className="text-xs text-[#ff8a00]">incl. interest</span>
                 </div>
               </div>
             </div>
@@ -760,10 +761,10 @@ export default function Landing() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
-                  Active Escrow Deals
+                  Liquidation Threshold
                 </div>
                 <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#ebe0d9] font-bold">
-                  54 <span className="text-xs text-[#a58c7b]">Contracts</span>
+                  80% <span className="text-xs text-[#a58c7b]">LTV or 7 days overdue</span>
                 </div>
               </div>
             </div>
@@ -774,10 +775,10 @@ export default function Landing() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-[11px] text-[#ddc1ae] uppercase tracking-wider">
-                  Collateral Health
+                  Price Oracle
                 </div>
                 <div className="font-['Space_Grotesk'] text-xl sm:text-2xl text-[#10b981] font-bold">
-                  135% <span className="text-xs text-[#a58c7b]">Pyth BTC</span>
+                  Chainlink <span className="text-xs text-[#a58c7b]">BTC/USD on Arc</span>
                 </div>
               </div>
             </div>
@@ -814,7 +815,7 @@ export default function Landing() {
                 Bitcoin Loan & Yield Calculator
               </h2>
               <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
-                Model your borrowing capacity or calculate lender returns with guaranteed non-custodial math.
+                Model your borrowing capacity or lender returns with the same rules the contracts enforce. Figures are estimates.
               </p>
             </div>
 
@@ -886,7 +887,7 @@ export default function Landing() {
                 <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-[#2f2924]/80 to-[#120d0a] border border-[#ff8a00]/30 shadow-inner flex flex-col justify-between">
                   <div>
                     <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-wider text-[#a58c7b] font-bold">
-                      Max Safe Borrowing Capacity (70% LTV)
+                      Max Borrowing at Activation (65% LTV incl. interest)
                     </span>
                     <div className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-1 mb-4">
                       ${parseInt(calcMaxBorrow).toLocaleString()} <span className="text-base text-[#ff8a00]">USDC</span>
@@ -1021,11 +1022,11 @@ export default function Landing() {
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
-                    <span>Multi-oracle safety valves with automated margin calls</span>
+                    <span>Live loan health on every loan page, priced by the Chainlink BTC/USD oracle</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
-                    <span>Transparent pool depth with verifiable on-chain track records</span>
+                    <span>Every order and loan is recorded on-chain and verifiable on the Arc explorer</span>
                   </li>
                 </ul>
               </div>
@@ -1051,7 +1052,7 @@ export default function Landing() {
                 The Atomic Escrow Mechanism
               </h2>
               <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
-                How smart contracts replace centralized custodians and credit bureaus with deterministic mathematical guarantees.
+                How smart contracts replace a centralized custodian with transparent, on-chain rules.
               </p>
             </div>
 
@@ -1060,7 +1061,7 @@ export default function Landing() {
                 {
                   step: '01',
                   title: 'Pledge Bitcoin Collateral',
-                  desc: 'Deposit native Bitcoin through verified wrapper primitives (cirBTC or WBTC) into an isolated on-chain escrow program on Arc. Persat never has administrative access to your keys.',
+                  desc: 'Lock cirBTC, Circle\'s 1:1 BTC-backed token, in an isolated escrow contract on Arc. Only holding native BTC? Convert it to cirBTC from inside the app through LI.FI (a third-party route, about 1% cost). Persat never holds your keys.',
                   footerLabel: 'Protocol Collateral',
                   footerVal: 'cirBTC Vault',
                   valColor: 'text-[#ebe0d9]',
@@ -1068,7 +1069,7 @@ export default function Landing() {
                 {
                   step: '02',
                   title: 'Receive Instant Stablecoins',
-                  desc: 'Once verified on Arc via Pyth BTC/USD oracles, USDC stablecoins are dispatched immediately from the peer lender to your destination wallet in one atomic transaction.',
+                  desc: 'Once the loan-to-value is checked against the Chainlink BTC/USD oracle on Arc, the lender\'s USDC is sent to your wallet in the same transaction.',
                   footerLabel: 'Execution Speed',
                   footerVal: '< 1s Finality',
                   valColor: 'text-[#ff8a00]',
@@ -1150,7 +1151,7 @@ export default function Landing() {
                 <tr>
                   <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Custody Risk</td>
                   <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
-                    Zero Custody (Smart Contract)
+                    Smart-contract escrow (no company custody)
                   </td>
                   <td className="p-4 sm:p-5 text-red-400">High (Company holds keys)</td>
                   <td className="p-4 sm:p-5">Medium (Shared pool risk)</td>
@@ -1158,7 +1159,7 @@ export default function Landing() {
                 <tr>
                   <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Interest Rate Stability</td>
                   <td className="p-4 sm:p-5 text-[#10b981] font-bold bg-[#ff8a00]/5">
-                    Fixed & Guaranteed
+                    Fixed rate (pro-rata if repaid early)
                   </td>
                   <td className="p-4 sm:p-5">Arbitrary Discretionary</td>
                   <td className="p-4 sm:p-5 text-amber-300">Volatile Floating Spikes</td>
@@ -1204,22 +1205,22 @@ export default function Landing() {
                 className="lg:col-span-5"
               >
                 <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ff8a00] tracking-widest font-bold">
-                  Reputation Passport
+                  Reputation Passport · Planned
                 </span>
                 <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold mt-2 mb-4 leading-tight">
                   Trust Formed by Math, <br />Not Testimonials.
                 </h2>
                 <p className="text-base text-[#ddc1ae] mb-6 leading-relaxed">
-                  Real on-chain repayment history tied directly to cryptographic public keys, zero fake user reviews, zero curated ratings, zero manipulated profiles.
+                  Not live yet. The plan: a repayment history built from on-chain loans and tied to each wallet, with no reviews or curated ratings. The card on the right is an illustration, not real data.
                 </p>
                 <div className="space-y-3 text-sm text-[#ddc1ae]">
                   <div className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-[#10b981] shrink-0 mt-0.5" />
-                    <span>All historical escrows verified directly against Arc block explorers</span>
+                    <span>Planned: each completed loan counts toward the wallet's on-chain history</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-[#10b981] shrink-0 mt-0.5" />
-                    <span>Borrowers build deterministic interest discounts with 100% on-time record</span>
+                    <span>Planned: better rates for wallets with a clean repayment record</span>
                   </div>
                 </div>
               </motion.div>
@@ -1276,16 +1277,7 @@ export default function Landing() {
 
                 {/* Micro Proof Line Item */}
                 <div className="p-3 rounded-xl bg-[#241f1a]/60 border border-[#564334]/30 flex items-center justify-between font-['Space_Grotesk'] text-xs">
-                  <span className="text-[#a58c7b]">Last Transaction: 3.1 BTC Collateral Release</span>
-                  <a
-                    href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#ff8a00] hover:underline flex items-center gap-1"
-                  >
-                    <span>Tx: #92b9f...d4</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <span className="text-[#a58c7b]">Illustration only — sample figures, not a real wallet</span>
                 </div>
               </motion.div>
             </div>
@@ -1317,23 +1309,27 @@ export default function Landing() {
             {[
               {
                 q: 'How is my Bitcoin collateral kept safe during the loan?',
-                a: 'Collateral is locked into immutable smart contract escrow on Circle\'s Arc L1. Persat never has administrative access, custody keys, or backdoors. Your collateral is solely unlocked by automated smart contract logic upon loan repayment.',
+                a: 'Collateral is locked in a smart-contract escrow on Arc. No admin function can withdraw it: it is released only by repayment or liquidation. The contracts have not been audited by a third party yet, so only use amounts you can afford to lose during the beta.',
               },
               {
                 q: 'What happens if Bitcoin\'s price drops significantly?',
-                a: 'Loans maintain an 80% maximum Loan-to-Value (LTV) liquidation threshold. If the market value drops and approaches the threshold, automated margin notifications trigger. If 80% is breached, the escrow smart contract liquidates only enough collateral to protect the lender.',
+                a: 'Each loan page shows its live loan-to-value. Liquidation opens at 80% LTV, or 7 days after maturity if the loan is unpaid. A liquidator then repays the lender in USDC and receives the matching cirBTC plus a 3% bonus; the rest of the collateral goes back to the borrower. There are no automatic alerts yet, so check your loan regularly.',
               },
               {
-                q: 'Can Persat Labs freeze or seize my funds?',
-                a: 'No. The contracts operate strictly on verified bytecode without emergency freeze abilities, validator god-mode, or unilateral withdrawal privileges.',
+                q: 'Can anyone freeze or seize my funds?',
+                a: 'Persat cannot move your collateral. The contract owner (a multisig) can pause new deals and activations, but never repayments, liquidations or withdrawals, and fee changes only apply after a 4-day delay. Circle, the issuer of USDC and cirBTC, can freeze an address or pause its tokens. Persat is built so that a frozen party only blocks its own payment: everyone else is still paid, and a token pause gives borrowers extra time instead of triggering liquidation.',
               },
               {
                 q: 'How do private deal links work for known counterparties?',
-                a: 'When you create a Direct Deal, an encrypted single-use link is generated. Only the designated counterparty\'s connected wallet can accept the terms. No details are leaked to the public marketplace orderbook.',
+                a: 'There are two kinds. A reserved link can only be accepted by the wallet you name. An open link can be accepted by whoever holds it, so treat it like a password. Links expire 30 days after creation, and the borrower has 72 hours to activate once a deal is accepted. Private deals are not listed on the marketplace, but their terms are visible on-chain.',
               },
               {
                 q: 'What tokens are supported on Arc?',
-                a: 'The protocol natively supports cirBTC (Circle wrapped Bitcoin primitives) as collateral and native Circle USDC for borrowing and interest settlements.',
+                a: 'cirBTC as collateral and USDC for loans and repayments. cirBTC is issued by Circle and backed 1:1 by BTC held in Circle\'s custody, so you rely on Circle for its reserves and redemption. Collateral is valued at the BTC price, and new loans are blocked if cirBTC trades more than 2% away from BTC.',
+              },
+              {
+                q: 'What are the main risks?',
+                a: 'Smart-contract risk (no third-party audit yet), issuer risk (Circle custody, freezes and pauses), price risk (a fast BTC drop can leave a lender under-collateralised), and conversion risk when you bridge or convert assets through third-party routes. Persat Finance is in beta: do not deposit more than you can afford to lose.',
               },
             ].map((faq, idx) => (
               <div
@@ -1426,7 +1422,7 @@ export default function Landing() {
 
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <a
-                href={`https://explorer.testnet.arc.io/address/${REGISTRY_ADDRESS}`}
+                href={`https://explorer.arc.io/address/${MAINNET_REGISTRY_ADDRESS}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline flex items-center gap-1"
@@ -1434,7 +1430,7 @@ export default function Landing() {
                 Deal Registry <ExternalLink className="w-3 h-3" />
               </a>
               <a
-                href={`https://explorer.testnet.arc.io/address/${ESCROW_VAULT_ADDRESS}`}
+                href={`https://explorer.arc.io/address/${MAINNET_VAULT_ADDRESS}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline flex items-center gap-1"
