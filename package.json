@@ -17,14 +17,13 @@
     "contracts:test": "forge test"
   },
   "dependencies": {
+    "@bigmi/react": "0.7.1",
     "@circle-fin/adapter-viem-v2": "^1.18.0",
     "@circle-fin/app-kit": "^1.15.2",
-    "@circle-fin/developer-controlled-wallets": "^10.8.0",
-    "@circle-fin/modular-wallets-core": "^1.0.16",
-    "@circle-fin/smart-contract-platform": "^10.8.0",
-    "@circle-fin/user-controlled-wallets": "^10.8.0",
-    "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
+    "@lifi/widget": "3.40.13",
+    "@mysten/dapp-kit": "0.20.0",
     "@openzeppelin/contracts": "5.1.0",
+    "@solana/wallet-adapter-react": "0.15.40",
     "@tanstack/react-query": "^5.62.7",
     "@types/three": "^0.186.0",
     "@web3icons/react": "^4.0.0",
@@ -48,6 +47,11 @@
     }
   },
   "devDependencies": {
+    "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@circle-fin/modular-wallets-core": "^1.0.16",
+    "@circle-fin/smart-contract-platform": "^10.8.0",
+    "@circle-fin/user-controlled-wallets": "^10.8.0",
+    "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
