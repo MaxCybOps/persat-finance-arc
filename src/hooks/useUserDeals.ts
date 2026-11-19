@@ -25,8 +25,9 @@ export interface LiveDeal {
   salt?: `0x${string}`
 }
 
-// Global cooldown: prevent multiple page mounts from hammering the RPC
-let lastScanTime = 0
+// Per-wallet cooldown: prevent multiple page mounts from hammering the RPC
+const lastScanTime = new Map<string, number>()
+const dealCache = new Map<string, LiveDeal[]>()
 const SCAN_COOLDOWN_MS = 10_000
 
 export function useUserDeals() {
@@ -41,11 +42,18 @@ export function useUserDeals() {
 
   const fetchDeals = useCallback(async (force = false) => {
     if (!addresses.registry) return
+    if (!address) {
+      setDeals([])
+      return
+    }
 
-    // Enforce global cooldown to avoid Arc RPC rate limits
+    const key = address.toLowerCase()
     const now = Date.now()
-    if (!force && now - lastScanTime < SCAN_COOLDOWN_MS) return
-    lastScanTime = now
+    if (!force && now - (lastScanTime.get(key) ?? 0) < SCAN_COOLDOWN_MS) {
+      setDeals(dealCache.get(key) ?? [])
+      return
+    }
+    lastScanTime.set(key, now)
 
     setIsLoading(true)
     setError(null)
@@ -61,7 +69,7 @@ export function useUserDeals() {
 
       // N-01: the registry keeps an on-chain index of each user's deals, so no event-log scan is needed.
       const dealIdSet = new Set<string>()
-      if (address) {
+      {
         const count = (await client.readContract({
           address: addresses.registry,
           abi: REGISTRY_ABI,
@@ -164,6 +172,7 @@ export function useUserDeals() {
         return b.dealId.localeCompare(a.dealId)
       })
 
+      dealCache.set(key, dealList)
       setDeals(dealList)
     } catch (err: any) {
       console.error('Error fetching on-chain deals:', err)

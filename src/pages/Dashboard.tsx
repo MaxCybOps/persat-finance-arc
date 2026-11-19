@@ -58,8 +58,7 @@ export default function Dashboard() {
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [copiedDealId, setCopiedDealId] = useState<string | null>(null)
 
-  // Live Pyth/Oracle BTC Price
-  const { priceUsd: btcPrice, isStale: priceStale, source: priceSource } = useBtcPrice()
+  const { priceUsd: btcPrice, hasPrice, isStale: priceStale, source: priceSource } = useBtcPrice()
 
   // Aggregate RLTV across all active borrowed deals
   // RLTV = total repayable / total collateral value — protects lender yield
@@ -128,14 +127,14 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
               <span className="font-['Space_Grotesk'] text-[11px] font-bold text-[#ddc1ae] uppercase tracking-wider">
-                Pyth Arc Feed:
+                BTC/USD Feed:
               </span>
             </div>
 
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-[#10b981] animate-pulse'}`} />
               <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
-              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">{hasPrice ? `$${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</span>
               <span className="text-[#10b981] text-[10px] font-bold">{priceStale ? 'stale' : priceSource}</span>
             </div>
 

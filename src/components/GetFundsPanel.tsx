@@ -5,7 +5,7 @@ import { Card, Button } from './ui'
 import { formatBtc, formatUsdc } from '../lib/utils'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { getArcClient } from '../lib/arcClient'
-import { USES_OFFICIAL_CIRBTC } from '../contracts/addresses'
+import { usesOfficialCirBtc } from '../contracts/addresses'
 
 const LifiDepositModal = lazy(() => import('./LifiDepositModal'))
 const UsdcBridgeModal = lazy(() => import('./UsdcBridgeModal'))
@@ -58,7 +58,7 @@ export default function GetFundsPanel({ need, required, title }: Props) {
         your balance refreshes automatically when the funds arrive.
       </p>
 
-      {need === 'cirBtc' && !USES_OFFICIAL_CIRBTC ? (
+      {need === 'cirBtc' && !usesOfficialCirBtc() ? (
         <p className="text-xs" style={{ color: '#f59e0b' }}>
           This deployment still uses a test collateral token, which cannot be bought. Deposits open once the contracts
           run with Circle's official cirBTC.

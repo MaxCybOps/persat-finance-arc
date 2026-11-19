@@ -114,16 +114,32 @@ export default function ClaimDeal() {
     recoveredSalt ||
     (deal && deal.visibility === 1 ? emptySalt : null)
 
-  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { writeContract: rawWrite, data: hash, isPending, error } = useWriteContract()
   const [receiptConfirmed, setReceiptConfirmed] = useState(false)
 
-  const { isSuccess: isWagmiSuccess } = useWaitForTransactionReceipt({
+  // Simulate first so an expired or invalid claim shows its reason instead of failing on-chain.
+  const writeContract = (params: any) => {
+    if (!address) return
+    const { gas: _gas, chainId: _chainId, ...call } = params
+    arcClient
+      .simulateContract({ ...call, account: address })
+      .then(() => rawWrite(params))
+      .catch((e: unknown) => toast.error(parseOnchainError(e), { duration: 8000 }))
+  }
+
+  const { isSuccess: receiptReady, data: wagmiReceipt } = useWaitForTransactionReceipt({
     hash,
     chainId,
     query: {
       enabled: Boolean(hash),
     },
   })
+  const isWagmiSuccess = receiptReady && wagmiReceipt?.status === 'success'
+  const reverted = receiptReady && wagmiReceipt?.status === 'reverted'
+
+  useEffect(() => {
+    if (reverted) toast.error('Transaction failed on-chain. The deal was not accepted.', { duration: 8000 })
+  }, [reverted])
 
   // Fast direct receipt polling
   useEffect(() => {
@@ -150,7 +166,7 @@ export default function ClaimDeal() {
   }, [hash, receiptConfirmed, arcClient, refetch])
 
   const isSuccess = isWagmiSuccess || receiptConfirmed
-  const isConfirming = Boolean(hash) && !isSuccess
+  const isConfirming = Boolean(hash) && !isSuccess && !reverted
 
   // Run ONCE when tx confirms — use a ref to prevent re-triggering when deal refetch updates state
   const successHandledRef = useState(false)

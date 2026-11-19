@@ -89,7 +89,17 @@ export default function NewDeal() {
 
   useEffect(() => { void fetchBalances() }, [fetchBalances])
 
-  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { writeContract: rawWrite, data: hash, isPending, error } = useWriteContract()
+
+  // Simulate first so a call that would revert shows its reason instead of failing on-chain.
+  const writeContract = (params: any) => {
+    if (!address) return
+    const { gas: _gas, chainId: _chainId, ...call } = params
+    arcClient
+      .simulateContract({ ...call, account: address })
+      .then(() => rawWrite(params))
+      .catch((e: unknown) => toast.error(parseOnchainError(e), { duration: 8000 }))
+  }
 
   // Show errors immediately as a toast so they are never missed
   useEffect(() => {
@@ -98,14 +108,19 @@ export default function NewDeal() {
     }
   }, [error])
 
-  // Standard Wagmi wait
-  const { isSuccess: isWagmiSuccess } = useWaitForTransactionReceipt({
+  const { isSuccess: receiptReady, data: wagmiReceipt } = useWaitForTransactionReceipt({
     hash,
     chainId,
     query: {
       enabled: Boolean(hash),
     },
   })
+  const isWagmiSuccess = receiptReady && wagmiReceipt?.status === 'success'
+  const reverted = receiptReady && wagmiReceipt?.status === 'reverted'
+
+  useEffect(() => {
+    if (reverted) toast.error('Transaction failed on-chain. The deal was not created.', { duration: 8000 })
+  }, [reverted])
 
   // Fast sub-second direct poller so the UI never stays stuck on 'Confirming...'
   useEffect(() => {
@@ -132,7 +147,7 @@ export default function NewDeal() {
   }, [hash, receiptConfirmed, arcClient])
 
   const isConfirmed = isWagmiSuccess || receiptConfirmed
-  const isConfirming = Boolean(hash) && !isConfirmed
+  const isConfirming = Boolean(hash) && !isConfirmed && !reverted
 
   // Compute effective salt: If counterparty address is set, use deterministic derived salt.
   // effectiveSalt = secret carried by the share link; onchainSalt = value sent to proposeDeal.
@@ -466,7 +481,7 @@ export default function NewDeal() {
           Deal ID:{' '}
         </p>
         <code className="mono text-xs" style={{ color: 'var(--muted)' }}>
-          {dealId.slice(0, 18)}...
+          {dealId}
         </code>
       </div>
 

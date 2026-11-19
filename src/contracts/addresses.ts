@@ -43,8 +43,11 @@ export const MAINNET_REGISTRY_ADDRESS = mainnetDeployment.registry as `0x${strin
 export const MAINNET_VAULT_ADDRESS = mainnetDeployment.vault as `0x${string}`
 export const MAINNET_CIRBTC_ADDRESS = mainnetDeployment.cirBtc as `0x${string}`
 
-/** True when the deployed collateral is Circle's official cirBTC (false for the old mock deployment). */
-export const USES_OFFICIAL_CIRBTC = MAINNET_CIRBTC_ADDRESS.toLowerCase() === OFFICIAL_CIRBTC_ADDRESS.toLowerCase()
+
+/** True when the collateral in use is Circle's official cirBTC (false for the old mock deployment). */
+export function usesOfficialCirBtc(): boolean {
+  return getAddresses(ARC_MAINNET_CHAIN_ID).cirBtc.toLowerCase() === OFFICIAL_CIRBTC_ADDRESS.toLowerCase()
+}
 
 export function getAddresses(chainId?: number) {
   const isMainnet = chainId === ARC_MAINNET_CHAIN_ID

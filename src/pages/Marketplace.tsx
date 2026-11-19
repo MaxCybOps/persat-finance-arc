@@ -29,13 +29,25 @@ interface OfferForm {
 }
 
 function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose: () => void }) {
-  const { isWrongChain, addresses, chainId, chain } = useArcNetwork()
+  const { isWrongChain, addresses, chainId, chain, address, isMainnet } = useArcNetwork()
   const [form, setForm] = useState<OfferForm>({ principal: '', collateral: '', rateBps: '', durationMonths: '' })
   const set = (k: keyof OfferForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash, chainId, query: { enabled: Boolean(hash) } })
+  const { writeContract: rawWrite, data: hash, isPending, error } = useWriteContract()
+  const [simError, setSimError] = useState<string | null>(null)
+  const writeContract = (params: any) => {
+    if (!address) return
+    setSimError(null)
+    const { gas: _gas, chainId: _chainId, ...call } = params
+    getArcClient(isMainnet)
+      .simulateContract({ ...call, account: address })
+      .then(() => rawWrite(params))
+      .catch((e: unknown) => setSimError(parseOnchainError(e)))
+  }
+  const { isLoading: isConfirming, isSuccess: receiptReady, data: receipt } = useWaitForTransactionReceipt({ hash, chainId, query: { enabled: Boolean(hash) } })
+  const isSuccess = receiptReady && receipt?.status === 'success'
+  const reverted = receiptReady && receipt?.status === 'reverted'
 
   const principalRaw = parseUsdc(form.principal)
   const collateralRaw = parseBtc(form.collateral)
@@ -86,7 +98,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
           </Button>
         )}
         <TxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess}
-          error={error ? parseOnchainError(error) : null}
+          error={error ? parseOnchainError(error) : simError ?? (reverted ? 'Transaction failed on-chain. The offer was not submitted.' : null)}
           explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined} />
         {isSuccess && (
           <p className="text-xs text-center mt-2" style={{ color: 'var(--success)' }}>

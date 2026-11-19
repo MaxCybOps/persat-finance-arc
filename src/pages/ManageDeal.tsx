@@ -26,6 +26,7 @@ import { REGISTRY_ABI, VAULT_ABI, ERC20_APPROVE_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { useBtcPrice } from '../hooks/useBtcPrice'
 import GetFundsPanel from '../components/GetFundsPanel'
+import { getArcClient } from '../lib/arcClient'
 
 const PAGE_LOAD_SEC = Math.floor(new Date().valueOf() / 1000)
 const ZERO = '0x0000000000000000000000000000000000000000' as const
@@ -171,17 +172,33 @@ export default function ManageDeal() {
     query: { enabled: hasValidId && deal?.state === DealState.Proposed },
   })
 
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+  const { writeContract: rawWrite, data: hash, isPending, error, reset } = useWriteContract()
+
+  // Simulate first so a call that would revert shows its real reason instead of failing on-chain.
+  const writeContract = (params: any) => {
+    if (!address) return
+    const { gas: _gas, chainId: _chainId, ...call } = params
+    getArcClient()
+      .simulateContract({ ...call, account: address })
+      .then(() => rawWrite(params))
+      .catch((e: unknown) => toast.error(parseOnchainError(e), { duration: 8000 }))
+  }
 
   useEffect(() => {
     if (error) toast.error(parseOnchainError(error), { duration: 8000 })
   }, [error])
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const { isLoading: isConfirming, isSuccess: receiptReady, data: receipt } = useWaitForTransactionReceipt({
     hash,
     chainId,
     query: { enabled: Boolean(hash) },
   })
+  const isSuccess = receiptReady && receipt?.status === 'success'
+  const reverted = receiptReady && receipt?.status === 'reverted'
+
+  useEffect(() => {
+    if (reverted) toast.error('Transaction failed on-chain. Nothing was changed.', { duration: 8000 })
+  }, [reverted])
 
   useEffect(() => {
     if (isSuccess) {
@@ -685,7 +702,7 @@ export default function ManageDeal() {
           </Button>
         )}
 
-        {isOpenLoan && (
+        {isOpenLoan && !isBorrower && (
           <Button
             variant="ghost"
             size="sm"
@@ -700,7 +717,7 @@ export default function ManageDeal() {
               : (isPastGrace ? 'Liquidate overdue loan (repay lender in USDC)' : 'Trigger liquidation (repay lender in USDC)')}
           </Button>
         )}
-        {isOpenLoan && (
+        {isOpenLoan && !isBorrower && (
           <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
             A liquidator repays the lender in USDC and receives the matching cirBTC plus a 3% bonus; any surplus
             goes back to the borrower. The lender can also liquidate directly and take the cirBTC instead.
@@ -708,13 +725,13 @@ export default function ManageDeal() {
         )}
       </div>
 
-      {(isPending || isConfirming || isSuccess || error) && (
+      {(isPending || isConfirming || isSuccess || reverted || error) && (
         <div className="mt-4">
           <TxStatus
             isPending={isPending}
             isConfirming={isConfirming}
             isSuccess={isSuccess}
-            error={error ? parseOnchainError(error) : null}
+            error={error ? parseOnchainError(error) : reverted ? 'Transaction failed on-chain. Nothing was changed.' : null}
             explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined}
           />
         </div>

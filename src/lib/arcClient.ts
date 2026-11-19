@@ -5,6 +5,7 @@
 // Use these for ALL contract reads and event scans.
 
 import { createPublicClient, http, defineChain } from 'viem'
+import { ARC_RPC_URL } from '../config'
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -18,7 +19,7 @@ const arcMainnet = defineChain({
   id: 5042,
   name: 'Arc',
   nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc.mainnet.arc.io'] } },
+  rpcUrls: { default: { http: [ARC_RPC_URL] } },
   blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
 })
 
@@ -35,7 +36,7 @@ export const arcTestnetClient = createPublicClient({
 
 export const arcMainnetClient = createPublicClient({
   chain: arcMainnet,
-  transport: http('https://rpc.mainnet.arc.io', {
+  transport: http(ARC_RPC_URL, {
     timeout: 30_000,
     retryCount: 3,
     retryDelay: 1_000,
