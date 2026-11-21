@@ -13,6 +13,7 @@
  *   DEPLOYER_PRIVATE_KEY=0x...      (required unless DRY_RUN=1)
  *   FEE_RECIPIENT=0x...             (optional, defaults to OWNER_ADDRESS)
  *   CIRBTC_USDC_POOL=0x...          (optional) cirBTC/USDC pool used by the peg guard
+ *   ARC_RPC_URL=https://...         (optional) RPC endpoint, defaults to the public Arc Mainnet RPC
  *   DRY_RUN=1                       (optional) run every safety check, send no transaction
  *
  * The script aborts if the collateral token can be minted by an arbitrary address,
@@ -170,7 +171,7 @@ async function main() {
   }
   const cirBtcAddress = getAddress(rawCirBtc);
 
-  const publicClient = createPublicClient({ chain: arc, transport: http() });
+  const publicClient = createPublicClient({ chain: arc, transport: http(process.env.ARC_RPC_URL || undefined) });
   const chainId = await publicClient.getChainId();
   if (chainId !== 5042) fail(`connected to chain ${chainId}, expected Arc Mainnet (5042).`);
 
@@ -193,7 +194,7 @@ async function main() {
   const rawKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
   if (!rawKey) fail('No private key found. Set DEPLOYER_PRIVATE_KEY in .env (never commit it).');
   const account = privateKeyToAccount(rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`);
-  const walletClient = createWalletClient({ account, chain: arc, transport: http() });
+  const walletClient = createWalletClient({ account, chain: arc, transport: http(process.env.ARC_RPC_URL || undefined) });
   const feeRecipient = process.env.FEE_RECIPIENT ? getAddress(process.env.FEE_RECIPIENT) : ownerAddress;
   console.log('\nDeployer Wallet Address:', account.address);
   console.log('Fee recipient          :', feeRecipient);
