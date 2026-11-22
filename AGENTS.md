@@ -38,6 +38,7 @@ Audit round 2 + bridge analysis (branch `fix/audit-round2-bridge`, see the desig
 - Deals are listed on-chain (`getUserDeals`, `getPublicDeals`); the frontend no longer scans event logs.
 - `src/contracts/addresses.mainnet.json` is the frontend's source of mainnet addresses and is rewritten by `scripts/deploy-mainnet.cjs`. Ship the frontend only together with the redeployed contracts.
 - Mainnet deploy: `CIRBTC_ADDRESS=0x171A4217b86A807A64eB94757Db6849fb4bDbAA0 OWNER_ADDRESS=<Safe> node scripts/deploy-mainnet.cjs` (run with `DRY_RUN=1` first). The Safe must then call `acceptOwnership()` on both contracts.
+- Admin: `/admin` in the app (nav link "Admin"). Anyone can read the protocol state; actions are enforced by `onlyOwner` on-chain. With a Safe owner, each signer clicks Approve (`approveHash` on the Safe) and any signer clicks Execute once the threshold is reached (`execTransaction` with pre-validated signatures); no Safe web app or transaction service is needed. `acceptOwnership()` after deployment can be done from this page.
 
 ## IMPORTANT: Wiring Step Required
 

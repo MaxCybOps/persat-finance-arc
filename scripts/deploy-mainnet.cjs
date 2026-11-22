@@ -145,6 +145,9 @@ async function assertSafeOracle(publicClient, feed) {
 async function assertMultisigOwner(publicClient, owner) {
   const code = await publicClient.getCode({ address: owner });
   if (!code || code === '0x') fail(`OWNER_ADDRESS ${owner} is not a contract. Use a multisig such as a Safe (N-10).`);
+  if (code.toLowerCase().startsWith('0xef0100') && code.length === 48) {
+    fail(`OWNER_ADDRESS ${owner} is a single wallet with an EIP-7702 delegation, not a multisig. Use a Safe (N-10).`);
+  }
   console.log('✔ Owner is a contract (multisig)');
 }
 

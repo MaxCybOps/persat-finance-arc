@@ -12,7 +12,7 @@ const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/deal/new', label: 'New Deal', icon: Plus },
   { to: '/marketplace', label: 'Marketplace', icon: ShoppingCart },
-  { to: '/admin', label: 'Setup', icon: Settings },
+  { to: '/admin', label: 'Admin', icon: Settings },
 ]
 
 // Only Arc Mainnet is supported

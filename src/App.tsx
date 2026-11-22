@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import Landing from './pages/Landing'
@@ -10,17 +9,8 @@ import ClaimDeal from './pages/ClaimDeal'
 import Marketplace from './pages/Marketplace'
 import ManageDeal from './pages/ManageDeal'
 
-const Admin = import.meta.env.DEV ? lazy(() => import('./pages/Admin')) : null
-
-const OWNER = '0x96cb116869808e935b870e94517f6f58cded5cde'
-
-function AdminRoute() {
-  const { address } = useAccount()
-  if (!Admin) return <Navigate to="/" replace />
-  if (!address) return <Navigate to="/" replace />
-  if (address.toLowerCase() !== OWNER) return <Navigate to="/" replace />
-  return <Layout><Suspense fallback={null}><Admin /></Suspense></Layout>
-}
+// Loaded on demand. Access control is enforced by the contracts (onlyOwner), not by hiding the page.
+const Admin = lazy(() => import('./pages/Admin'))
 
 export default function App() {
   return (
@@ -34,7 +24,7 @@ export default function App() {
           <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
           <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
           <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
-          {import.meta.env.DEV && <Route path="/admin" element={<AdminRoute />} />}
+          <Route path="/admin" element={<Layout><Suspense fallback={null}><Admin /></Suspense></Layout>} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>
