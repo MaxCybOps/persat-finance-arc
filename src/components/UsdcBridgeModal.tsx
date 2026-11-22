@@ -78,7 +78,7 @@ export default function UsdcBridgeModal({ toAddress, suggestedAmount, onDone }: 
   const validAmount = Number(amount) > 0
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)' }}>
       <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>Bridge USDC to Arc</p>
       <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
         Uses Circle CCTP: USDC is burned on the source chain and minted on Arc to your address. Your wallet will ask

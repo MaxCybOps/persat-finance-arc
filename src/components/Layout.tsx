@@ -6,6 +6,7 @@ import { LayoutDashboard, Plus, ShoppingCart, Settings, Flame, Wifi } from 'luci
 import { cn } from '../lib/utils'
 import { addArcNetwork } from '../lib/networkUtils'
 import { useState } from 'react'
+import { FloatingChatDrawer } from './FloatingChatDrawer'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -124,7 +125,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Content */}
       <main className="flex-1 pb-20 md:pb-8">{children}</main>
 
-      {/* Global Floating P2P Deal Negotiation Drawer */}
+      <FloatingChatDrawer />
     </div>
   )
 }

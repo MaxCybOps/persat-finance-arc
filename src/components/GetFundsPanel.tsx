@@ -111,7 +111,7 @@ export default function GetFundsPanel({ need, required, title }: Props) {
             >
               <X size={14} /> Close
             </button>
-            <Suspense fallback={<Card className="animate-pulse h-96" />}>
+            <Suspense fallback={<Card className="animate-pulse h-96" style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)' }} />}>
               {flow === 'cctp' ? (
                 <UsdcBridgeModal toAddress={address} suggestedAmount={shortfall} onDone={close} />
               ) : (

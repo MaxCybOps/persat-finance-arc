@@ -73,7 +73,7 @@ function CounterOfferModal({ dealId, onClose }: { dealId: `0x${string}`; onClose
       style={{ background: 'rgba(0,0,0,0.7)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md" style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold" style={{ color: 'var(--ink)' }}>Submit Counter-Offer</h3>
           <button onClick={onClose}><X size={16} style={{ color: 'var(--subtle)' }} /></button>
