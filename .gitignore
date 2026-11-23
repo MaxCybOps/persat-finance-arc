@@ -16,3 +16,6 @@ recovery_file*
 # Arc Studio dev logs
 console.jsonl
 traces.jsonl
+
+# Foundry invariant failure cache
+/cache/
