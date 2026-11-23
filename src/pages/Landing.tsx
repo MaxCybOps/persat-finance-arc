@@ -148,7 +148,7 @@ export default function Landing() {
   const navigate = useNavigate()
   const [showSplash, setShowSplash] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [portfolioTab, setPortfolioTab] = useState<'Home' | 'Borrow' | 'Lend' | 'Vote'>('Home')
+  const [portfolioTab, setPortfolioTab] = useState<'Home' | 'Borrow' | 'Lend'>('Home')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [authDestination, setAuthDestination] = useState('/dashboard')
@@ -585,14 +585,13 @@ export default function Landing() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#10b981]" />
-                    <span className="text-[11px] text-[#a58c7b] font-['Space_Grotesk']">Arc L1</span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#241f1a] border border-[#564334]/40 text-[10px] text-[#a58c7b] font-['Space_Grotesk'] uppercase tracking-wider">Example</span>
                   </div>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex items-center justify-between p-1 rounded-full bg-[#241f1a] mb-4 border border-[#564334]/30">
-                  {(['Home', 'Borrow', 'Lend', 'Vote'] as const).map((tab) => (
+                  {(['Home', 'Borrow', 'Lend'] as const).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setPortfolioTab(tab)}
@@ -637,9 +636,9 @@ export default function Landing() {
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-[#564334]/25 text-xs">
-                <span className="text-[#ddc1ae]">Collateral Yield</span>
+                <span className="text-[#ddc1ae]">Interest earned by the lender</span>
                 <span className="font-['Space_Grotesk'] text-[#10b981] font-semibold">
-                  +$1,240.49 (+4.2%)
+                  +$1,240.49 (example)
                 </span>
               </div>
             </motion.div>

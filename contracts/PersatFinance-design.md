@@ -51,6 +51,18 @@ Regression tests: `contracts/test/SecurityFixes.t.sol`. **Contracts must be rede
 | N-13 | Staleness limit equal to the 24 h heartbeat | Deploy script uses 26 h (93,600 s) |
 | Info | Unused fee settings in the registry | Removed; the registry constructor is now `(usdc, cirBtc, owner)` |
 
+### Review round 3 — November 2026
+
+| ID | Finding | Change |
+|----|---------|--------|
+| R3-01 | A Circle freeze on the fee recipient made every `activateLoan` revert | The fee goes through the vault and is pushed or credited like other payouts |
+| R3-02 | Admin share links could prefill a malicious destination | Decoded call arguments and a warning on ownership transfer, rescue and fee recipient |
+| R3-03 | EIP-7702 delegated wallets passed the deploy script's multisig check | The script rejects them; the admin page treats them as single wallets |
+| R3-04 | A queued fee change was not visible to users | Shown on the loan page before activation |
+| R3-05 | Landing widget implied the collateral earns yield | Marked as an example, wording fixed, governance tab removed |
+
+`contracts/test/InvariantAccounting.t.sol` fuzzes activations, repayments, liquidations, Circle freezes and pauses, price moves, time jumps and withdrawals (80,000 calls) and checks that the vault's cirBTC equals locked collateral plus credits, that it holds no USDC beyond credits, and that closed loans hold nothing.
+
 Regression tests: `contracts/test/AuditRound2.t.sol` (tokens mimic Circle's blacklist and pause). `CirBtcPoolTwapForkTest` checks the TWAP against Chainlink on a local fork of Arc Mainnet when `ARC_FORK_RPC` is set.
 
 ---

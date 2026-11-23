@@ -99,7 +99,7 @@ const ACTIONS: ActionDef[] = [
     fields: [{ key: 'to', label: 'New recipient', placeholder: '0x...' }],
     build: (v) => {
       if (!isAddress(v.to ?? '')) return 'Enter a valid address.'
-      return { fn: 'setFeeRecipient', abi: VAULT_ABI, functionName: 'setFeeRecipient', args: [v.to as `0x${string}`] }
+      return { fn: `setFeeRecipient(${v.to})`, abi: VAULT_ABI, functionName: 'setFeeRecipient', args: [v.to as `0x${string}`] }
     },
   },
   {
@@ -117,7 +117,7 @@ const ACTIONS: ActionDef[] = [
       try { amount = parseUnits(v.amount || '0', ctx.tokenDecimals) } catch { return 'Enter a valid amount.' }
       if (amount <= 0n) return 'Enter an amount above zero.'
       return {
-        fn: 'rescueERC20',
+        fn: `rescueERC20(token ${v.token}, to ${v.to}, amount ${v.amount})`,
         abi: VAULT_ABI, functionName: 'rescueERC20', args: [v.token as `0x${string}`, v.to as `0x${string}`, amount],
       }
     },
@@ -125,14 +125,14 @@ const ACTIONS: ActionDef[] = [
   {
     id: 'registry.setVault', target: 'registry', actor: 'owner', title: 'Wire the vault into the registry',
     help: 'One-time setup. The deploy script normally does it already.',
-    build: (_v, ctx) => ({ fn: 'setVault', abi: REGISTRY_ABI, functionName: 'setVault', args: [ctx.vault] }),
+    build: (_v, ctx) => ({ fn: `setVault(${ctx.vault})`, abi: REGISTRY_ABI, functionName: 'setVault', args: [ctx.vault] }),
   },
   {
     id: 'registry.transferOwnership', target: 'registry', actor: 'owner', title: 'Transfer registry ownership',
     help: 'Step 1 of 2. The new owner must then accept ownership.',
     fields: [{ key: 'to', label: 'New owner', placeholder: '0x... (multisig recommended)' }],
     build: (v) => isAddress(v.to ?? '')
-      ? { fn: 'transferOwnership', abi: OWNABLE2STEP_ABI, functionName: 'transferOwnership', args: [v.to as `0x${string}`] }
+      ? { fn: `transferOwnership(${v.to})`, abi: OWNABLE2STEP_ABI, functionName: 'transferOwnership', args: [v.to as `0x${string}`] }
       : 'Enter a valid address.',
   },
   {
@@ -140,7 +140,7 @@ const ACTIONS: ActionDef[] = [
     help: 'Step 1 of 2. The new owner must then accept ownership.',
     fields: [{ key: 'to', label: 'New owner', placeholder: '0x... (multisig recommended)' }],
     build: (v) => isAddress(v.to ?? '')
-      ? { fn: 'transferOwnership', abi: OWNABLE2STEP_ABI, functionName: 'transferOwnership', args: [v.to as `0x${string}`] }
+      ? { fn: `transferOwnership(${v.to})`, abi: OWNABLE2STEP_ABI, functionName: 'transferOwnership', args: [v.to as `0x${string}`] }
       : 'Enter a valid address.',
   },
   {
@@ -438,6 +438,13 @@ export default function Admin() {
                   onChange={(e) => setField(f.key, e.target.value)}
                 />
               ))}
+            </div>
+          )}
+
+          {['vault.transferOwnership', 'registry.transferOwnership', 'vault.rescueERC20', 'vault.setFeeRecipient'].includes(action.id) && (
+            <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: 'rgba(232,109,122,0.1)', border: '1px solid rgba(232,109,122,0.35)', color: '#fca5a5' }}>
+              This action sends control or funds to the address shown below. Check every character of it before approving:
+              a link shared by someone else can prefill any address.
             </div>
           )}
 

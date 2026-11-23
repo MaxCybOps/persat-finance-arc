@@ -100,6 +100,26 @@ export default function ManageDeal() {
     address: addresses.vault, abi: VAULT_ABI, functionName: 'maxInitialLtvBps', chainId,
   })
 
+  const { data: feeNow } = useReadContract({
+    address: addresses.vault, abi: VAULT_ABI, functionName: 'currentFeeBps', chainId,
+    query: { enabled: deal?.state === DealState.Confirmed },
+  })
+  const { data: feePending } = useReadContract({
+    address: addresses.vault, abi: VAULT_ABI, functionName: 'pendingFeeBps', chainId,
+    query: { enabled: deal?.state === DealState.Confirmed },
+  })
+  const { data: feeChangeAt } = useReadContract({
+    address: addresses.vault, abi: VAULT_ABI, functionName: 'feeChangeEffectiveAt', chainId,
+    query: { enabled: deal?.state === DealState.Confirmed },
+  })
+  const feeChanging = feeChangeAt !== undefined && feeChangeAt > 0n && Number(feeChangeAt) > PAGE_LOAD_SEC
+  const feeLine = feeNow === undefined
+    ? null
+    : `Protocol fee: ${Number(feeNow) / 100}% of the principal` +
+      (feeChanging && feePending !== undefined
+        ? `, changing to ${Number(feePending) / 100}% on ${new Date(Number(feeChangeAt) * 1000).toLocaleString()}.`
+        : '.')
+
   const { data: activationDeadline } = useReadContract({
     address: addresses.registry,
     abi: REGISTRY_ABI,
@@ -629,6 +649,7 @@ export default function ManageDeal() {
               Activation requires a loan-to-value of at most {maxInitPct}% at the current BTC price and must happen within
               72 hours of the deal being confirmed. The principal (minus the protocol fee) is sent straight to your wallet.
             </p>
+            {feeLine && <p className="text-xs text-center" style={{ color: feeChanging ? '#f59e0b' : 'var(--subtle)' }}>{feeLine}</p>}
           </>
         )}
 

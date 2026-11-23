@@ -175,7 +175,8 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
 
         IERC20(usdc).safeTransferFrom(deal.lender, deal.borrower, borrowerPrincipal);
         if (feeAmount > 0) {
-            IERC20(usdc).safeTransferFrom(deal.lender, feeRecipient, feeAmount);
+            IERC20(usdc).safeTransferFrom(deal.lender, address(this), feeAmount);
+            _pushOrCredit(usdc, feeRecipient, feeAmount);
         }
 
         emit LoanActivated(
