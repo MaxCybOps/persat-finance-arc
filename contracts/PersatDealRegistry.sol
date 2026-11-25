@@ -85,6 +85,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     address public immutable usdc;
     address public immutable cirBtc;
     uint256 public constant MAX_COUNTER_OFFERS = 50;
+    uint8 public constant MAX_DURATION_MONTHS = 24;
     uint256 public constant PROPOSAL_TTL = 30 days;
     uint256 public constant ACTIVATION_WINDOW = 72 hours;
 
@@ -130,6 +131,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (_dealExists[dealId]) revert DealAlreadyExists();
         if (bytes8(dealId) != dealIdPrefix(msg.sender)) revert InvalidDealId();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
+        if (durationMonths > MAX_DURATION_MONTHS) revert InvalidTerms();
 
         Deal storage deal = deals[dealId];
         deal.dealId = dealId;
@@ -251,6 +253,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (hasActiveOffer[dealId][msg.sender]) revert ActiveOfferExists();
         if (activeCounterOffers[dealId] >= MAX_COUNTER_OFFERS) revert MaxCounterOffersReached();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
+        if (durationMonths > MAX_DURATION_MONTHS) revert InvalidTerms();
 
         hasActiveOffer[dealId][msg.sender] = true;
         activeCounterOffers[dealId] += 1;

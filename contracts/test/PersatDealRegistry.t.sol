@@ -731,7 +731,7 @@ contract RegistryFuzzTest is RegistryFixture {
         principal      = uint128(bound(principal,      1, type(uint128).max));
         collateral     = uint128(bound(collateral,     1, type(uint128).max));
         rateBps        = uint16(bound(rateBps,         1, 10_000));
-        durationMonths = uint8(bound(durationMonths,   1, 120));
+        durationMonths = uint8(bound(durationMonths,   1, 24));
 
         bytes16 dealId = _idFor(borrower, abi.encode(principal, collateral, rateBps, durationMonths));
         bytes32 salt   = keccak256(abi.encode(dealId, "fuzz-salt"));

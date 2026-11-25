@@ -423,6 +423,25 @@ contract AuditRound2Test is Test {
         assertEq(usdc.balanceOf(address(vault)), 0);
         assertEq(cirBtc.balanceOf(address(vault)), 0);
     }
+
+    function test_MaxDuration_ProposeAndCounterOffer() public {
+        bytes16 tooLong = _id(borrower, "dur25");
+        vm.prank(borrower);
+        vm.expectRevert(PersatDealRegistry.InvalidTerms.selector);
+        registry.proposeDeal(tooLong, true, address(0), PRINCIPAL, COLLATERAL, RATE_BPS, 25, PersatDealRegistry.Visibility.Public, bytes32(0));
+
+        bytes16 maxed = _id(borrower, "dur24");
+        vm.prank(borrower);
+        registry.proposeDeal(maxed, true, address(0), PRINCIPAL, COLLATERAL, RATE_BPS, 24, PersatDealRegistry.Visibility.Public, bytes32(0));
+
+        vm.prank(lender);
+        vm.expectRevert(PersatDealRegistry.InvalidTerms.selector);
+        registry.submitCounterOffer(maxed, PRINCIPAL, COLLATERAL, RATE_BPS, 25);
+
+        vm.prank(lender);
+        registry.submitCounterOffer(maxed, PRINCIPAL, COLLATERAL, RATE_BPS, 24);
+        assertEq(registry.getCounterOffers(maxed)[0].durationMonths, 24);
+    }
 }
 
 interface IChainlinkLike {
