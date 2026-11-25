@@ -167,10 +167,9 @@ export function useUserDeals() {
         })
       )
 
-      dealList.sort((a, b) => {
-        if (a.blockNumber && b.blockNumber) return Number(b.blockNumber - a.blockNumber)
-        return b.dealId.localeCompare(a.dealId)
-      })
+      const position = new Map(Array.from(dealIdSet).map((id, i) => [id, i]))
+      dealList.sort((a, b) =>
+        (position.get(b.dealId.toLowerCase()) ?? -1) - (position.get(a.dealId.toLowerCase()) ?? -1))
 
       dealCache.set(key, dealList)
       setDeals(dealList)

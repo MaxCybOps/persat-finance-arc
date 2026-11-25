@@ -1,6 +1,11 @@
 // oxlint-disable
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useModal } from 'connectkit'
+import MyOffersList from '../components/MyOffersList'
+import { useMyOffers } from '../hooks/useMyOffers'
+import { useReceivedOffers } from '../hooks/useReceivedOffers'
+import ConvertToBtc, { useCirBtcBalance } from '../components/ConvertToBtc'
 import { motion } from 'framer-motion'
 import {
   Plus,
@@ -10,7 +15,6 @@ import {
   ShieldCheck,
   AlertTriangle,
   ArrowUpRight,
-  ArrowDownLeft,
   ExternalLink,
   Copy,
   Check,
@@ -20,7 +24,8 @@ import {
   Lock,
   RefreshCw,
   Inbox,
-  Share2,
+  Wallet,
+  Store,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -41,6 +46,7 @@ import { useBtcPrice } from '../hooks/useBtcPrice'
 
 export default function Dashboard() {
   const { address, isConnected, isMainnet, chain, addresses } = useArcNetwork()
+  const { setOpen: openConnect } = useModal()
   const {
     deals,
     borrowedDeals,
@@ -53,7 +59,56 @@ export default function Dashboard() {
   } = useUserDeals()
 
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'incoming'>('borrowed')
+  const [activeTab, setActiveTab] = useState<'borrowed' | 'funded' | 'incoming' | 'offers'>('borrowed')
+  const { offers: myOffers, isLoading: myOffersLoading, reload: reloadMyOffers } = useMyOffers()
+  const receivedOffers = useReceivedOffers(deals)
+  const { balance: walletCirBtc } = useCirBtcBalance()
+  const ordersWithOffers = deals.filter((d) => receivedOffers.has(d.dealId.toLowerCase()))
+  const totalReceived = ordersWithOffers.reduce((n, d) => n + (receivedOffers.get(d.dealId.toLowerCase()) ?? 0), 0)
+  const typeBadge = (d: { visibility: number }) => (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold whitespace-nowrap bg-[#241f1a] text-[#ddc1ae] border border-[#564334]/50">
+      {d.visibility === 1 ? <Store className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+      {d.visibility === 1 ? 'Marketplace' : 'Private link'}
+    </span>
+  )
+  // The deal list also holds invitations and deals other accounts created in this browser: keep only the wallet's own.
+  const meLower = address?.toLowerCase() ?? ''
+  const partyDeals = deals.filter((d) => d.borrower.toLowerCase() === meLower || d.lender.toLowerCase() === meLower)
+  const myDeals = partyDeals.filter((d) => d.state !== DealState.Cancelled)
+  const openDealsCount = myDeals.filter((d) => d.state === DealState.Proposed || d.state === DealState.Confirmed).length
+  const activeDealsCount = myDeals.filter((d) => d.state === DealState.Active || d.state === DealState.Defaulted).length
+  const offersBadge = (d: { dealId: string; visibility: number; state: number }) => {
+    const n = receivedOffers.get(d.dealId.toLowerCase()) ?? 0
+    if (n > 0) {
+      return (
+        <span className="px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold bg-[#ff8a00] text-[#17120f] whitespace-nowrap">
+          {n} offer{n > 1 ? 's' : ''} to review
+        </span>
+      )
+    }
+    if (d.visibility === 1 && d.state === DealState.Proposed) {
+      return <span className="text-[10px] text-[#a58c7b] whitespace-nowrap">Waiting for offers</span>
+    }
+    return null
+  }
+  // Phones: the tab bar scrolls sideways. Keep the selected tab in view and hint when more tabs are off-screen.
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [tabsMoreRight, setTabsMoreRight] = useState(false)
+  const updateTabsHint = () => {
+    const el = tabsRef.current
+    if (el) setTabsMoreRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }
+  useEffect(() => {
+    const el = tabsRef.current
+    const btn = el?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`)
+    if (el && btn) el.scrollTo({ left: btn.offsetLeft - (el.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' })
+    updateTabsHint()
+  }, [activeTab, isConnected])
+  useEffect(() => {
+    window.addEventListener('resize', updateTabsHint)
+    return () => window.removeEventListener('resize', updateTabsHint)
+  }, [])
+  const actionableOffers = myOffers.filter((o) => o.status === 'pending' || o.status === 'accepted').length
   const [jumpId, setJumpId] = useState('')
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [copiedDealId, setCopiedDealId] = useState<string | null>(null)
@@ -124,13 +179,6 @@ export default function Dashboard() {
       <div className="w-full bg-[#120d0a] border-b border-[#564334]/30 px-4 sm:px-6 py-2.5">
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-4 sm:gap-6">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-              <span className="font-['Space_Grotesk'] text-[11px] font-bold text-[#ddc1ae] uppercase tracking-wider">
-                BTC/USD Feed:
-              </span>
-            </div>
-
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-[#10b981] animate-pulse'}`} />
               <span className="text-[#a58c7b] font-semibold">BTC/USD:</span>
@@ -164,11 +212,11 @@ export default function Dashboard() {
         {/* ── HEADER ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#564334]/30 mb-8">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-col items-start sm:flex-row sm:items-center gap-1.5 sm:gap-2 mb-1">
               <h1 className="font-['Space_Grotesk'] text-2xl sm:text-3xl font-bold text-[#ebe0d9]">
                 Institutional Escrow Dashboard
               </h1>
-              <span className="px-2 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] font-['Space_Grotesk'] text-[10px] font-bold uppercase border border-[#ff8a00]/30">
+              <span className="px-2 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] font-['Space_Grotesk'] text-[10px] font-bold uppercase border border-[#ff8a00]/30 whitespace-nowrap">
                 P2P Non-Custodial
               </span>
             </div>
@@ -190,22 +238,54 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">
             <Link
               to="/marketplace"
-              className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors no-underline"
+              className="inline-flex items-center justify-center whitespace-nowrap px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors no-underline"
             >
               Marketplace
             </Link>
             <Link
               to="/deal/new"
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold shadow-[0_4px_16px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_24px_rgba(255,138,0,0.55)] transition-all no-underline"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold shadow-[0_4px_16px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_24px_rgba(255,138,0,0.55)] transition-all no-underline"
             >
               <Plus className="w-4 h-4" />
-              <span>Create New Deal</span>
+              <span className="sm:hidden">New Deal</span>
+              <span className="hidden sm:inline">Create New Deal</span>
             </Link>
           </div>
         </div>
+
+        {/* ── OFFERS RECEIVED ON THE USER'S MARKETPLACE ORDERS ── */}
+        {totalReceived > 0 && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#2a1e14] via-[#241a12] to-[#20150d] border border-[#ff8a00] shadow-[0_8px_32px_rgba(255,138,0,0.25)] mb-8">
+            <p className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-1">
+              You have {totalReceived} offer{totalReceived > 1 ? 's' : ''} to review
+            </p>
+            <p className="text-xs text-[#ddc1ae] mb-3">
+              Choose one offer per order. Its terms are then locked, and nothing moves until the loan is activated.
+            </p>
+            <ul className="m-0 p-0 list-none space-y-2">
+              {ordersWithOffers.slice(0, 3).map((d) => {
+                const n = receivedOffers.get(d.dealId.toLowerCase()) ?? 0
+                return (
+                  <li key={d.dealId} className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-[#ddc1ae] min-w-0">
+                      <strong className="text-[#ebe0d9]">{n} offer{n > 1 ? 's' : ''}</strong> on your order of{' '}
+                      <strong className="text-[#ebe0d9] whitespace-nowrap">${formatUsdc(d.principal).replace(/\.00$/, '')} USDC</strong>
+                    </span>
+                    <Link
+                      to={`/deal/${d.dealId}/manage`}
+                      className="shrink-0 px-4 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold no-underline whitespace-nowrap"
+                    >
+                      Review offers
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* ── INCOMING PRIVATE INVITATION BANNER (If Any) ── */}
         {incomingDeals.length > 0 && (
@@ -242,6 +322,25 @@ export default function Dashboard() {
           </div>
         )}
 
+        {!isConnected && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#201b17] border border-[#ff8a00]/30 mb-8 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-[#ff8a00]/15 text-[#ff8a00] flex items-center justify-center">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <h2 className="font-['Space_Grotesk'] text-lg font-bold text-[#ebe0d9] mb-1">No wallet connected</h2>
+            <p className="text-sm text-[#ddc1ae] mb-5 max-w-md mx-auto">
+              Connect your wallet to see your loans, invitations and collateral. Your positions stay safe on-chain while you are disconnected.
+            </p>
+            <button
+              onClick={() => openConnect(true)}
+              className="px-6 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold cursor-pointer"
+            >
+              Connect Wallet
+            </button>
+          </div>
+        )}
+
+        {isConnected && (<>
         {/* ── LTV HEALTH GAUGE & METRICS ROW ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
           {/* LTV Safety Gauge Card */}
@@ -251,7 +350,7 @@ export default function Dashboard() {
                 <span className="font-['Space_Grotesk'] text-xs uppercase font-bold text-[#a58c7b] tracking-wider">
                   Portfolio Health Factor (RLTV)
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold uppercase ${
+                <span className={`px-2.5 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold uppercase whitespace-nowrap ${
                   isHealthy
                     ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30'
                     : isWarning
@@ -316,7 +415,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  {(Number(totalCollateralLocked) / 1e8).toFixed(4)} BTC
+                  {(Number(totalCollateralLocked) / 1e8).toFixed(4)} cirBTC
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
                   ≈ ${(Number(totalCollateralLocked) / 1e8 * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
@@ -348,7 +447,7 @@ export default function Dashboard() {
             <div className="p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 shadow-md flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-['Space_Grotesk'] font-bold uppercase text-[#a58c7b]">
-                  Active Deals Created
+                  Your Deals
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#ff8a00]/15 text-[#ff8a00] flex items-center justify-center">
                   <Activity className="w-3.5 h-3.5" />
@@ -356,10 +455,10 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ff8a00]">
-                  {borrowedDeals.length} Deals
+                  {myDeals.length} Deal{myDeals.length !== 1 ? 's' : ''}
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
-                  {borrowedDeals.filter((d) => d.state === DealState.Proposed).length} Pending Accept
+                  {openDealsCount} open · {activeDealsCount} active
                 </div>
               </div>
             </div>
@@ -385,6 +484,24 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        </>)}
+
+        {/* ── WALLET: free cirBTC, convertible back to native BTC ── */}
+        {isConnected && walletCirBtc !== null && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#201b17] border border-[#564334]/30 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-['Space_Grotesk'] text-xs font-bold uppercase tracking-wider text-[#a58c7b] mb-1">Your wallet</p>
+              <p className="font-['Space_Grotesk'] text-lg font-bold text-[#ebe0d9] tabular-nums">
+                {formatBtc(walletCirBtc).replace(/\.?0+$/, '')} cirBTC
+              </p>
+              <p className="text-xs text-[#a58c7b]">
+                {walletCirBtc > 0n ? 'Free to use as collateral, or to convert back to BTC.' : 'No free cirBTC. Collateral locked in loans is not counted here.'}
+              </p>
+            </div>
+            <ConvertToBtc variant="primary" className="w-full sm:w-auto" />
+          </div>
+        )}
 
         {/* ── FAST ACTION TOOLBAR ── */}
         <div className="p-5 rounded-2xl bg-gradient-to-r from-[#201b17] via-[#241f1a] to-[#201b17] border border-[#ff8a00]/30 shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -436,12 +553,19 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {isConnected && (<>
         {/* ── ACTIVE POSITIONS & LOANS CONSOLE ── */}
         <div className="rounded-3xl bg-[#201b17] border border-[#564334]/40 overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.6)] mb-8">
           {/* Tabs */}
-          <div className="flex items-center justify-between border-b border-[#564334]/30 px-6 pt-4 bg-[#241f1a]/80">
-            <div className="flex items-center gap-6">
+          <div className="flex items-center justify-between border-b border-[#564334]/30 px-4 sm:px-6 pt-4 bg-[#241f1a]/80">
+            <div className="relative min-w-0">
+            <div
+              ref={tabsRef}
+              onScroll={updateTabsHint}
+              className="relative flex items-center gap-5 sm:gap-6 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               <button
+                data-tab="borrowed"
                 onClick={() => setActiveTab('borrowed')}
                 className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
                   activeTab === 'borrowed'
@@ -449,7 +573,7 @@ export default function Dashboard() {
                     : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
                 }`}
               >
-                <span>Loans You Created (Borrower)</span>
+                <span className="sm:hidden">Borrowed</span><span className="hidden sm:inline">Loans You Created (Borrower)</span>
                 <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ff8a00]/15 text-[#ff8a00] text-[10px]">
                   {borrowedDeals.length}
                 </span>
@@ -462,6 +586,7 @@ export default function Dashboard() {
               </button>
 
               <button
+                data-tab="funded"
                 onClick={() => setActiveTab('funded')}
                 className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
                   activeTab === 'funded'
@@ -469,7 +594,7 @@ export default function Dashboard() {
                     : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
                 }`}
               >
-                <span>Loans You Funded (Lender)</span>
+                <span className="sm:hidden">Funded</span><span className="hidden sm:inline">Loans You Funded (Lender)</span>
                 <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#241f1a] text-[#a58c7b] text-[10px]">
                   {fundedDeals.length}
                 </span>
@@ -482,6 +607,7 @@ export default function Dashboard() {
               </button>
 
               <button
+                data-tab="incoming"
                 onClick={() => setActiveTab('incoming')}
                 className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
                   activeTab === 'incoming'
@@ -489,7 +615,7 @@ export default function Dashboard() {
                     : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
                 }`}
               >
-                <span>Incoming Invitations</span>
+                <span className="sm:hidden">Invitations</span><span className="hidden sm:inline">Incoming Invitations</span>
                 <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] ${
                   incomingDeals.length > 0
                     ? 'bg-[#ff8a00]/20 text-[#ff8a00] font-bold animate-pulse'
@@ -504,6 +630,33 @@ export default function Dashboard() {
                   />
                 )}
               </button>
+
+              <button
+                data-tab="offers"
+                onClick={() => setActiveTab('offers')}
+                className={`pb-4 font-['Space_Grotesk'] text-sm font-bold transition-colors relative cursor-pointer ${
+                  activeTab === 'offers'
+                    ? 'text-[#ff8a00]'
+                    : 'text-[#ddc1ae] hover:text-[#ebe0d9]'
+                }`}
+              >
+                <span className="sm:hidden">Offers</span><span className="hidden sm:inline">My Offers</span>
+                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] ${
+                  actionableOffers > 0 ? 'bg-[#ff8a00]/20 text-[#ff8a00] font-bold' : 'bg-[#241f1a] text-[#a58c7b]'
+                }`}>
+                  {actionableOffers}
+                </span>
+                {activeTab === 'offers' && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff8a00]"
+                  />
+                )}
+              </button>
+            </div>
+            {tabsMoreRight && (
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-[#241f1a] to-transparent" aria-hidden="true" />
+            )}
             </div>
 
             <div className="hidden sm:flex items-center gap-2 pb-4 text-xs text-[#a58c7b]">
@@ -512,35 +665,37 @@ export default function Dashboard() {
           </div>
 
           {/* Tab Content */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {activeTab === 'borrowed' && (
               <div className="space-y-4">
                 {borrowedDeals.length > 0 ? (
                   borrowedDeals.map((deal) => (
                     <div
                       key={deal.dealId}
-                      className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="p-4 sm:p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/15 border border-[#ff8a00]/30 flex items-center justify-center text-[#ff8a00] shrink-0">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-[#ff8a00]/15 border border-[#ff8a00]/30 items-center justify-center text-[#ff8a00] shrink-0">
                           <Lock className="w-6 h-6" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
                               Deal {deal.dealId.slice(0, 10)}...
                             </span>
                             <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
                               {dealStateLabel(deal.state).toUpperCase()}
                             </span>
+                            {typeBadge(deal)}
+                            {offersBadge(deal)}
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
+                          <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
                             <span>Collateral: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
-                            <span>•</span>
+                            <span className="hidden sm:inline">•</span>
                             <span>Principal: <strong className="text-[#ff8a00]">${formatUsdc(deal.principal)} USDC</strong></span>
-                            <span>•</span>
+                            <span className="hidden sm:inline">•</span>
                             <span>Rate: <strong className="text-[#ebe0d9]">{formatBps(deal.rateBps)} Fixed</strong></span>
-                            <span>•</span>
+                            <span className="hidden sm:inline">•</span>
                             <span>Duration: <strong className="text-[#ebe0d9]">{deal.durationMonths}mo</strong></span>
                           </div>
                           {deal.reservedFor !== '0x0000000000000000000000000000000000000000' && (
@@ -551,21 +706,21 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                         {deal.state === DealState.Proposed && (
                           <button
                             onClick={() => handleCopyClaimLink(deal)}
-                            className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ff8a00] font-['Space_Grotesk'] text-xs font-bold border border-[#ff8a00]/40 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                            className="flex-1 min-w-[7.5rem] sm:flex-none justify-center whitespace-nowrap px-4 py-2.5 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ff8a00] font-['Space_Grotesk'] text-xs font-bold border border-[#ff8a00]/40 transition-colors flex items-center gap-1.5 cursor-pointer"
                           >
-                            {copiedDealId === deal.dealId ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                            <span>{copiedDealId === deal.dealId ? 'Link Copied!' : 'Copy Share Link'}</span>
+                            {copiedDealId === deal.dealId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedDealId === deal.dealId ? 'Copied!' : <><span className="sm:hidden">Copy Link</span><span className="hidden sm:inline">Copy Share Link</span></>}</span>
                           </button>
                         )}
 
 
                         <Link
                           to={`/deal/${deal.dealId}/manage`}
-                          className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                          className="flex-1 min-w-[7.5rem] sm:flex-none text-center whitespace-nowrap px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline"
                         >
                           Manage Deal
                         </Link>
@@ -598,26 +753,28 @@ export default function Dashboard() {
                   fundedDeals.map((deal) => (
                     <div
                       key={deal.dealId}
-                      className="p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="p-4 sm:p-5 rounded-2xl bg-[#17120f] border border-[#564334]/40 hover:border-[#ff8a00]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-[#10b981]/15 border border-[#10b981]/30 flex items-center justify-center text-[#10b981] shrink-0">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-[#10b981]/15 border border-[#10b981]/30 items-center justify-center text-[#10b981] shrink-0">
                           <Coins className="w-6 h-6" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
                               Lending Deal {deal.dealId.slice(0, 10)}...
                             </span>
                             <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
                               {dealStateLabel(deal.state).toUpperCase()}
                             </span>
+                            {typeBadge(deal)}
+                            {offersBadge(deal)}
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
-                            <span>Supplied: <strong className="text-[#10b981]">${formatUsdc(deal.principal)} USDC</strong></span>
-                            <span>•</span>
-                            <span>Collateral Held: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
-                            <span>•</span>
+                          <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
+                            <span>{deal.state === DealState.Proposed || deal.state === DealState.Confirmed ? 'Offering' : 'Supplied'}: <strong className="text-[#10b981]">${formatUsdc(deal.principal)} USDC</strong></span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>{deal.state === DealState.Proposed || deal.state === DealState.Confirmed ? 'Requires' : 'Collateral Held'}: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
+                            <span className="hidden sm:inline">•</span>
                             <span>Yield: <strong className="text-[#ebe0d9]">{formatBps(deal.rateBps)} APR</strong></span>
                           </div>
                         </div>
@@ -626,9 +783,9 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Link
                           to={`/deal/${deal.dealId}/manage`}
-                          className="px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
+                          className="flex-1 sm:flex-none text-center px-5 py-2.5 rounded-full bg-[#241f1a] text-[#ebe0d9] font-['Space_Grotesk'] text-xs font-bold hover:bg-[#2f2924] border border-[#564334]/40 transition-colors no-underline shrink-0"
                         >
-                          View & Collect
+                          {deal.state === DealState.Proposed || deal.state === DealState.Confirmed ? 'Manage' : 'View & Collect'}
                         </Link>
                       </div>
                     </div>
@@ -659,15 +816,15 @@ export default function Dashboard() {
                   incomingDeals.map((deal) => (
                     <div
                       key={deal.dealId}
-                      className="p-5 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 hover:border-[#ff8a00] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,138,0,0.1)]"
+                      className="p-4 sm:p-5 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 hover:border-[#ff8a00] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,138,0,0.1)]"
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-[#ff8a00]/20 border border-[#ff8a00]/40 flex items-center justify-center text-[#ff8a00] shrink-0">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-[#ff8a00]/20 border border-[#ff8a00]/40 items-center justify-center text-[#ff8a00] shrink-0">
                           <Inbox className="w-6 h-6" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
                               Loan Invitation
                             </span>
                             <span className="px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold bg-[#ff8a00]/15 text-[#ff8a00] border border-[#ff8a00]/30">
@@ -678,35 +835,56 @@ export default function Dashboard() {
                           {/* Human-readable contract summary */}
                           <div className="mt-2 p-3 rounded-xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#ddc1ae] space-y-1.5">
                             <p className="text-[#ebe0d9] font-semibold">📋 Proposed Loan Agreement Terms:</p>
-                            <p>
-                              <strong className="text-[#ff8a00]">Borrower:</strong>{' '}
-                              <code className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</code> is requesting a loan
-                              and will deposit <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral.
-                            </p>
-                            <p>
-                              <strong className="text-[#ff8a00]">You (Lender):</strong> Would supply{' '}
-                              <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a fixed{' '}
-                              <strong className="text-[#10b981]">{formatBps(deal.rateBps)} fixed APR</strong> over{' '}
-                              <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
-                            </p>
-                            <p className="text-[#a58c7b]">
-                              ⏱ If the borrower fails to repay, the loan can be liquidated: you are repaid in USDC by a liquidator, or you can take the{' '}
-                              <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral held in escrow. This is not insurance: if cirBTC loses value faster than liquidation happens, you can lose money.
-                            </p>
+                            {deal.borrower !== '0x0000000000000000000000000000000000000000' ? (
+                              <>
+                                <p>
+                                  <strong className="text-[#ff8a00]">Borrower:</strong>{' '}
+                                  <code className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</code> is requesting a loan
+                                  and will deposit <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral.
+                                </p>
+                                <p>
+                                  <strong className="text-[#ff8a00]">You (Lender):</strong> Would supply{' '}
+                                  <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a fixed{' '}
+                                  <strong className="text-[#10b981]">{formatBps(deal.rateBps)} APR</strong> over{' '}
+                                  <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
+                                </p>
+                                <p className="text-[#a58c7b]">
+                                  ⏱ If the borrower fails to repay, the loan can be liquidated: you are repaid in USDC by a liquidator, or you can take the{' '}
+                                  <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral held in escrow. This is not insurance: if cirBTC loses value faster than liquidation happens, you can lose money.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p>
+                                  <strong className="text-[#ff8a00]">Lender:</strong>{' '}
+                                  <code className="text-[#ebe0d9]">{shortAddr(deal.lender)}</code> offers to lend{' '}
+                                  <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> at a fixed{' '}
+                                  <strong className="text-[#10b981]">{formatBps(deal.rateBps)} APR</strong> over{' '}
+                                  <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
+                                </p>
+                                <p>
+                                  <strong className="text-[#ff8a00]">You (Borrower):</strong> Would lock{' '}
+                                  <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral and receive the USDC.
+                                </p>
+                                <p className="text-[#a58c7b]">
+                                  ⏱ If you do not repay on time, or if the cirBTC price falls too far, your collateral can be liquidated.
+                                </p>
+                              </>
+                            )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-[#a58c7b]">
+                          <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-2 text-xs text-[#a58c7b]">
                             <span>Deal ID: <code className="text-[#ebe0d9]">{deal.dealId.slice(0, 10)}...</code></span>
-                            <span>•</span>
-                            <span>From: <strong className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</strong></span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>From: <strong className="text-[#ebe0d9]">{shortAddr(deal.borrower !== '0x0000000000000000000000000000000000000000' ? deal.borrower : deal.lender)}</strong></span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
+                      <div className="flex items-center gap-2.5 shrink-0">
                         <Link
                           to={`/deal/claim/${deal.dealId}${deal.salt ? `#key=${deal.salt}` : ''}`}
-                          className="px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline shrink-0"
+                          className="flex-1 sm:flex-none text-center px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline"
                         >
                           Review & Accept Deal →
                         </Link>
@@ -729,64 +907,69 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+
+            {activeTab === 'offers' && (
+              <MyOffersList offers={myOffers} isLoading={myOffersLoading} reload={reloadMyOffers} />
+            )}
           </div>
         </div>
 
-        {/* ── ON-CHAIN RECENT ESCROW AUDIT LOG ── */}
-        <div className="rounded-2xl bg-[#201b17] border border-[#564334]/30 p-6">
-          <div className="flex items-center justify-between pb-3 border-b border-[#564334]/25 mb-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-[#ff8a00]" />
-              <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] uppercase tracking-wider">
-                Recent On-Chain Escrows ({chain.name})
+        </>)}
+
+        {/* ── RECENT ACTIVITY: the wallet's latest deals at a glance ── */}
+        <div className="rounded-2xl bg-[#201b17] border border-[#564334]/30 p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#564334]/25 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Activity className="w-4 h-4 text-[#ff8a00] shrink-0" />
+              <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] uppercase tracking-wider whitespace-nowrap">
+                Recent activity
               </h3>
             </div>
             <a
               href={`${chain.blockExplorers.default.url}/address/${addresses.registry}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1"
+              className="text-[11px] text-[#a58c7b] hover:text-[#ff8a00] flex items-center gap-1 whitespace-nowrap shrink-0 no-underline"
             >
-              <span>View Explorer</span>
+              <span>Explorer</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
 
-          <div className="space-y-3 font-['Space_Grotesk'] text-xs">
-            {deals.length > 0 ? (
-              deals.slice(0, 5).map((d) => (
-                <div
-                  key={d.dealId}
-                  className="p-3 rounded-xl bg-[#17120f] border border-[#564334]/20 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ArrowDownLeft className="w-4 h-4 text-[#10b981]" />
-                    <div>
-                      <span className="font-bold text-[#ebe0d9]">
-                        {formatBtc(d.collateral)} cirBTC Collateral · ${formatUsdc(d.principal)} USDC
-                      </span>
-                      <span className="text-[#a58c7b] ml-2">Deal #{d.dealId.slice(0, 10)}</span>
+          {partyDeals.length > 0 ? (
+            <ul className="divide-y divide-[#564334]/20 m-0 p-0 list-none">
+              {partyDeals.slice(0, 5).map((d) => {
+                const me = address?.toLowerCase()
+                const role = d.borrower.toLowerCase() === me ? 'Borrower' : d.lender.toLowerCase() === me ? 'Lender' : null
+                return (
+                  <li key={d.dealId} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] tabular-nums truncate">
+                        ${formatUsdc(d.principal).replace(/\.00$/, '')} USDC · {formatBtc(d.collateral).replace(/\.?0+$/, '')} cirBTC
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-[#a58c7b]">
+                        <span className={`px-1.5 py-0.5 rounded-full font-bold ${dealStateColor(d.state)}`}>{dealStateLabel(d.state)}</span>
+                        {role && <span>{role}</span>}
+                        {typeBadge(d)}
+                        {offersBadge(d)}
+                        <code className="mono">{`${d.dealId.slice(0, 6)}…${d.dealId.slice(-4)}`}</code>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[#a58c7b]">
-                      {d.blockNumber ? `Block #${d.blockNumber.toString()}` : 'Mined'}
-                    </span>
                     <Link
                       to={`/deal/${d.dealId}/manage`}
-                      className="text-[#ff8a00] hover:underline"
+                      className="shrink-0 text-xs font-bold text-[#ff8a00] no-underline hover:underline"
                     >
-                      Inspect →
+                      View →
                     </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-6 text-[#a58c7b]">
-                No recent transactions detected yet on {chain.name}.
-              </div>
-            )}
-          </div>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <p className="text-center py-6 text-xs text-[#a58c7b]">
+              No activity yet. Your deals will appear here.
+            </p>
+          )}
         </div>
       </div>
     </div>
