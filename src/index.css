@@ -33,7 +33,7 @@ body {
   font-family: 'Geist', 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--ink);
-  min-height: 100dvh;
+  min-height: 100svh;
 }
 
 .display {

@@ -8,8 +8,10 @@ import NewDeal from './pages/NewDeal'
 import ClaimDeal from './pages/ClaimDeal'
 import Marketplace from './pages/Marketplace'
 import ManageDeal from './pages/ManageDeal'
+import AdminGate from './components/AdminGate'
+import { StudioWatermark } from './components/StudioBadge'
 
-// Loaded on demand. Access control is enforced by the contracts (onlyOwner), not by hiding the page.
+// Loaded on demand, only for admin wallets. The contracts still enforce onlyOwner on every action.
 const Admin = lazy(() => import('./pages/Admin'))
 
 export default function App() {
@@ -24,8 +26,9 @@ export default function App() {
           <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
           <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
           <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
-          <Route path="/admin" element={<Layout><Suspense fallback={null}><Admin /></Suspense></Layout>} />
+          <Route path="/admin" element={<Layout><AdminGate><Suspense fallback={null}><Admin /></Suspense></AdminGate></Layout>} />
         </Routes>
+        <StudioWatermark />
       </BrowserRouter>
     </ErrorBoundary>
   )

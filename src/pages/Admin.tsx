@@ -339,9 +339,9 @@ export default function Admin() {
         <div>
           <h1 className="display text-2xl font-bold mb-1" style={{ color: 'var(--ink)' }}>Protocol Admin</h1>
           <p className="text-sm max-w-2xl" style={{ color: 'var(--subtle)' }}>
-            Anyone can view the protocol state. Actions only work for the contract owner: the contracts reject them from
-            any other address. When the owner is a Safe multisig, each signer approves here and any signer executes once the
-            threshold is reached.
+            Only the owner, the pending owner and the signers of an owner Safe can open this page. The contracts reject
+            actions from any other address. When the owner is a Safe multisig, each signer approves here and any signer
+            executes once the threshold is reached.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>

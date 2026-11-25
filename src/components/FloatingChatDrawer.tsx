@@ -26,12 +26,12 @@ export function FloatingChatDrawer() {
   const dealId = currentDealId(pathname)
 
   return (
-    <div className="fixed bottom-24 md:bottom-20 right-4 sm:right-6 z-[100] flex flex-col items-end">
+    <div className="fixed bottom-4 right-4 md:bottom-20 md:right-6 z-[100] flex flex-col items-end" style={{ transform: 'translateZ(0)' }}>
       {isOpen && (
         <div
           role="dialog"
           aria-label="Deal chat (not available yet)"
-          className="w-[92vw] sm:w-[400px] max-h-[85vh] bg-[#1a1512] border border-[#564334]/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden mb-3"
+          className="w-[92vw] sm:w-[400px] max-h-[70vh] md:max-h-[85vh] overflow-y-auto bg-[#1a1512] border border-[#564334]/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden mb-3"
         >
           <div className="flex items-center justify-between px-4 py-3 bg-[#140f0c] border-b border-[#564334]/40">
             <div className="flex items-center gap-2">
@@ -126,14 +126,14 @@ export function FloatingChatDrawer() {
 
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-[#ff8a00] to-[#ffaa45] hover:from-[#ff961a] hover:to-[#ffb65e] text-[#17120f] font-['Space_Grotesk'] font-bold text-xs shadow-[0_8px_25px_rgba(255,138,0,0.4)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+        className="relative flex items-center justify-center gap-2.5 w-11 h-11 md:w-auto md:h-auto md:px-4 md:py-3 rounded-full bg-gradient-to-r from-[#ff8a00] to-[#ffaa45] hover:from-[#ff961a] hover:to-[#ffb65e] text-[#17120f] font-['Space_Grotesk'] font-bold text-xs shadow-[0_8px_25px_rgba(255,138,0,0.4)] md:hover:scale-105 active:scale-95 transition-transform cursor-pointer"
         aria-label="Open deal chat (not available yet)"
       >
-        <MessageSquare className="w-4 h-4" />
-        <span className="hidden sm:inline">Deal Chat</span>
-        <span className="sm:hidden">Chat</span>
-        <span className="px-1.5 py-0.5 rounded-full bg-[#17120f]/80 text-[#f59e0b] text-[9px] uppercase tracking-wider">Soon</span>
-        {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+        {isOpen ? <X className="w-5 h-5 md:w-4 md:h-4" /> : <MessageSquare className="w-5 h-5 md:w-4 md:h-4" />}
+        <span className="hidden md:inline">Deal Chat</span>
+        <span className="hidden md:inline px-1.5 py-0.5 rounded-full bg-[#17120f]/80 text-[#f59e0b] text-[9px] uppercase tracking-wider">Soon</span>
+        <span className="md:hidden absolute -top-1 -right-1 px-1 rounded-full bg-[#17120f] border border-[#f59e0b]/60 text-[#f59e0b] text-[8px] leading-[14px] uppercase">Soon</span>
+        <span className="hidden md:inline">{isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}</span>
       </button>
     </div>
   )

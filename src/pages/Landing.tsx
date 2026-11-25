@@ -1,6 +1,7 @@
 // oxlint-disable
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link as LinkIcon,
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react'
 import AuthModal from '../components/AuthModal'
 import SplashScreen from '../components/SplashScreen'
-import { MAINNET_REGISTRY_ADDRESS, MAINNET_VAULT_ADDRESS } from '../contracts/addresses'
+import { ARC_MAINNET_CHAIN_ID, MAINNET_REGISTRY_ADDRESS, MAINNET_VAULT_ADDRESS } from '../contracts/addresses'
 import { useBtcPrice } from '../hooks/useBtcPrice'
 
 // 3D Orbital Solar Canvas
@@ -181,10 +182,35 @@ export default function Landing() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const { address, isConnected } = useAccount()
+  // Where to go once a connection started from this page succeeds.
+  const pendingDestination = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (isConnected && pendingDestination.current) {
+      const dest = pendingDestination.current
+      pendingDestination.current = null
+      setIsAuthOpen(false)
+      navigate(dest)
+    }
+  }, [isConnected, navigate])
+
   const openAuth = (dest = '/dashboard') => {
+    if (isConnected) {
+      navigate(dest)
+      return
+    }
+    pendingDestination.current = dest
     setAuthDestination(dest)
     setIsAuthOpen(true)
   }
+
+  const openAccount = () => {
+    pendingDestination.current = null
+    setIsAuthOpen(true)
+  }
+
+  const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 
   return (
     <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] selection:bg-[#ff8a00] selection:text-[#17120f] relative overflow-hidden flex flex-col justify-between">
@@ -219,7 +245,7 @@ export default function Landing() {
             <a href="#how-it-works" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               How It Works
             </a>
-            <Link to="/deal/new" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <Link to="/deal/new?type=private" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               Direct Deals
             </Link>
             <Link to="/marketplace" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
@@ -245,16 +271,17 @@ export default function Landing() {
           {/* Desktop Right CTA */}
           <div className="hidden sm:flex items-center gap-3">
             <button
-              onClick={() => openAuth('/dashboard')}
-              className="px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors cursor-pointer"
+              onClick={isConnected ? openAccount : () => openAuth('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors cursor-pointer"
             >
-              Sign In
+              {isConnected && <span className="w-2 h-2 rounded-full bg-[#10b981]" />}
+              {isConnected ? shortAddress : 'Sign In'}
             </button>
             <button
               onClick={() => openAuth('/dashboard')}
               className="group relative inline-flex items-center pl-4 pr-1.5 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0px_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0px_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
             >
-              <span className="uppercase mr-2 tracking-wide font-bold">Launch App</span>
+              <span className="uppercase mr-2 tracking-wide font-bold">{isConnected ? 'Open App' : 'Launch App'}</span>
               <span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-0.5 transition-transform">
                 <ArrowRight className="w-4 h-4" />
               </span>
@@ -265,9 +292,9 @@ export default function Landing() {
           <div className="flex xl:hidden items-center gap-2">
             <button
               onClick={() => openAuth('/dashboard')}
-              className="sm:hidden px-3 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold"
+              className="sm:hidden px-3 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold whitespace-nowrap"
             >
-              Launch App
+              {isConnected ? 'Open App' : 'Launch App'}
             </button>
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -297,7 +324,7 @@ export default function Landing() {
                   How It Works
                 </a>
                 <Link
-                  to="/deal/new"
+                  to="/deal/new?type=private"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
                 >
@@ -432,7 +459,7 @@ export default function Landing() {
                 </p>
               </div>
               <button
-                onClick={() => navigate('/deal/new')}
+                onClick={() => navigate('/deal/new?type=private')}
                 className="group/btn relative inline-flex items-center justify-between w-full px-4 py-3 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
               >
                 <span className="uppercase tracking-wide font-bold">Create Direct Deal</span>
@@ -489,7 +516,7 @@ export default function Landing() {
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
                     <span className="font-['Space_Grotesk'] text-[11px] uppercase text-[#ebe0d9] tracking-widest font-bold">
-                      LIVE MARKETS
+                      MARKETS
                     </span>
                   </div>
                   <button
@@ -509,16 +536,12 @@ export default function Landing() {
                       </div>
                       <div>
                         <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">BTC</div>
-                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+1.6%</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">Chainlink</div>
                       </div>
                     </div>
-                    {/* Animated Sparkline */}
-                    <svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
-                      <path d="M1 15 L12 12 L22 17 L34 8 L46 11 L58 2" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-                    </svg>
                     <div className="text-right">
-                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">$117,290.50</div>
-                      <div className="text-[10px] text-[#a58c7b]">$1.29T Cap</div>
+                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">{btcPrice > 0 ? `$${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</div>
+                      <div className="text-[10px] text-[#a58c7b]">BTC / USD</div>
                     </div>
                   </div>
 
@@ -530,15 +553,12 @@ export default function Landing() {
                       </div>
                       <div>
                         <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">USDC</div>
-                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+0.01%</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">Stablecoin</div>
                       </div>
                     </div>
-                    <svg className="w-16 h-5 stroke-[#a58c7b]" fill="none" viewBox="0 0 60 20">
-                      <path d="M1 10 L15 10 L25 9.5 L38 10.5 L50 10 L58 10" strokeLinecap="round" strokeWidth="1.5" />
-                    </svg>
                     <div className="text-right">
                       <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">$1.00</div>
-                      <div className="text-[10px] text-[#a58c7b]">$31.5B Supply</div>
+                      <div className="text-[10px] text-[#a58c7b]">USD-pegged</div>
                     </div>
                   </div>
 
@@ -550,15 +570,12 @@ export default function Landing() {
                       </div>
                       <div>
                         <div className="font-['Space_Grotesk'] text-[13px] text-[#ebe0d9] font-bold leading-none">cirBTC</div>
-                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">+2.4%</div>
+                        <div className="font-['Space_Grotesk'] text-[10px] text-[#10b981] font-semibold">Circle</div>
                       </div>
                     </div>
-                    <svg className="w-16 h-5 stroke-[#10b981]" fill="none" viewBox="0 0 60 20">
-                      <path d="M1 18 L14 15 L26 12 L36 14 L48 5 L58 3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-                    </svg>
                     <div className="text-right">
-                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">1.00 BTC</div>
-                      <div className="text-[10px] text-[#a58c7b]">Arc Collateral</div>
+                      <div className="font-['Space_Grotesk'] text-[12px] text-[#ebe0d9] font-semibold">1 : 1 BTC</div>
+                      <div className="text-[10px] text-[#a58c7b]">Collateral on Arc</div>
                     </div>
                   </div>
                 </div>
@@ -799,7 +816,7 @@ export default function Landing() {
         </motion.section>
 
         {/* ── SECTION 3: INTERACTIVE LOAN CALCULATOR (3D Tilt Rise) ── */}
-        <section id="calculator" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
+        <section id="calculator" className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-16 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <motion.div
             initial={{ opacity: 0, y: 50, rotateX: 12 }}
             whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
@@ -928,7 +945,7 @@ export default function Landing() {
         </section>
 
         {/* ── SECTION 4: DUAL DISCOVERY ARCHITECTURE (3D Angle Entrance) ── */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-20 md:py-28 relative z-10" style={{ perspective: 1200 }}>
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-14 md:py-28 relative z-10" style={{ perspective: 1200 }}>
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
               Flexible Counterparty Discovery
@@ -1041,7 +1058,7 @@ export default function Landing() {
         </section>
 
         {/* ── SECTION 5: 3-STEP ATOMIC PIPELINE (Staggered 3D Rise) ── */}
-        <section id="how-it-works" className="w-full bg-[#120d0a]/60 border-t border-[#564334]/30 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
+        <section id="how-it-works" className="w-full bg-[#120d0a]/60 border-t border-[#564334]/30 py-16 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <div className="text-center max-w-2xl mx-auto mb-14">
               <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
@@ -1116,7 +1133,7 @@ export default function Landing() {
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10"
+          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-16 md:py-32 relative z-10"
         >
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
@@ -1130,8 +1147,9 @@ export default function Landing() {
             </p>
           </div>
 
+          <p className="sm:hidden text-[11px] text-[#a58c7b] text-right mb-2">Swipe to compare →</p>
           <div className="overflow-x-auto rounded-3xl border border-[#564334]/40 bg-[#201b17]/90 backdrop-blur-xl shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+            <table className="w-full min-w-[640px] text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-[#564334]/30 bg-[#241f1a]/80">
                   <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">Feature</th>
@@ -1193,7 +1211,7 @@ export default function Landing() {
         </motion.section>
 
         {/* ── SECTION 7: REPUTATION & AUDIT (3D Flip Entrance) ── */}
-        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-24 md:py-32 relative z-10" style={{ perspective: 1200 }}>
+        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-16 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <motion.div
@@ -1290,7 +1308,7 @@ export default function Landing() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.6 }}
-          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 md:py-32 relative z-10"
+          className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-16 md:py-32 relative z-10"
         >
           <div className="text-center max-w-2xl mx-auto mb-14">
             <div className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
@@ -1364,7 +1382,7 @@ export default function Landing() {
         </motion.section>
 
         {/* ── SECTION 9: FINAL CALL TO ACTION ── */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-24 text-center relative z-10" style={{ perspective: 1200 }}>
+        <section className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-16 md:py-24 text-center relative z-10" style={{ perspective: 1200 }}>
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.95 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -1388,13 +1406,13 @@ export default function Landing() {
                   onClick={() => openAuth('/dashboard')}
                   className="group relative inline-flex items-center pl-6 pr-2 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[14px] font-bold shadow-[0px_4px_28px_rgba(255,138,0,0.45)] hover:shadow-[0px_6px_36px_rgba(255,138,0,0.65)] transition-all cursor-pointer"
                 >
-                  <span className="uppercase mr-3 font-bold tracking-wide">Launch App Now</span>
+                  <span className="uppercase mr-3 font-bold tracking-wide">{isConnected ? 'Open App' : 'Launch App Now'}</span>
                   <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-1 transition-transform">
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 </button>
                 <Link
-                  to="/deal/new"
+                  to="/deal/new?type=private"
                   className="inline-flex items-center px-6 py-3 rounded-full bg-[#241f1a] border border-[#564334]/40 text-[#ebe0d9] font-['Space_Grotesk'] text-xs uppercase tracking-wider hover:bg-[#3e3833] transition-colors no-underline font-semibold"
                 >
                   Create Direct Deal
@@ -1410,12 +1428,9 @@ export default function Landing() {
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-12 flex flex-col gap-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#564334]/20 pb-6">
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#201b17] border border-[#564334]/40">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]" />
-              </span>
+              <span className={`inline-flex rounded-full h-2.5 w-2.5 ${isConnected ? 'bg-[#10b981]' : 'bg-[#a58c7b]'}`} />
               <span className="font-['Space_Grotesk'] text-xs text-[#ebe0d9] font-semibold">
-                Connected to Arc (Chain ID: 5042)
+                {isConnected ? `Wallet connected · Arc (Chain ID: ${ARC_MAINNET_CHAIN_ID})` : `Runs on Arc (Chain ID: ${ARC_MAINNET_CHAIN_ID})`}
               </span>
             </div>
 
