@@ -1,12 +1,13 @@
 // oxlint-disable
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from 'wagmi'
-import { AlertTriangle, Zap, RotateCcw, ShieldCheck, ShieldAlert, XCircle, Check, Download, PauseCircle } from 'lucide-react'
+import { AlertTriangle, Zap, RotateCcw, ShieldCheck, ShieldAlert, XCircle, Check, Download, PauseCircle, Plus, Store, Copy } from 'lucide-react'
+import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { toast } from 'sonner'
 import { Card, Button, Badge, Stat, TxStatus } from '../components/ui'
 import {
@@ -21,7 +22,12 @@ import {
   parseOnchainError,
   normalizeDealId,
   isValidDealId,
+  deriveSaltForCounterparty,
+  computeRltv,
 } from '../lib/utils'
+import { getStoredDeals } from '../lib/dealStorage'
+import ShareDealCard from '../components/ShareDealCard'
+import ConvertToBtc, { useCirBtcBalance } from '../components/ConvertToBtc'
 import { REGISTRY_ABI, VAULT_ABI, ERC20_APPROVE_ABI } from '../contracts/abis'
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { useBtcPrice } from '../hooks/useBtcPrice'
@@ -193,6 +199,9 @@ export default function ManageDeal() {
   })
 
   const { writeContract: rawWrite, data: hash, isPending, error, reset } = useWriteContract()
+  const [confirmOfferId, setConfirmOfferId] = useState<bigint | null>(null)
+  const { balance: walletCirBtc } = useCirBtcBalance()
+  const [expandedOfferId, setExpandedOfferId] = useState<bigint | null>(null)
 
   // Simulate first so a call that would revert shows its real reason instead of failing on-chain.
   const writeContract = (params: any) => {
@@ -278,6 +287,19 @@ export default function ManageDeal() {
   const { interest, total } = computeRepayment(deal.principal, deal.rateBps, deal.durationMonths)
   const isBorrower = address?.toLowerCase() === deal.borrower.toLowerCase()
   const isLender = address?.toLowerCase() === deal.lender.toLowerCase()
+  const isCreatorWaiting = deal.state === DealState.Proposed && (isBorrower || isLender) && !isExpired
+  // Private links: the key is in this browser's storage, or can be rebuilt when the deal is reserved for an address.
+  const inviteSalt = (() => {
+    if (!isCreatorWaiting || deal.visibility !== 0) return undefined
+    const stored = getStoredDeals().find((d) => d.dealId.toLowerCase() === normalizedDealId.toLowerCase())?.salt
+    if (stored) return stored
+    if (deal.reservedFor !== ZERO) {
+      const candidate = deriveSaltForCounterparty(deal.dealId, deal.reservedFor)
+      const token = keccak256(encodeAbiParameters(parseAbiParameters('bytes16, bytes32'), [deal.dealId, candidate]))
+      if (token.toLowerCase() === deal.claimToken.toLowerCase()) return candidate
+    }
+    return undefined
+  })()
 
   const needsCirBtcApproval = isBorrower && deal.state === DealState.Confirmed &&
     (cirBtcAllowance === undefined || cirBtcAllowance < deal.collateral)
@@ -348,6 +370,7 @@ export default function ManageDeal() {
   }
 
   function acceptOffer(offerId: bigint) {
+    setConfirmOfferId(null)
     if (!hasValidId || !address) return
     reset()
     writeContract({
@@ -399,16 +422,27 @@ export default function ManageDeal() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="display text-2xl font-bold mb-1" style={{ color: 'var(--ink)' }}>
             Manage Loan
           </h1>
-          <code className="mono text-xs" style={{ color: 'var(--subtle)' }}>
-            {normalizedDealId}
-          </code>
+          <div className="flex items-center gap-1.5 min-w-0 text-xs" style={{ color: 'var(--subtle)' }}>
+            <code className="mono truncate" title={normalizedDealId}>
+              <span className="sm:hidden">{`${normalizedDealId.slice(0, 10)}…${normalizedDealId.slice(-6)}`}</span>
+              <span className="hidden sm:inline">{normalizedDealId}</span>
+            </code>
+            <button
+              type="button"
+              onClick={() => { void navigator.clipboard.writeText(normalizedDealId).then(() => toast.success('Deal ID copied')).catch(() => {}) }}
+              className="shrink-0 p-1 rounded-md hover:bg-[var(--surface-muted)] cursor-pointer"
+              aria-label="Copy deal ID"
+            >
+              <Copy size={12} />
+            </button>
+          </div>
         </div>
-        <Badge className={dealStateColor(deal.state)}>
+        <Badge className={`shrink-0 ${dealStateColor(deal.state)}`}>
           {isExpired ? 'Expired' : dealStateLabel(deal.state)}
         </Badge>
       </div>
@@ -436,6 +470,21 @@ export default function ManageDeal() {
               </Button>
             )}
           </div>
+          <p className="text-[11px] mt-3" style={{ color: 'var(--subtle)' }}>
+            Withdrawn cirBTC lands in your wallet. You can then convert it to BTC from your Dashboard.
+          </p>
+        </Card>
+      )}
+
+      {(deal.state === DealState.Completed || deal.state === DealState.Liquidated) && (isBorrower || isLender) && (walletCirBtc ?? 0n) > 0n && (
+        <Card className="mb-4 border border-[#f7931a]/30">
+          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
+            {deal.state === DealState.Completed && isBorrower ? 'Your cirBTC is back in your wallet.' : 'Holding cirBTC?'}
+          </p>
+          <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
+            Convert it to native BTC on the Bitcoin network whenever you want.
+          </p>
+          <ConvertToBtc variant="primary" className="w-full sm:w-auto" />
         </Card>
       )}
 
@@ -443,15 +492,18 @@ export default function ManageDeal() {
         <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--subtle)' }}>
           Loan Terms
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat label="Principal" value={`$${formatUsdc(deal.principal)}`} />
+          <Stat label="Collateral" value={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} cirBTC`} />
           <Stat label="Rate" value={formatBps(deal.rateBps)} sub="per year" />
           <Stat label="Duration" value={`${deal.durationMonths}mo`} />
-          {isOpenLoan ? (
-            <Stat label="Due Now" value={`$${formatUsdc(dueNow)}`} sub={`max $${formatUsdc(total)} at maturity`} />
-          ) : (
-            <Stat label="Max Total Due" value={`$${formatUsdc(total)}`} sub={`+$${formatUsdc(interest)} interest`} />
-          )}
+          <div className="col-span-2 md:col-span-1">
+            {isOpenLoan ? (
+              <Stat label="Due Now" value={`$${formatUsdc(dueNow)}`} sub={`max $${formatUsdc(total)} at maturity`} />
+            ) : (
+              <Stat label="Max Total Due" value={`$${formatUsdc(total)}`} sub={`+$${formatUsdc(interest)} interest`} />
+            )}
+          </div>
         </div>
         <p className="text-xs mt-3" style={{ color: 'var(--subtle)' }}>
           Interest accrues pro rata with a one-month minimum, so repaying early costs less.
@@ -501,54 +553,167 @@ export default function ManageDeal() {
         </div>
       </Card>
 
-      {deal.state === DealState.Proposed && (isBorrower || isLender) && (
-        <Card className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--subtle)' }}>
-            Counter-Offers
+      {(() => {
+        if (!(deal.state === DealState.Proposed && (isBorrower || isLender) && deal.visibility === 1)) return null
+        const active = (counterOffers ?? []).filter((o) => o.active)
+        const terms = (o: { principal: bigint; collateral: bigint; rateBps: bigint; durationMonths: number }) => [
+          { k: 'Amount', v: `$${formatUsdc(o.principal).replace(/\.00$/, '')} USDC`, was: o.principal !== deal.principal ? `$${formatUsdc(deal.principal).replace(/\.00$/, '')}` : null },
+          { k: 'Collateral', v: `${formatBtc(o.collateral).replace(/\.?0+$/, '')} cirBTC`, was: o.collateral !== deal.collateral ? formatBtc(deal.collateral).replace(/\.?0+$/, '') : null },
+          { k: 'Annual rate', v: formatBps(o.rateBps), was: o.rateBps !== deal.rateBps ? formatBps(deal.rateBps) : null },
+          { k: 'Duration', v: `${o.durationMonths} month${o.durationMonths > 1 ? 's' : ''}`, was: o.durationMonths !== deal.durationMonths ? `${deal.durationMonths}` : null },
+        ]
+        // Best offer for the creator first: highest rate when lending, lowest when borrowing. Same rate: oldest first.
+        const creatorLends = isLender
+        const sorted = [...active].sort((x, y) => {
+          if (x.rateBps !== y.rateBps) return (creatorLends ? y.rateBps > x.rateBps : x.rateBps > y.rateBps) ? 1 : -1
+          return x.offerId < y.offerId ? -1 : x.offerId > y.offerId ? 1 : 0
+        })
+        const ltvColor = (r: number) => (!hasPrice ? 'var(--subtle)' : r > maxInitPct ? 'var(--danger)' : r > maxInitPct - 5 ? '#f7931a' : '#10b981')
+        const offersCard = (
+          <Card className="mb-4 border border-[var(--accent)]/50" id="offers">
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--subtle)' }}>
+              Offers to review {active.length > 0 && `(${active.length})`}
+            </p>
+            {isExpired ? (
+              <p className="text-sm" style={{ color: 'var(--subtle)' }}>
+                This order has expired (30 days). Cancel it and post a new one with current terms.
+              </p>
+            ) : active.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--subtle)' }}>
+                No offers yet. Users send them from the{' '}
+                <Link to="/marketplace" className="underline" style={{ color: 'var(--accent)' }}>Marketplace</Link>.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs mb-2" style={{ color: 'var(--subtle)' }}>
+                  Compared with your terms above. {creatorLends ? 'Highest rate first.' : 'Lowest rate first.'} Accept one offer to lock its terms; the others are then dismissed.
+                </p>
+                <ul className="m-0 p-0 list-none divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {sorted.map((o) => {
+                    const changes = terms(o).filter((t) => t.was)
+                    const r = hasPrice ? computeRltv(o.collateral, btcPrice, o.principal, o.rateBps, o.durationMonths) : 0
+                    const blocked = hasPrice && r > maxInitPct
+                    const open = expandedOfferId === o.offerId || confirmOfferId === o.offerId
+                    return (
+                      <li key={o.offerId.toString()} className="py-2.5" style={{ borderColor: 'var(--border)' }}>
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedOfferId(open ? null : o.offerId)}
+                            className="min-w-0 flex-1 text-left cursor-pointer bg-transparent border-0 p-0"
+                            aria-expanded={open}
+                          >
+                            <p className="text-xs flex items-center gap-2 flex-wrap" style={{ color: 'var(--subtle)' }}>
+                              <span className="mono" style={{ color: 'var(--muted)' }}>{shortAddr(o.proposer)}</span>
+                              <span className="font-semibold tabular-nums" style={{ color: ltvColor(r) }}>
+                                RLTV {hasPrice ? `${r.toFixed(1)}%` : '—'}
+                              </span>
+                            </p>
+                            <p className="text-xs mt-0.5 truncate" style={{ color: changes.length ? '#f7931a' : 'var(--success)' }}>
+                              {changes.length === 0 ? 'Same terms as your order' : changes.map((t) => `${t.k} ${t.v}`).join(' · ')}
+                            </p>
+                          </button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="shrink-0 flex items-center gap-1"
+                            disabled={isPending || isConfirming}
+                            onClick={() => { setExpandedOfferId(o.offerId); setConfirmOfferId(o.offerId) }}
+                          >
+                            <Check size={12} /> Accept
+                          </Button>
+                        </div>
+                        {open && (
+                          <div className="mt-2 rounded-lg p-2.5" style={{ background: 'var(--surface-muted)' }}>
+                            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 m-0">
+                              {terms(o).map((t) => (
+                                <div key={t.k} className="min-w-0">
+                                  <dt className="text-[11px]" style={{ color: 'var(--subtle)' }}>{t.k}</dt>
+                                  <dd className="m-0 text-sm font-semibold tabular-nums" style={{ color: t.was ? '#f7931a' : 'var(--ink)' }}>
+                                    {t.v}
+                                    {t.was && <span className="block text-[10px] font-normal" style={{ color: 'var(--subtle)' }}>was {t.was}</span>}
+                                  </dd>
+                                </div>
+                              ))}
+                            </dl>
+                            {blocked && (
+                              <p className="text-xs mt-2 p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
+                                Can't be activated at the current BTC price (max {maxInitPct}%). If you accept it, the loan stays blocked
+                                until the price rises or the deal is cancelled.
+                              </p>
+                            )}
+                            {confirmOfferId === o.offerId && (
+                              <div className="mt-2 text-xs">
+                                <p className="mb-2" style={{ color: 'var(--ink)' }}>
+                                  Accept this offer? Its terms become final and the other offers are dismissed.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button variant="secondary" size="sm" className="w-full" onClick={() => setConfirmOfferId(null)}>Back</Button>
+                                  <Button variant="primary" size="sm" className="w-full" disabled={isPending || isConfirming} onClick={() => acceptOffer(o.offerId)}>
+                                    <Check size={12} /> Confirm
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+          </Card>
+        )
+        const liveCard = isCreatorWaiting ? (
+          <Card className="mb-4 border border-[var(--success)]/40">
+            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--success)' }}>
+              Your order is live on the Marketplace.
+            </p>
+            <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
+              Anyone can send you an offer with these terms or different ones. You choose which one to accept. Nothing leaves
+              your wallet until the loan is activated.
+            </p>
+            <Link to="/marketplace" className="inline-flex items-center gap-1.5 text-xs font-bold no-underline" style={{ color: 'var(--accent)' }}>
+              <Store size={14} /> View on Marketplace
+            </Link>
+          </Card>
+        ) : null
+        // Offers waiting: they come first. Otherwise the "live" notice leads.
+        return active.length > 0 ? <>{offersCard}{liveCard}</> : <>{liveCard}{offersCard}</>
+      })()}
+
+      {isCreatorWaiting && deal.visibility === 0 && (
+        inviteSalt ? (
+          <ShareDealCard dealId={normalizedDealId} salt={inviteSalt} reservedFor={deal.reservedFor !== ZERO ? deal.reservedFor : undefined} />
+        ) : (
+          <Card className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--subtle)' }}>
+              Invitation link
+            </p>
+            <p className="text-sm" style={{ color: 'var(--subtle)' }}>
+              The link for this deal is kept only in the browser where you created it. Open this page there to copy it
+              again, or cancel this deal and create a new one.
+            </p>
+          </Card>
+        )
+      )}
+
+      {deal.state === DealState.Proposed && !isBorrower && !isLender && deal.visibility === 1 && !isExpired && (
+        <Card className="mb-4 border border-[var(--accent)]/40">
+          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
+            This order is open on the Marketplace.
           </p>
-          {isExpired ? (
-            <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-              This order has expired (30 days). Cancel it and post a new one with current terms.
-            </p>
-          ) : !counterOffers || counterOffers.filter((o) => o.active).length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--subtle)' }}>
-              No counter-offers yet. Share the deal on the{' '}
-              <Link to="/marketplace" className="underline" style={{ color: 'var(--accent)' }}>
-                Marketplace
-              </Link>{' '}
-              to receive them.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {counterOffers.filter((o) => o.active).map((o) => (
-                <div
-                  key={o.offerId.toString()}
-                  className="flex items-center justify-between rounded-xl p-3 border"
-                  style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)' }}
-                >
-                  <div className="text-xs space-y-0.5">
-                    <p style={{ color: 'var(--subtle)' }}>
-                      From <span className="mono" style={{ color: 'var(--muted)' }}>{shortAddr(o.proposer)}</span>
-                    </p>
-                    <p style={{ color: 'var(--ink)' }}>
-                      ${formatUsdc(o.principal)} · {formatBtc(o.collateral)} cirBTC · {formatBps(o.rateBps)} · {o.durationMonths}mo
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isPending || isConfirming}
-                    onClick={() => acceptOffer(o.offerId)}
-                  >
-                    <Check size={12} />
-                    Accept
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+          <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
+            Make an offer {deal.borrower !== ZERO ? 'to lend' : 'to borrow'}: send these terms as they are, or propose
+            different ones. The creator picks one offer.
+          </p>
+          <Link to={`/marketplace?counter=${normalizedDealId.toLowerCase()}`} className="no-underline">
+            <Button variant="primary" size="sm" className="w-full">Make an offer</Button>
+          </Link>
         </Card>
       )}
+
 
       {isOpenLoan && lockedCollateral !== undefined && (
         <Card className="mb-4">
@@ -609,6 +774,13 @@ export default function ManageDeal() {
             <XCircle size={13} />
             Cancel Deal
           </Button>
+        )}
+        {isCreatorWaiting && (
+          <Link to="/deal/new" className="no-underline">
+            <Button variant="secondary" className="w-full flex items-center justify-center gap-1.5">
+              <Plus size={14} /> Create another deal
+            </Button>
+          </Link>
         )}
 
         {deal.state === DealState.Confirmed && isBorrower && (

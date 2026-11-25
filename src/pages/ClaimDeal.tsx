@@ -432,7 +432,7 @@ export default function ClaimDeal() {
           <Stat label="Principal" value={`$${formatUsdc(deal.principal)}`} />
           <Stat label="Annual Rate" value={formatBps(deal.rateBps)} />
           <Stat label="Duration" value={`${deal.durationMonths} months`} />
-          <Stat label="Collateral" value={`${formatBtc(deal.collateral)} BTC`} />
+          <Stat label="Collateral" value={`${formatBtc(deal.collateral)} cirBTC`} />
         </div>
         <div
           className="rounded-xl p-3 mt-2"
@@ -529,6 +529,15 @@ export default function ClaimDeal() {
             Awaiting Counterparty ({claimerRole}) Acceptance...
           </Button>
         )
+      ) : deal.visibility === 1 && deal.state === DealState.Proposed ? (
+        <div className="rounded-xl p-4 text-sm text-center" style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)' }}>
+          <p className="mb-3" style={{ color: 'var(--subtle)' }}>
+            This is a Marketplace order. Make an offer with these terms or different ones; the creator picks one offer.
+          </p>
+          <Link to={`/marketplace?counter=${normalizedDealId.toLowerCase()}`} className="no-underline">
+            <Button variant="primary" size="lg" className="w-full">Make an offer</Button>
+          </Link>
+        </div>
       ) : isReservedForOther ? (
         <div className="rounded-xl p-3 text-sm text-center bg-red-950/40 border border-red-500/40 text-red-300">
           ⚠️ This deal is reserved for address {shortAddr(deal.reservedFor)}. Please switch to that wallet to seal this deal.

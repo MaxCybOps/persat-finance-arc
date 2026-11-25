@@ -1,8 +1,8 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { Copy, Check, Lock, Unlock, Info, ArrowRight, ExternalLink, CheckCircle2, Sparkles, Send } from 'lucide-react'
+import { Copy, Check, Lock, Unlock, Info, ArrowRight, ExternalLink, CheckCircle2, Sparkles, Send, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, Button, Input, TxStatus } from '../components/ui'
 import {
@@ -19,7 +19,6 @@ import {
   deriveSaltForCounterparty,
   computeRltv,
 } from '../lib/utils'
-import { buildShareLink } from '../lib/share'
 import { REGISTRY_ABI, VAULT_ABI } from '../contracts/abis'
 import GetFundsPanel from '../components/GetFundsPanel'
 import { useArcNetwork } from '../hooks/useArcNetwork'
@@ -50,7 +49,9 @@ export default function NewDeal() {
   const maxInitPct = maxInitialLtvBps !== undefined ? Number(maxInitialLtvBps) / 100 : 65
   const liqPct = liquidationThresholdBps !== undefined ? Number(liquidationThresholdBps) / 100 : 80
 
-  const [tab, setTab] = useState<Tab>('private')
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [tab, setTab] = useState<Tab>(() => (searchParams.get('type') === 'private' ? 'private' : 'public'))
   const [role, setRole] = useState<Role>('borrower')
   const [form, setForm] = useState({
     principal: '',
@@ -66,8 +67,7 @@ export default function NewDeal() {
     : (`0x${'00'.repeat(8)}${dealNonce.slice(2)}` as `0x${string}`)
   // F-07: for open private links this is an ephemeral private key that only travels inside the share link
   const [salt] = useState<`0x${string}`>(randomSalt)
-  const [shareLink, setShareLink] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches)
   const [receiptConfirmed, setReceiptConfirmed] = useState(false)
   const [minedBlock, setMinedBlock] = useState<bigint | null>(null)
 
@@ -89,7 +89,7 @@ export default function NewDeal() {
 
   useEffect(() => { void fetchBalances() }, [fetchBalances])
 
-  const { writeContract: rawWrite, data: hash, isPending, error } = useWriteContract()
+  const { writeContract: rawWrite, data: hash, isPending, error, reset: resetWrite } = useWriteContract()
 
   // Simulate first so a call that would revert shows its reason instead of failing on-chain.
   const writeContract = (params: any) => {
@@ -133,7 +133,6 @@ export default function NewDeal() {
           setReceiptConfirmed(true)
           if (receipt.blockNumber) setMinedBlock(receipt.blockNumber)
           clearInterval(interval)
-          toast.success('Deal proposed & confirmed on Arc!')
         }
       } catch {
         // Pending next block
@@ -148,6 +147,15 @@ export default function NewDeal() {
 
   const isConfirmed = isWagmiSuccess || receiptConfirmed
   const isConfirming = Boolean(hash) && !isConfirmed && !reverted
+  const formLocked = isPending || (Boolean(hash) && !reverted)
+
+
+  // Once the proposal is on-chain, continue on the deal page (invitation link, status, cancel).
+  useEffect(() => {
+    if (!isConfirmed) return
+    toast.success(tab === 'private' ? 'Deal created. Send the invitation link to your counterparty.' : 'Deal created and listed on the Marketplace.')
+    navigate(`/deal/${dealId}/manage`)
+  }, [isConfirmed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute effective salt: If counterparty address is set, use deterministic derived salt.
   // effectiveSalt = secret carried by the share link; onchainSalt = value sent to proposeDeal.
@@ -161,11 +169,6 @@ export default function NewDeal() {
         : salt)
     : zeroSalt
   const onchainSalt = tab === 'private' && !hasCounterparty ? openLinkOnchainSalt(salt) : effectiveSalt
-
-  // Build share link proactively
-  useEffect(() => {
-    void buildShareLink(tab === 'private' ? `/deal/claim/${dealId}#key=${effectiveSalt}` : `/deal/claim/${dealId}`).then(setShareLink)
-  }, [dealId, effectiveSalt, tab])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -262,14 +265,6 @@ export default function NewDeal() {
     }
   }, [hash, dealId, effectiveSalt, role, form, duration, tab, chainId])
 
-  async function copyLink() {
-    if (!shareLink) return
-    await navigator.clipboard.writeText(shareLink)
-    setCopied(true)
-    toast.success('Deal claim link copied to clipboard!')
-    setTimeout(() => setCopied(false), 2500)
-  }
-
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="display text-2xl font-bold mb-1" style={{ color: 'var(--ink)' }}>
@@ -279,16 +274,21 @@ export default function NewDeal() {
         Propose terms for a BTC-collateralised USDC loan on Arc.
       </p>
 
+      <fieldset disabled={formLocked} className="min-w-0 m-0 p-0 border-0 disabled:opacity-60">
       {/* Tab */}
       <div
-        className="flex rounded-xl p-1 mb-6"
+        className="flex rounded-xl p-1 mb-2"
         style={{ background: 'var(--surface-muted)' }}
+        role="radiogroup"
+        aria-label="Deal type"
       >
-        {(['private', 'public'] as Tab[]).map((t) => (
+        {(['public', 'private'] as Tab[]).map((t) => (
           <button
             key={t}
+            role="radio"
+            aria-checked={tab === t}
             onClick={() => setTab(t)}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-all"
+            className="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all"
             style={
               tab === t
                 ? { background: 'var(--surface-strong)', color: 'var(--ink)' }
@@ -296,193 +296,182 @@ export default function NewDeal() {
             }
           >
             {t === 'private' ? (
-              <span className="flex items-center justify-center gap-1.5">
-                <Lock size={13} /> Private Link
+              <span className="flex items-center justify-center gap-2">
+                <Lock size={14} className="shrink-0" /> Private Link
               </span>
             ) : (
-              <span className="flex items-center justify-center gap-1.5">
-                <Unlock size={13} /> Open Marketplace
+              <span className="flex items-center justify-center gap-2">
+                <Unlock size={14} className="shrink-0" /> <span><span className="hidden min-[360px]:inline">Open </span>Marketplace</span>
               </span>
             )}
           </button>
         ))}
       </div>
+      <p className="text-xs leading-relaxed mb-6 px-1" style={{ color: 'var(--subtle)' }}>
+        {tab === 'public'
+          ? 'Visible to everyone on the Marketplace. Anyone can accept these terms.'
+          : 'Only people you send the link to can see and accept this deal.'}
+      </p>
 
       {/* Role */}
       <Card className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--subtle)' }}>
-          I am the
+          I want to
         </p>
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="radiogroup" aria-label="I want to">
           {(['borrower', 'lender'] as Role[]).map((r) => (
             <button
               key={r}
+              role="radio"
+              aria-checked={role === r}
               onClick={() => setRole(r)}
-              className="flex-1 py-2 rounded-xl text-sm font-semibold capitalize transition-all border"
+              className="flex-1 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all border"
               style={{
                 background: role === r ? 'var(--brand-muted)' : 'transparent',
                 borderColor: role === r ? 'var(--brand)' : 'var(--border)',
                 color: role === r ? 'var(--brand)' : 'var(--subtle)',
               }}
             >
-              {r}
+              {r === 'borrower' ? 'Borrow USDC' : 'Lend USDC'}
             </button>
           ))}
         </div>
+        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
+          {role === 'borrower'
+            ? 'You lock cirBTC as collateral and receive USDC.'
+            : "You provide USDC and earn interest. Your loan is secured by the borrower's cirBTC."}
+        </p>
       </Card>
 
       {/* Terms */}
       <Card className="mb-4 flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Principal (USDC)"
-            placeholder="e.g. 1000"
-            value={form.principal}
-            onChange={set('principal')}
-            type="number"
-            min="0"
-          />
-          <Input
-            label="Collateral (cirBTC)"
-            placeholder="e.g. 0.03"
-            value={form.collateral}
-            onChange={set('collateral')}
-            type="number"
-            min="0"
-          />
-          <Input
-            label="Annual Rate (%)"
-            placeholder="e.g. 8"
-            value={form.rateBps}
-            onChange={set('rateBps')}
-            type="number"
-            min="0"
-            hint="e.g. 8 = 8% per year"
-          />
-          <Input
-            label="Duration (months)"
-            placeholder="e.g. 6"
-            value={form.durationMonths}
-            onChange={set('durationMonths')}
-            type="number"
-            min="1"
-            max="24"
-            hint="1–24 months"
-          />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <Input label={role === 'borrower' ? 'Amount to borrow' : 'Amount to lend'} placeholder="1000" suffix="USDC" value={form.principal} onChange={set('principal')} type="number" min="0" inputMode="decimal" />
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <Input label={role === 'borrower' ? 'Your collateral' : 'Collateral required'} placeholder="0.03" suffix="cirBTC" value={form.collateral} onChange={set('collateral')} type="number" min="0" inputMode="decimal" hint={role === 'borrower' ? 'cirBTC is Bitcoin issued by Circle on Arc, backed 1:1. Only have BTC? The app helps you convert it.' : 'cirBTC is Bitcoin issued by Circle on Arc, backed 1:1. The borrower locks it in escrow.'} />
+          </div>
+          <Input label="Annual rate" placeholder="8" suffix="%" value={form.rateBps} onChange={set('rateBps')} type="number" min="0" inputMode="decimal" />
+          <Input label="Duration" placeholder="6" suffix="months" value={form.durationMonths} onChange={set('durationMonths')} type="number" min="1" max="24" inputMode="numeric" hint="1 to 24" />
         </div>
 
         {tab === 'private' && (
           <Input
             label="Counterparty wallet (optional)"
-            placeholder="0x... — leave blank for open link"
+            placeholder="0x… or leave blank"
             value={form.reservedFor}
             onChange={set('reservedFor')}
-            hint="If set, only this address can seal the deal. They can also discover it directly in their Persat Dashboard!"
+            hint="Only this address can accept the deal."
           />
         )}
       </Card>
 
+      </fieldset>
+
       {/* Live calculator */}
       {principalRaw > 0n && (
         <Card className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--subtle)' }}>
-            Payment preview
-          </p>
-          {/* Live BTC price indicator */}
-          <div className="flex items-center gap-2 mb-3 text-xs" style={{ color: 'var(--subtle)' }}>
-            <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-green-500'}`} />
-            <span>BTC/USD: <strong style={{ color: 'var(--ink)' }}>{hasPrice ? `$${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</strong> <span style={{ color: priceStale ? '#f59e0b' : '#10b981' }}>({priceStale ? 'stale' : priceSource})</span></span>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--subtle)' }}>
+              Payment preview
+            </p>
+            <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--subtle)' }}>
+              <span className={`w-2 h-2 rounded-full ${priceStale ? 'bg-yellow-500' : 'bg-green-500'}`} />
+              BTC <strong style={{ color: 'var(--ink)' }}>{hasPrice ? `$${btcPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</strong>
+              {priceStale && <span style={{ color: '#f59e0b' }}>(stale)</span>}
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            {[
-              ['Principal', `$${formatUsdc(principalRaw)}`],
-              ['Interest', `$${formatUsdc(interest)}`],
-              ['Total repayment', `$${formatUsdc(total)}`],
-              ['Collateral', `${formatBtc(collateralRaw)} BTC`],
-              ['Collateral Value', collateralUsdEst > 0n ? `$${formatUsdc(collateralUsdEst)}` : '—'],
-              ['Est. RLTV', hasPrice && rltvEst > 0 ? `${rltvEst.toFixed(1)}%` : '—'],
-              ['Max to activate', `${maxInitPct}%`],
-              ['Liquidation RLTV', `${liqPct}%`],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between border-b pb-1" style={{ borderColor: 'var(--border)' }}>
-                <span style={{ color: 'var(--subtle)' }}>{k}</span>
-                <span
-                  className="font-semibold tabular-nums"
-                  style={{
-                    color:
-                      k === 'Est. RLTV' && rltvEst > maxInitPct
-                        ? 'var(--danger)'
-                        : k === 'Est. RLTV' && rltvEst > maxInitPct - 5
-                        ? '#f7931a'
-                        : 'var(--ink)',
-                  }}
-                >
-                  {v}
-                </span>
-              </div>
-            ))}
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-muted)' }}>
+              <p className="text-xs mb-1" style={{ color: 'var(--subtle)' }}>Total repayment</p>
+              <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--ink)' }}>${formatUsdc(total)}</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-muted)' }}>
+              <p className="text-xs mb-1" style={{ color: 'var(--subtle)' }}>Est. RLTV <span className="opacity-70">(max {maxInitPct}%)</span></p>
+              <p
+                className="text-lg font-bold tabular-nums"
+                style={{ color: !(hasPrice && rltvEst > 0) ? 'var(--ink)' : rltvEst > maxInitPct ? 'var(--danger)' : rltvEst > maxInitPct - 5 ? '#f7931a' : '#10b981' }}
+              >
+                {hasPrice && rltvEst > 0 ? `${rltvEst.toFixed(1)}%` : '—'}
+              </p>
+            </div>
           </div>
+
+          <details className="group" open={detailsOpen} onToggle={(e) => setDetailsOpen((e.target as HTMLDetailsElement).open)}>
+            <summary className="cursor-pointer list-none text-xs font-semibold select-none" style={{ color: 'var(--brand)' }}>
+              <span className="group-open:hidden">Show details</span>
+              <span className="hidden group-open:inline">Hide details</span>
+            </summary>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              {[
+                ['Principal', `$${formatUsdc(principalRaw)}`],
+                ['Interest', `$${formatUsdc(interest)}`],
+                ['Collateral', `${formatBtc(collateralRaw)} cirBTC`],
+                ['Collateral value', collateralUsdEst > 0n ? `$${formatUsdc(collateralUsdEst)}` : '—'],
+                ['Max RLTV to activate', `${maxInitPct}%`],
+                ['Liquidation RLTV', `${liqPct}%`],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-3 border-b pb-1" style={{ borderColor: 'var(--border)' }}>
+                  <span style={{ color: 'var(--subtle)' }}>{k}</span>
+                  <span className="font-semibold tabular-nums text-right" style={{ color: 'var(--ink)' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+
           {ltvTooHigh && (
-            <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
-              <Info size={12} />
-              RLTV is above {maxInitPct}%, the maximum the vault accepts at activation. Add collateral or lower the amount, otherwise the loan could never be activated.
+            <div className="flex items-start gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
+              <Info size={12} className="shrink-0 mt-0.5" />
+              RLTV is above {maxInitPct}%, the maximum the vault accepts at activation. Add collateral or lower the amount.
             </div>
           )}
           {!hasPrice && (
-            <div className="flex items-center gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-              <Info size={12} />
+            <div className="flex items-start gap-2 mt-3 text-xs p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+              <Info size={12} className="shrink-0 mt-0.5" />
               BTC price unavailable right now, so the loan-to-value cannot be checked. The vault will still refuse activation above {maxInitPct}%.
             </div>
           )}
 
-          {/* Wallet balance check */}
-          {insufficientUsdc && (
-            <div className="flex items-center gap-2 mt-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
-              <Info size={12} />
-              <span>
-                <strong>Insufficient USDC.</strong> You need ${formatUsdc(principalRaw)} USDC to fund this deal but your wallet only has ${usdcBalance !== null ? formatUsdc(usdcBalance) : '...'} USDC on Arc.
-              </span>
-            </div>
-          )}
-          {insufficientCirBtc && (
-            <div className="flex items-center gap-2 mt-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
-              <Info size={12} />
-              <span>
-                <strong>Insufficient cirBTC.</strong> You need {formatBtc(collateralRaw)} cirBTC as collateral but your wallet only has {cirBtcBalance !== null ? formatBtc(cirBtcBalance) : '...'} cirBTC on Arc.
-              </span>
+          {(insufficientUsdc || insufficientCirBtc) && (
+            <div className="mt-3 flex flex-col gap-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <div className="flex items-start gap-2">
+                <Info size={12} className="shrink-0 mt-0.5" />
+                <span>
+                  <strong>Not enough funds.</strong>{' '}
+                  {insufficientCirBtc && <>You need {formatBtc(collateralRaw)} cirBTC, you have {cirBtcBalance !== null ? formatBtc(cirBtcBalance) : '…'}. </>}
+                  {insufficientUsdc && <>You need ${formatUsdc(principalRaw)} USDC, you have ${usdcBalance !== null ? formatUsdc(usdcBalance) : '…'}.</>}
+                </span>
+              </div>
+              {insufficientCirBtc && <GetFundsPanel need="cirBtc" required={collateralRaw} title="Get cirBTC for your collateral" />}
+              {insufficientUsdc && <GetFundsPanel need="usdc" required={principalRaw} title="Bring USDC to Arc" />}
             </div>
           )}
 
-          {insufficientCirBtc && (
-            <div className="mt-3">
-              <GetFundsPanel need="cirBtc" required={collateralRaw} title="Get cirBTC for your collateral" />
-            </div>
-          )}
-          {insufficientUsdc && (
-            <div className="mt-3">
-              <GetFundsPanel need="usdc" required={principalRaw} title="Bring USDC to Arc" />
-            </div>
-          )}
-
-          {/* Wallet balances info row */}
-          {address && (usdcBalance !== null || cirBtcBalance !== null) && (
-            <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: 'var(--subtle)' }}>
-              <span>Your wallet: {usdcBalance !== null ? `$${formatUsdc(usdcBalance)} USDC` : '...'}</span>
-              <span>·</span>
-              <span>{cirBtcBalance !== null ? `${formatBtc(cirBtcBalance)} cirBTC` : '...'}</span>
-            </div>
+          {address && !insufficientUsdc && !insufficientCirBtc && (usdcBalance !== null || cirBtcBalance !== null) && (
+            <p className="mt-3 text-xs" style={{ color: 'var(--subtle)' }}>
+              Wallet: {usdcBalance !== null ? `$${formatUsdc(usdcBalance)} USDC` : '…'} · {cirBtcBalance !== null ? `${formatBtc(cirBtcBalance)} cirBTC` : '…'}
+            </p>
           )}
         </Card>
       )}
 
       {/* Deal ID preview */}
-      <div className="mb-4 flex items-center gap-2">
-        <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-          Deal ID:{' '}
-        </p>
-        <code className="mono text-xs" style={{ color: 'var(--muted)' }}>
-          {dealId}
+      <div className="mb-4 flex items-center gap-2 min-w-0 text-xs" style={{ color: 'var(--subtle)' }}>
+        <span className="shrink-0">Deal ID</span>
+        <code className="mono truncate" style={{ color: 'var(--muted)' }} title={dealId}>
+          <span className="sm:hidden">{`${dealId.slice(0, 10)}…${dealId.slice(-6)}`}</span>
+          <span className="hidden sm:inline">{dealId}</span>
         </code>
+        <button
+          type="button"
+          onClick={() => { void navigator.clipboard.writeText(dealId).then(() => toast.success('Deal ID copied')).catch(() => {}) }}
+          className="shrink-0 p-1 rounded-md hover:bg-[var(--surface-muted)] cursor-pointer"
+          aria-label="Copy deal ID"
+        >
+          <Copy size={12} />
+        </button>
       </div>
 
       {/* CTA Button */}
@@ -530,125 +519,6 @@ export default function NewDeal() {
         explorerUrl={hash ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined}
       />
 
-      {/* Transaction & Proposal Status Card - Renders as soon as hash is broadcasted! */}
-      {hash && tab === 'private' && (
-        <Card className={`mt-4 border ${isConfirmed ? 'border-[#10b981]' : 'border-[#ff8a00]'} shadow-lg`}>
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
-            <div className="flex items-center gap-2">
-              {isConfirmed ? (
-                <CheckCircle2 size={18} className="text-[#10b981]" />
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-[#ff8a00] animate-ping" />
-              )}
-              <h3 className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9]">
-                {isConfirmed ? 'Deal Successfully Proposed on Arc!' : 'Transaction Broadcasted to Arc'}
-              </h3>
-            </div>
-            <a
-              href={`${chain.blockExplorers.default.url}/tx/${hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-[#ff8a00] hover:underline flex items-center gap-1 font-['Space_Grotesk']"
-            >
-              <span>View Explorer</span>
-              <ExternalLink size={12} />
-            </a>
-          </div>
-
-          {/* Important explanation about EVM wallet push notifications */}
-          <div className="p-3 rounded-xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#ddc1ae] space-y-2 mb-4">
-            <p className="font-semibold text-[#ebe0d9] flex items-center gap-1.5">
-              <Sparkles size={14} className="text-[#ff8a00]" />
-              How your counterparty seals this deal:
-            </p>
-            <p>
-              1. <strong>Send the claim link below:</strong> Blockchains do not push pop-up notifications directly into wallets like OKX or MetaMask. You must send them the invitation link (via Telegram, WhatsApp, Discord, or Email).
-            </p>
-            <p>
-              2. <strong>Or direct Dashboard discovery:</strong> Since you set their address <code className="text-[#ebe0d9] font-bold">{form.reservedFor ? form.reservedFor.slice(0, 10) + '...' : ''}</code>, they can also simply open the <strong>Persat Dashboard</strong> with their wallet connected and find this deal under the <strong className="text-[#ff8a00]">Incoming Invitations</strong> tab!
-            </p>
-          </div>
-
-          <p className="text-xs font-semibold text-[#ebe0d9] mb-1">
-            Deal Invitation Link:
-          </p>
-          <div
-            className="flex items-center gap-2 rounded-xl px-3 py-2"
-            style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)' }}
-          >
-            <code className="mono text-xs flex-1 truncate text-[#ddc1ae]">
-              {shareLink}
-            </code>
-            <button onClick={() => void copyLink()} className="flex-shrink-0 p-1.5 rounded-lg bg-[#ff8a00] text-[#17120f] font-bold text-xs flex items-center gap-1 cursor-pointer hover:bg-[#ffaa45] transition-colors">
-              {copied ? (
-                <>
-                  <Check size={14} /> <span>Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy size={14} /> <span>Copy Link</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Share via messaging apps */}
-          {shareLink && (
-            <div className="mt-3">
-              <p className="text-xs font-semibold text-[#ebe0d9] mb-2">Share directly via:</p>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`You've been invited to a USDC loan deal on Persat Finance. Review and accept here: ${shareLink}`)}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25d366]/15 border border-[#25d366]/40 text-[#25d366] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#25d366]/25 transition-colors"
-                >
-                  <span>WhatsApp</span>
-                </a>
-                <a
-                  href={`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent('You\'ve been invited to a USDC loan deal on Persat Finance. Review the terms and accept:')}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2aabee]/15 border border-[#2aabee]/40 text-[#2aabee] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#2aabee]/25 transition-colors"
-                >
-                  <span>Telegram</span>
-                </a>
-                <a
-                  href={`mailto:?subject=${encodeURIComponent('Persat Finance — Loan Deal Invitation')}&body=${encodeURIComponent(`You've been invited to a BTC-collateralised USDC loan deal on Persat Finance.\n\nReview the terms and accept here:\n${shareLink}\n\nYou'll need a wallet connected to Arc (Chain ID: 5042, RPC: https://rpc.mainnet.arc.io) to accept. Treat this link like a password: anyone who has it can take the deal.
-
-The invitation expires 30 days after it was created.`)}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#a58c7b]/15 border border-[#a58c7b]/40 text-[#ddc1ae] text-xs font-bold font-['Space_Grotesk'] hover:bg-[#a58c7b]/25 transition-colors"
-                >
-                  <span>Email</span>
-                </a>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-[var(--border)] mt-4">
-            <Link to={tab === 'private' ? `/deal/claim/${dealId}#key=${effectiveSalt}` : `/deal/claim/${dealId}`} className="flex-1">
-              <Button variant="primary" size="sm" className="w-full flex items-center justify-center gap-1.5">
-                <span>Open Deal Page</span>
-                <ArrowRight size={14} />
-              </Button>
-            </Link>
-            <Link to={`/dashboard`} className="flex-1">
-              <Button variant="secondary" size="sm" className="w-full flex items-center justify-center gap-1.5">
-                <span>View in Dashboard</span>
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      )}
-
-      {hash && tab === 'public' && (
-        <Card className="mt-4">
-          <p className="text-sm font-semibold mb-2" style={{ color: 'var(--success)' }}>
-            Your order is live on the marketplace.
-          </p>
-          <Link to="/marketplace">
-            <Button variant="primary" size="sm">View on Marketplace &rarr;</Button>
-          </Link>
-        </Card>
-      )}
     </div>
   )
 }
