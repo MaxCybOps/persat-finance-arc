@@ -803,7 +803,7 @@ contract VaultInterestFuzzTest is VaultFixture {
     /// @dev Full round-trip fuzz: activate + repay, check lender balance delta.
     function testFuzz_ActivateRepay_RoundTrip(uint64 principal, uint16 rateBps, uint8 durationMonths) public {
         // Bounded so that principal + interest stays <= 65% of 1 BTC @ $60k (max initial LTV, F-05)
-        principal      = uint64(bound(principal,      1e6,  30_000e6));
+        principal      = uint64(bound(principal,      100e6, 30_000e6));
         rateBps        = uint16(bound(rateBps,        1,    2_000));         // up to 20%
         durationMonths = uint8(bound(durationMonths,  1,    12));
 

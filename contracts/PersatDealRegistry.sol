@@ -48,6 +48,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 rateBps;
         uint8 durationMonths;
         bool active;
+        uint64 expiresAt;
     }
 
     error DealNotFound();
@@ -69,12 +70,17 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     error DealExpired();
     error ActiveOfferExists();
     error ActivationWindowClosed();
+    error PrincipalTooLow();
+    error OfferExpired();
+    error ProposerRejected();
+    error RenounceDisabled();
 
     event DealProposed(bytes16 indexed dealId, address indexed proposer, Visibility visibility);
     event DealConfirmed(bytes16 indexed dealId, address indexed borrower, address indexed lender, bytes32 termsHash);
     event DealCancelled(bytes16 indexed dealId, address indexed cancelledBy);
     event CounterOfferSubmitted(bytes16 indexed dealId, uint256 indexed offerId, address indexed proposer);
     event CounterOfferWithdrawn(bytes16 indexed dealId, uint256 indexed offerId, address indexed proposer);
+    event CounterOfferRejected(bytes16 indexed dealId, uint256 indexed offerId, address indexed proposer);
     event VaultSet(address vault);
 
     mapping(bytes16 => Deal) public deals;
@@ -86,6 +92,8 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     address public immutable cirBtc;
     uint256 public constant MAX_COUNTER_OFFERS = 50;
     uint8 public constant MAX_DURATION_MONTHS = 24;
+    uint256 public constant MIN_PRINCIPAL = 100e6;
+    uint256 public constant OFFER_TTL = 7 days;
     uint256 public constant PROPOSAL_TTL = 30 days;
     uint256 public constant ACTIVATION_WINDOW = 72 hours;
 
@@ -95,7 +103,13 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     mapping(bytes16 => mapping(address => bool)) public hasActiveOffer;
 
     mapping(address => bytes16[]) private _userDeals;
+    mapping(address => bytes16[]) private _invitations;
     bytes16[] private _publicDeals;
+    bytes16[] private _openPublicDeals;
+    mapping(bytes16 => uint256) private _openPublicPos;
+    mapping(bytes16 => uint256[]) private _activeOfferIds;
+    mapping(bytes16 => mapping(uint256 => uint256)) private _activeOfferPos;
+    mapping(bytes16 => mapping(address => bool)) public rejectedProposer;
 
     bytes32 public constant CLAIM_TYPEHASH = keccak256("PersatFinance.ClaimDeal");
 
@@ -132,6 +146,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (bytes8(dealId) != dealIdPrefix(msg.sender)) revert InvalidDealId();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
         if (durationMonths > MAX_DURATION_MONTHS) revert InvalidTerms();
+        if (principal < MIN_PRINCIPAL) revert PrincipalTooLow();
 
         Deal storage deal = deals[dealId];
         deal.dealId = dealId;
@@ -169,8 +184,10 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         _userDeals[msg.sender].push(dealId);
         if (visibility == Visibility.Public) {
             _publicDeals.push(dealId);
+            _openPublicDeals.push(dealId);
+            _openPublicPos[dealId] = _openPublicDeals.length;
         } else if (reservedFor != address(0)) {
-            _userDeals[reservedFor].push(dealId);
+            _invitations[reservedFor].push(dealId);
         }
 
         emit DealProposed(dealId, msg.sender, visibility);
@@ -216,7 +233,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
 
     function _bindClaimer(bytes16 dealId, Deal storage deal, bytes32 usedToken) internal {
         if (msg.sender == deal.borrower || msg.sender == deal.lender) revert SelfMatch();
-        if (deal.reservedFor == address(0)) _userDeals[msg.sender].push(dealId);
+        _userDeals[msg.sender].push(dealId);
         if (deal.borrower == address(0) && deal.lender != address(0)) {
             deal.borrower = msg.sender;
         } else if (deal.lender == address(0) && deal.borrower != address(0)) {
@@ -254,6 +271,8 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (activeCounterOffers[dealId] >= MAX_COUNTER_OFFERS) revert MaxCounterOffersReached();
         if (principal == 0 || collateral == 0 || rateBps == 0 || durationMonths == 0) revert InvalidTerms();
         if (durationMonths > MAX_DURATION_MONTHS) revert InvalidTerms();
+        if (principal < MIN_PRINCIPAL) revert PrincipalTooLow();
+        if (rejectedProposer[dealId][msg.sender]) revert ProposerRejected();
 
         hasActiveOffer[dealId][msg.sender] = true;
         activeCounterOffers[dealId] += 1;
@@ -267,9 +286,12 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
                 collateral: collateral,
                 rateBps: rateBps,
                 durationMonths: durationMonths,
-                active: true
+                active: true,
+                expiresAt: uint64(block.timestamp + OFFER_TTL)
             })
         );
+        _activeOfferIds[dealId].push(offerId);
+        _activeOfferPos[dealId][offerId] = _activeOfferIds[dealId].length;
 
         emit CounterOfferSubmitted(dealId, offerId, msg.sender);
     }
@@ -284,10 +306,23 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         if (!offer.active) revert OfferNotFound();
         if (offer.proposer != msg.sender) revert Unauthorized();
 
-        offer.active = false;
-        hasActiveOffer[dealId][msg.sender] = false;
-        activeCounterOffers[dealId] -= 1;
+        _deactivateOffer(dealId, offer);
         emit CounterOfferWithdrawn(dealId, offerId, msg.sender);
+    }
+
+    function rejectCounterOffer(bytes16 dealId, uint256 offerId) external {
+        Deal storage deal = _getDealStorage(dealId);
+        if (deal.state != DealState.Proposed) revert InvalidState(deal.state, DealState.Proposed);
+        if (msg.sender != deal.borrower && msg.sender != deal.lender) revert Unauthorized();
+
+        CounterOffer[] storage offers = counterOffers[dealId];
+        if (offerId >= offers.length) revert OfferNotFound();
+        CounterOffer storage offer = offers[offerId];
+        if (!offer.active) revert OfferNotFound();
+
+        rejectedProposer[dealId][offer.proposer] = true;
+        _deactivateOffer(dealId, offer);
+        emit CounterOfferRejected(dealId, offerId, offer.proposer);
     }
 
     function acceptCounterOffer(bytes16 dealId, uint256 offerId) external whenNotPaused {
@@ -303,6 +338,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
 
         CounterOffer storage selected = offers[offerId];
         if (!selected.active) revert OfferNotFound();
+        if (block.timestamp > selected.expiresAt) revert OfferExpired();
         if (selected.proposer == msg.sender) revert SelfMatch();
 
         deal.principal = selected.principal;
@@ -321,9 +357,8 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         deal.state = DealState.Confirmed;
         confirmedAt[dealId] = block.timestamp;
 
-        selected.active = false;
-        hasActiveOffer[dealId][selected.proposer] = false;
-        activeCounterOffers[dealId] -= 1;
+        _deactivateOffer(dealId, selected);
+        _removeOpenPublic(dealId);
         _userDeals[selected.proposer].push(dealId);
 
         emit DealConfirmed(dealId, deal.borrower, deal.lender, termsHash);
@@ -338,6 +373,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         }
 
         deal.state = DealState.Cancelled;
+        _removeOpenPublic(dealId);
         emit DealCancelled(dealId, msg.sender);
     }
 
@@ -392,6 +428,10 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
         _unpause();
     }
 
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceDisabled();
+    }
+
     function getDeal(bytes16 dealId) external view returns (Deal memory) {
         Deal memory deal = deals[dealId];
         if (!_dealExists[dealId]) revert DealNotFound();
@@ -414,6 +454,47 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
 
     function counterOfferCount(bytes16 dealId) external view returns (uint256) {
         return counterOffers[dealId].length;
+    }
+
+    function getActiveCounterOffers(bytes16 dealId) external view returns (CounterOffer[] memory out) {
+        if (!_dealExists[dealId]) revert DealNotFound();
+        uint256[] storage ids = _activeOfferIds[dealId];
+        out = new CounterOffer[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
+            out[i] = counterOffers[dealId][ids[i]];
+        }
+    }
+
+    function getCounterOffersPage(bytes16 dealId, uint256 offset, uint256 limit)
+        external
+        view
+        returns (CounterOffer[] memory out)
+    {
+        if (!_dealExists[dealId]) revert DealNotFound();
+        CounterOffer[] storage all = counterOffers[dealId];
+        uint256 len = all.length;
+        if (offset >= len) return new CounterOffer[](0);
+        uint256 end = offset + limit > len ? len : offset + limit;
+        out = new CounterOffer[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            out[i - offset] = all[i];
+        }
+    }
+
+    function invitationCount(address user) external view returns (uint256) {
+        return _invitations[user].length;
+    }
+
+    function getInvitations(address user, uint256 offset, uint256 limit) external view returns (bytes16[] memory) {
+        return _slice(_invitations[user], offset, limit);
+    }
+
+    function openPublicDealCount() external view returns (uint256) {
+        return _openPublicDeals.length;
+    }
+
+    function getOpenPublicDeals(uint256 offset, uint256 limit) external view returns (bytes16[] memory) {
+        return _slice(_openPublicDeals, offset, limit);
     }
 
     function userDealCount(address user) external view returns (uint256) {
@@ -453,6 +534,30 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     function computeTermsHash(bytes16 dealId) external view returns (bytes32) {
         Deal storage deal = _getDealStorage(dealId);
         return _computeTermsHash(deal);
+    }
+
+    function _deactivateOffer(bytes16 dealId, CounterOffer storage offer) internal {
+        offer.active = false;
+        hasActiveOffer[dealId][offer.proposer] = false;
+        activeCounterOffers[dealId] -= 1;
+
+        uint256[] storage ids = _activeOfferIds[dealId];
+        uint256 pos = _activeOfferPos[dealId][offer.offerId];
+        uint256 lastId = ids[ids.length - 1];
+        ids[pos - 1] = lastId;
+        _activeOfferPos[dealId][lastId] = pos;
+        ids.pop();
+        delete _activeOfferPos[dealId][offer.offerId];
+    }
+
+    function _removeOpenPublic(bytes16 dealId) internal {
+        uint256 pos = _openPublicPos[dealId];
+        if (pos == 0) return;
+        bytes16 lastId = _openPublicDeals[_openPublicDeals.length - 1];
+        _openPublicDeals[pos - 1] = lastId;
+        _openPublicPos[lastId] = pos;
+        _openPublicDeals.pop();
+        delete _openPublicPos[dealId];
     }
 
     function _getDealStorage(bytes16 dealId) internal view returns (Deal storage deal) {

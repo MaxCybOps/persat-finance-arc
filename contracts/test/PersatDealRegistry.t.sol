@@ -728,7 +728,7 @@ contract RegistryFuzzTest is RegistryFixture {
         uint8 durationMonths
     ) public {
         // Constrain to valid (non-zero) domain
-        principal      = uint128(bound(principal,      1, type(uint128).max));
+        principal      = uint128(bound(principal,      100e6, type(uint128).max));
         collateral     = uint128(bound(collateral,     1, type(uint128).max));
         rateBps        = uint16(bound(rateBps,         1, 10_000));
         durationMonths = uint8(bound(durationMonths,   1, 24));

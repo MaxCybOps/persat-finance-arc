@@ -46,6 +46,10 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     error TokenPaused();
     error TokensNotPaused();
     error NothingToWithdraw();
+    error LiquidationsPaused(uint256 until);
+    error LiquidationPauseTooLong();
+    error LiquidationPauseCooldown(uint256 availableAt);
+    error RenounceDisabled();
 
     event LoanActivated(
         bytes16 indexed dealId,
@@ -73,6 +77,8 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     event FeeUpdated(uint256 oldFeeBps, uint256 newFeeBps);
     event FeeChangeQueued(uint256 newFeeBps, uint256 effectiveAt);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
+    event CollateralAdded(bytes16 indexed dealId, uint256 amount, uint256 newLockedCollateral);
+    event LiquidationsPausedUntil(uint256 until);
 
     uint256 public constant MAX_FEE_BPS = 50;
     uint256 public constant LOAN_MONTH = 30 days;
@@ -84,6 +90,9 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public constant ORACLE_FAILURE_DELAY = 30 days;
     uint256 public constant FEE_CHANGE_DELAY = 4 days;
     uint256 public constant MAX_PEG_DEVIATION_BPS = 200;
+    uint256 public constant MAX_LIQUIDATION_PAUSE = 24 hours;
+    uint256 public constant LIQUIDATION_GRACE = 6 hours;
+    uint256 public constant LIQUIDATION_PAUSE_COOLDOWN = 3 days;
 
     IPriceFeed public immutable priceFeed;
     IPegGuard public immutable pegGuard;
@@ -106,6 +115,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public feeChangeEffectiveAt;
     uint256 public lastTokenPauseAt;
     uint256 public pauseEpisodeStart;
+    uint256 public liquidationsPausedUntil;
 
     constructor(
         address registry_,
@@ -208,7 +218,23 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         emit LoanRepaid(dealId, totalRepayment, collateralToRelease);
     }
 
+    function addCollateral(bytes16 dealId, uint256 amount) external nonReentrant {
+        PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
+
+        if (deal.state != PersatDealRegistry.DealState.Active) revert DealNotActive();
+        if (msg.sender != deal.borrower) revert NotBorrower();
+        if (amount == 0) revert InvalidParameter();
+
+        uint256 before = IERC20(cirBtc).balanceOf(address(this));
+        IERC20(cirBtc).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = IERC20(cirBtc).balanceOf(address(this)) - before;
+
+        lockedCollateral[dealId] += received;
+        emit CollateralAdded(dealId, received, lockedCollateral[dealId]);
+    }
+
     function liquidate(bytes16 dealId) external nonReentrant {
+        if (block.timestamp < liquidationsPausedUntil) revert LiquidationsPaused(liquidationsPausedUntil);
         PersatDealRegistry.Deal memory deal = registry.getDeal(dealId);
 
         bool isActive = deal.state == PersatDealRegistry.DealState.Active;
@@ -325,6 +351,18 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function pauseLiquidations(uint256 duration) external onlyOwner {
+        if (duration == 0 || duration > MAX_LIQUIDATION_PAUSE) revert LiquidationPauseTooLong();
+        uint256 availableAt = liquidationsPausedUntil == 0 ? 0 : liquidationsPausedUntil + LIQUIDATION_PAUSE_COOLDOWN;
+        if (block.timestamp < availableAt) revert LiquidationPauseCooldown(availableAt);
+        liquidationsPausedUntil = block.timestamp + duration + LIQUIDATION_GRACE;
+        emit LiquidationsPausedUntil(liquidationsPausedUntil);
+    }
+
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceDisabled();
     }
 
     function _settleLiquidation(
