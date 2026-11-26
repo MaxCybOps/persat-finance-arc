@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
+import { lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import Landing from './pages/Landing'
@@ -8,16 +8,12 @@ import NewDeal from './pages/NewDeal'
 import ClaimDeal from './pages/ClaimDeal'
 import Marketplace from './pages/Marketplace'
 import ManageDeal from './pages/ManageDeal'
-import Admin from './pages/Admin'
+import Security from './pages/Security'
+import AdminGate from './components/AdminGate'
+import { StudioWatermark } from './components/StudioBadge'
 
-const OWNER = '0x96cb116869808e935b870e94517f6f58cded5cde'
-
-function AdminRoute() {
-  const { address } = useAccount()
-  if (!address) return <Navigate to="/" replace />
-  if (address.toLowerCase() !== OWNER) return <Navigate to="/" replace />
-  return <Layout><Admin /></Layout>
-}
+// Loaded on demand, only for admin wallets. The contracts still enforce onlyOwner on every action.
+const Admin = lazy(() => import('./pages/Admin'))
 
 export default function App() {
   return (
@@ -31,8 +27,10 @@ export default function App() {
           <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
           <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
           <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
-          <Route path="/admin" element={<AdminRoute />} />
+          <Route path="/security" element={<Layout><Security /></Layout>} />
+          <Route path="/admin" element={<Layout><AdminGate><Suspense fallback={null}><Admin /></Suspense></AdminGate></Layout>} />
         </Routes>
+        <StudioWatermark />
       </BrowserRouter>
     </ErrorBoundary>
   )

@@ -1,6 +1,6 @@
 // oxlint-disable
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -27,13 +27,32 @@ import { useArcNetwork } from '../hooks/useArcNetwork'
 import { addArcNetwork } from '../lib/networkUtils'
 import { getArcClient } from '../lib/arcClient'
 import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
-import { DealChat } from '../components/DealChat'
-import { keccak256, encodeAbiParameters, parseAbiParameters, decodeFunctionData } from 'viem'
+import { keccak256, encodeAbiParameters, parseAbiParameters, isHex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
+// The claim key travels in the link. Once read, it moves to this tab's session storage and leaves the
+// address bar and history, so it is not exposed by screenshots, history sync or a shared screen.
+function readClaimKey(dealId: string | undefined): `0x${string}` | null {
+  if (typeof window === 'undefined') return null
+  const slot = `persat_claim_key_${(dealId ?? '').toLowerCase()}`
+  const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('key')
+  const legacy = new URLSearchParams(window.location.search).get('salt')
+  const fromUrl = fromHash && isHex(fromHash) ? fromHash : legacy && isHex(legacy) ? legacy : null
+  if (fromUrl) {
+    try { sessionStorage.setItem(slot, fromUrl) } catch { /* storage unavailable: keep the key in memory only */ }
+    window.history.replaceState(null, '', window.location.pathname)
+    return fromUrl as `0x${string}`
+  }
+  try {
+    const kept = sessionStorage.getItem(slot)
+    if (kept && isHex(kept)) return kept as `0x${string}`
+  } catch { /* storage unavailable */ }
+  return null
+}
 
 export default function ClaimDeal() {
   const { token: dealIdParam } = useParams<{ token: string }>()
-  const [searchParams] = useSearchParams()
-  const saltParam = searchParams.get('salt') as `0x${string}` | null
+  const [saltParam] = useState(() => readClaimKey(dealIdParam))
 
   const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
 
@@ -103,16 +122,32 @@ export default function ClaimDeal() {
     recoveredSalt ||
     (deal && deal.visibility === 1 ? emptySalt : null)
 
-  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { writeContract: rawWrite, data: hash, isPending, error } = useWriteContract()
   const [receiptConfirmed, setReceiptConfirmed] = useState(false)
 
-  const { isSuccess: isWagmiSuccess } = useWaitForTransactionReceipt({
+  // Simulate first so an expired or invalid claim shows its reason instead of failing on-chain.
+  const writeContract = (params: any) => {
+    if (!address) return
+    const { gas: _gas, chainId: _chainId, ...call } = params
+    arcClient
+      .simulateContract({ ...call, account: address })
+      .then(() => rawWrite(params))
+      .catch((e: unknown) => toast.error(parseOnchainError(e), { duration: 8000 }))
+  }
+
+  const { isSuccess: receiptReady, data: wagmiReceipt } = useWaitForTransactionReceipt({
     hash,
     chainId,
     query: {
       enabled: Boolean(hash),
     },
   })
+  const isWagmiSuccess = receiptReady && wagmiReceipt?.status === 'success'
+  const reverted = receiptReady && wagmiReceipt?.status === 'reverted'
+
+  useEffect(() => {
+    if (reverted) toast.error('Transaction failed on-chain. The deal was not accepted.', { duration: 8000 })
+  }, [reverted])
 
   // Fast direct receipt polling
   useEffect(() => {
@@ -139,7 +174,7 @@ export default function ClaimDeal() {
   }, [hash, receiptConfirmed, arcClient, refetch])
 
   const isSuccess = isWagmiSuccess || receiptConfirmed
-  const isConfirming = Boolean(hash) && !isSuccess
+  const isConfirming = Boolean(hash) && !isSuccess && !reverted
 
   // Run ONCE when tx confirms — use a ref to prevent re-triggering when deal refetch updates state
   const successHandledRef = useState(false)
@@ -231,7 +266,7 @@ export default function ClaimDeal() {
           Private Deal Claim Link Required
         </h2>
         <p className="text-sm mb-4" style={{ color: 'var(--subtle)' }}>
-          This is a private deal encrypted with a secret salt. Please ask the deal creator to send you their full invitation link containing the salt parameter.
+          This private deal can only be accepted with its full invitation link. Ask the deal creator for the complete link (the part after # holds the claim key).
         </p>
         <Link to="/dashboard">
           <Button variant="secondary" size="sm">
@@ -265,16 +300,58 @@ export default function ClaimDeal() {
     deal.reservedFor !== '0x0000000000000000000000000000000000000000' &&
     address?.toLowerCase() !== deal.reservedFor.toLowerCase()
 
-  function claim() {
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+  const isOpenLink = deal.visibility === 0 && deal.reservedFor === ZERO_ADDRESS
+
+  async function claim() {
     if (!hasValidId || !effectiveSalt || !address) return
-    writeContract({
-      address: addresses.registry,
-      abi: REGISTRY_ABI,
-      functionName: 'claimDeal',
-      args: [normalizedDealId, effectiveSalt],
-      chainId,
-      gas: 200_000n,
-    })
+
+    if (!isOpenLink) {
+      writeContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDeal',
+        args: [normalizedDealId, effectiveSalt],
+        chainId,
+        gas: 250_000n,
+      })
+      return
+    }
+
+    // F-07: open link — the URL carries an ephemeral key. Sign "this deal goes to <my wallet>" with it,
+    // so a copied link or a front-run transaction cannot redirect the deal to another wallet.
+    try {
+      if (!isHex(effectiveSalt) || effectiveSalt.length !== 66) throw new Error('bad key')
+      const linkAccount = privateKeyToAccount(effectiveSalt)
+      const expectedSigner = await arcClient.readContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimSigner',
+        args: [normalizedDealId],
+      })
+      if (expectedSigner.toLowerCase() !== linkAccount.address.toLowerCase()) {
+        toast.error('This claim link is invalid or has already been used.', { duration: 8000 })
+        return
+      }
+      const digest = await arcClient.readContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDigest',
+        args: [normalizedDealId, address],
+      })
+      const signature = await linkAccount.signMessage({ message: { raw: digest } })
+      writeContract({
+        address: addresses.registry,
+        abi: REGISTRY_ABI,
+        functionName: 'claimDealWithSignature',
+        args: [normalizedDealId, signature],
+        chainId,
+        gas: 300_000n,
+      })
+    } catch (e) {
+      console.error('Open-link claim failed:', e)
+      toast.error('This claim link is invalid or incomplete. Ask the creator for the full link.', { duration: 8000 })
+    }
   }
 
   return (
@@ -363,7 +440,7 @@ export default function ClaimDeal() {
           <Stat label="Principal" value={`$${formatUsdc(deal.principal)}`} />
           <Stat label="Annual Rate" value={formatBps(deal.rateBps)} />
           <Stat label="Duration" value={`${deal.durationMonths} months`} />
-          <Stat label="Collateral" value={`${formatBtc(deal.collateral)} BTC`} />
+          <Stat label="Collateral" value={`${formatBtc(deal.collateral)} cirBTC`} />
         </div>
         <div
           className="rounded-xl p-3 mt-2"
@@ -460,6 +537,15 @@ export default function ClaimDeal() {
             Awaiting Counterparty ({claimerRole}) Acceptance...
           </Button>
         )
+      ) : deal.visibility === 1 && deal.state === DealState.Proposed ? (
+        <div className="rounded-xl p-4 text-sm text-center" style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)' }}>
+          <p className="mb-3" style={{ color: 'var(--subtle)' }}>
+            This is a Marketplace order. Make an offer with these terms or different ones; the creator picks one offer.
+          </p>
+          <Link to={`/marketplace?counter=${normalizedDealId.toLowerCase()}`} className="no-underline">
+            <Button variant="primary" size="lg" className="w-full">Make an offer</Button>
+          </Link>
+        </div>
       ) : isReservedForOther ? (
         <div className="rounded-xl p-3 text-sm text-center bg-red-950/40 border border-red-500/40 text-red-300">
           ⚠️ This deal is reserved for address {shortAddr(deal.reservedFor)}. Please switch to that wallet to seal this deal.
@@ -514,15 +600,6 @@ export default function ClaimDeal() {
           </Link>
         </Card>
       )}
-
-      {/* P2P Live Deal Chat & Negotiation Box */}
-      <DealChat
-        dealId={normalizedDealId}
-        borrower={deal.borrower}
-        lender={deal.lender}
-        currentAddress={address}
-        dealStateLabel={dealStateLabel(deal.state)}
-      />
     </div>
   )
 }

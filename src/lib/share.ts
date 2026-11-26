@@ -21,7 +21,7 @@ export function getShareBase(): Promise<string> {
 
 /**
  * Build a full share URL from an app-relative path.
- * e.g. buildShareLink('/deal/claim/0x123?salt=0xabc')
+ * e.g. buildShareLink('/deal/claim/0x123#key=0xabc')
  */
 export async function buildShareLink(path: string): Promise<string> {
   return (await getShareBase()) + (path.startsWith('/') ? path : `/${path}`)

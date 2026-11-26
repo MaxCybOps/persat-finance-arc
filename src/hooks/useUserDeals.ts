@@ -1,6 +1,6 @@
 // oxlint-disable
 import { useState, useEffect, useCallback } from 'react'
-import { parseAbiItem, decodeFunctionData, keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
+import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { useArcNetwork } from './useArcNetwork'
 import { getArcClient } from '../lib/arcClient'
 import { REGISTRY_ABI } from '../contracts/abis'
@@ -25,14 +25,10 @@ export interface LiveDeal {
   salt?: `0x${string}`
 }
 
-// Max blocks per getLogs request Arc RPC allows
-const LOG_CHUNK_SIZE = 4500n
-// Always scan from deployment block — no depth limit so no deal is ever missed
-const MAX_SCAN_DEPTH = 0n
-
-// Global cooldown: prevent multiple page mounts from hammering the RPC
-let lastScanTime = 0
-const SCAN_COOLDOWN_MS = 30_000 // 30 seconds between auto-scans
+// Per-wallet cooldown: prevent multiple page mounts from hammering the RPC
+const lastScanTime = new Map<string, number>()
+const dealCache = new Map<string, LiveDeal[]>()
+const SCAN_COOLDOWN_MS = 10_000
 
 export function useUserDeals() {
   const { address, chainId, addresses, isMainnet } = useArcNetwork()
@@ -46,11 +42,18 @@ export function useUserDeals() {
 
   const fetchDeals = useCallback(async (force = false) => {
     if (!addresses.registry) return
+    if (!address) {
+      setDeals([])
+      return
+    }
 
-    // Enforce global cooldown to avoid Arc RPC rate limits
+    const key = address.toLowerCase()
     const now = Date.now()
-    if (!force && now - lastScanTime < SCAN_COOLDOWN_MS) return
-    lastScanTime = now
+    if (!force && now - (lastScanTime.get(key) ?? 0) < SCAN_COOLDOWN_MS) {
+      setDeals(dealCache.get(key) ?? [])
+      return
+    }
+    lastScanTime.set(key, now)
 
     setIsLoading(true)
     setError(null)
@@ -64,71 +67,47 @@ export function useUserDeals() {
         storedMap.set(s.dealId.toLowerCase(), s)
       }
 
-      // Get latest block from the standalone client (not wagmi)
-      let latestBlock: bigint
-      try {
-        latestBlock = await client.getBlockNumber()
-      } catch {
-        latestBlock = 0n
-      }
-
-      // Always scan from deployment block — no depth limit
-      const deploymentBlock = 27635000n // Arc Mainnet deployment block
-      const scanFloor = deploymentBlock
-
-      // Fetch DealProposed events scanning BACKWARDS from latestBlock
-      let proposedLogs: any[] = []
-
-      if (latestBlock > 0n) {
-        let toBlock = latestBlock
-        let chunksScanned = 0
-        const MAX_CHUNKS = 300 // scan up to 1.35M blocks back (~full history at 4500/chunk)
-
-        while (toBlock > scanFloor && chunksScanned < MAX_CHUNKS) {
-          const fromBlock = toBlock - LOG_CHUNK_SIZE + 1n < scanFloor
-            ? scanFloor
-            : toBlock - LOG_CHUNK_SIZE + 1n
-          try {
-            const logs = await client.getLogs({
-              address: addresses.registry,
-              event: parseAbiItem('event DealProposed(bytes16 indexed dealId, address indexed proposer, uint8 visibility)'),
-              fromBlock,
-              toBlock,
-            })
-            proposedLogs = proposedLogs.concat(logs)
-          } catch (logErr: any) {
-            const msg = logErr?.message?.toLowerCase() ?? ''
-            const isRateLimit = msg.includes('limit') || msg.includes('rate') || msg.includes('too many')
-            if (isRateLimit) {
-              await new Promise((r) => setTimeout(r, 1000))
-              break
-            }
-            console.warn(`getLogs chunk ${fromBlock}-${toBlock} failed:`, logErr)
-          }
-          toBlock = fromBlock - 1n
-          chunksScanned++
-          // 400ms between chunks to stay within rate limits
-          await new Promise((r) => setTimeout(r, 150))
-        }
-      }
-
-      // Collect all unique deal IDs from logs + localStorage
+      // N-01: the registry keeps an on-chain index of each user's deals, so no event-log scan is needed.
       const dealIdSet = new Set<string>()
-      const blockMap = new Map<string, bigint>()
-      const txMap = new Map<string, `0x${string}`>()
+      {
+        const count = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'userDealCount',
+          args: [address],
+        })) as bigint
+        const PAGE = 200n
+        const offset = count > PAGE ? count - PAGE : 0n
+        const ids = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'getUserDeals',
+          args: [address, offset, PAGE],
+        })) as readonly `0x${string}`[]
+        for (const id of ids) dealIdSet.add(normalizeDealId(id).toLowerCase())
 
-      for (const log of proposedLogs) {
-        if (log.args?.dealId) {
-          const id = normalizeDealId(log.args.dealId).toLowerCase()
-          dealIdSet.add(id)
-          if (log.blockNumber) blockMap.set(id, log.blockNumber)
-          if (log.transactionHash) txMap.set(id, log.transactionHash)
-        }
+        // Invitations reserved for this wallet live in their own index, so strangers cannot flood the deal list.
+        const invCount = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'invitationCount',
+          args: [address],
+        })) as bigint
+        const invOffset = invCount > PAGE ? invCount - PAGE : 0n
+        const invitations = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'getInvitations',
+          args: [address, invOffset, PAGE],
+        })) as readonly `0x${string}`[]
+        for (const id of invitations) dealIdSet.add(normalizeDealId(id).toLowerCase())
       }
 
       for (const s of stored) {
         dealIdSet.add(normalizeDealId(s.dealId).toLowerCase())
       }
+
+      const blockMap = new Map<string, bigint>()
 
       // Fetch live deal structs from contract
       const dealList: LiveDeal[] = []
@@ -143,8 +122,7 @@ export function useUserDeals() {
               args: [idLower as `0x${string}`],
             })) as any
 
-            // Skip zeroed-out / non-existent deals
-            if (raw.borrower === '0x0000000000000000000000000000000000000000') return
+            if (raw.borrower === '0x0000000000000000000000000000000000000000' && raw.lender === '0x0000000000000000000000000000000000000000') return
 
             const storedInfo = storedMap.get(idLower)
             let salt = storedInfo?.salt
@@ -161,18 +139,9 @@ export function useUserDeals() {
                 }
               }
 
-              // Recover salt from original proposeDeal tx input
-              if (!salt && txMap.has(idLower)) {
-                try {
-                  const tx = await client.getTransaction({ hash: txMap.get(idLower)! })
-                  const decoded = decodeFunctionData({ abi: REGISTRY_ABI, data: tx.input })
-                  if (decoded.functionName === 'proposeDeal' && decoded.args?.[8]) {
-                    salt = decoded.args[8] as `0x${string}`
-                  }
-                } catch {
-                  // Ignore recovery error
-                }
-              }
+              // Security fix F-07: open-link secrets are never recovered from on-chain calldata.
+              // The proposeDeal calldata only holds the ephemeral signer address; the claim key
+              // exists solely in the creator's share link / localStorage.
 
               if (salt) {
                 saveStoredDeal({
@@ -214,11 +183,11 @@ export function useUserDeals() {
         })
       )
 
-      dealList.sort((a, b) => {
-        if (a.blockNumber && b.blockNumber) return Number(b.blockNumber - a.blockNumber)
-        return b.dealId.localeCompare(a.dealId)
-      })
+      const position = new Map(Array.from(dealIdSet).map((id, i) => [id, i]))
+      dealList.sort((a, b) =>
+        (position.get(b.dealId.toLowerCase()) ?? -1) - (position.get(a.dealId.toLowerCase()) ?? -1))
 
+      dealCache.set(key, dealList)
       setDeals(dealList)
     } catch (err: any) {
       console.error('Error fetching on-chain deals:', err)

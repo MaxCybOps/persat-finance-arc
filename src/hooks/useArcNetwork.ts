@@ -5,6 +5,7 @@ import {
   SUPPORTED_CHAIN_IDS,
   getAddresses,
 } from '../contracts/addresses'
+import { ARC_RPC_URL } from '../config'
 
 export function useArcNetwork() {
   const { chainId, isConnected, address } = useAccount()
@@ -21,7 +22,7 @@ export function useArcNetwork() {
     id: ARC_MAINNET_CHAIN_ID,
     name: 'Arc',
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: ['https://rpc.mainnet.arc.io'] } },
+    rpcUrls: { default: { http: [ARC_RPC_URL] } },
     blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
   }
 

@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { keccak256, encodePacked } from 'viem'
+import { keccak256, encodePacked, encodeAbiParameters, concat, slice, pad } from 'viem'
+import { privateKeyToAddress } from 'viem/accounts'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -41,8 +42,7 @@ export function parseUsdc(display: string): bigint {
 
 /** Format cirBTC amount (8 decimals) to display string */
 export function formatBtc(raw: bigint): string {
-  const n = Number(raw) / 1e8
-  return n.toFixed(8)
+  return (Number(raw) / 1e8).toFixed(8).replace(/\.?0+$/, '')
 }
 
 /** Parse cirBTC display string to raw bigint (8 decimals) */
@@ -146,12 +146,29 @@ export function randomSalt(): `0x${string}` {
     .join('')}`
 }
 
-/** Generate a random bytes16 deal ID */
-export function randomDealId(): `0x${string}` {
-  const arr = crypto.getRandomValues(new Uint8Array(16))
+/** Random 8-byte nonce used as the second half of a deal ID */
+export function randomDealNonce(): `0x${string}` {
+  const arr = crypto.getRandomValues(new Uint8Array(8))
   return `0x${Array.from(arr)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')}`
+}
+
+/**
+ * Deal ID bound to its proposer (security fix F-08): the first 8 bytes must equal
+ * bytes8(keccak256(abi.encode(proposer))), mirroring PersatDealRegistry.dealIdPrefix().
+ */
+export function deriveDealId(proposer: `0x${string}`, nonce: `0x${string}`): `0x${string}` {
+  const prefix = slice(keccak256(encodeAbiParameters([{ type: 'address' }], [proposer])), 0, 8)
+  return concat([prefix, nonce])
+}
+
+/**
+ * Open private links (no reserved counterparty) use an ephemeral key pair (security fix F-07).
+ * The private key travels only inside the share link; the chain stores its address (left-padded to 32 bytes).
+ */
+export function openLinkOnchainSalt(claimKey: `0x${string}`): `0x${string}` {
+  return pad(privateKeyToAddress(claimKey), { size: 32 })
 }
 
 /** Empty 16-byte deal ID (0x + 32 zeros) */
@@ -186,15 +203,39 @@ export function parseOnchainError(error: unknown): string {
     return 'Insufficient balance to cover this transaction.'
   if (msg.includes('dealnotactive')) return 'Deal is not in the required state.'
   if (msg.includes('notborrower')) return 'Only the borrower can call this function.'
+  if (msg.includes('notdealparty')) return 'Only the borrower or the lender of this deal can start the loan.'
   if (msg.includes('termshash')) return 'Deal terms have changed — please refresh.'
   if (msg.includes('ltvhealthy')) return 'LTV is healthy — liquidation not available.'
   if (msg.includes('oraclestale')) return 'Price oracle is stale. Try again shortly.'
   if (msg.includes('invalidclaimtoken')) return 'This claim link is invalid or already used.'
+  if (msg.includes('invalidsignature')) return 'This claim link is invalid (signature check failed).'
+  if (msg.includes('signaturerequired')) return 'This open link must be claimed with its full invitation URL.'
+  if (msg.includes('selfmatch')) return 'You cannot take the other side of your own deal.'
+  if (msg.includes('invaliddealid')) return 'Deal ID does not match your wallet. Reload the page and try again.'
+  if (msg.includes('initialltvtoohigh')) return 'Loan-to-value is above the 65% maximum at the current BTC price. Add collateral or lower the amount.'
   if (msg.includes('dealnotfound')) return 'Deal not found on this network.'
   if (msg.includes('dealalreadyexists')) return 'A deal with this ID already exists. Refresh to generate a new one.'
   if (msg.includes('invalidterms')) return 'Invalid deal terms. Please check amounts and duration.'
+  if (msg.includes('cirbtcdepegged')) return 'cirBTC is trading more than 2% away from BTC right now, so new loans are paused. Try again later.'
+  if (msg.includes('tokenpaused') || msg.includes('pausable: paused')) return 'USDC or cirBTC is paused by its issuer. Liquidations wait until the pause ends.'
+  if (msg.includes('tokensnotpaused')) return 'Neither USDC nor cirBTC is paused at the moment.'
+  if (msg.includes('nothingtowithdraw')) return 'Nothing to withdraw.'
+  if (msg.includes('blacklisted')) return 'This address is frozen by the token issuer. Funds stay credited and can be withdrawn once it is unfrozen.'
+  if (msg.includes('dealexpired')) return 'This offer has expired (30 days). Ask for a new one.'
+  if (msg.includes('activationwindowclosed')) return 'The 24-hour window to start the loan has closed. Cancel and create a new deal.'
+  if (msg.includes('activeofferexists')) return 'You already have an active offer on this order. Cancel it first.'
+  if (msg.includes('principaltoolow')) return 'The minimum amount is 100 USDC.'
+  if (msg.includes('offerexpired')) return 'This offer expired (offers last 7 days). Ask for a new one.'
+  if (msg.includes('proposerrejected')) return 'The creator of this order declined your offers.'
+  if (msg.includes('liquidationspaused')) return 'Liquidations are paused for a short time by the protocol. Try again later.'
+  if (msg.includes('liquidationpausecooldown')) return 'Liquidations were paused recently. A new pause is not allowed yet.'
+  if (msg.includes('liquidationpausetoolong')) return 'A liquidation pause can last at most 24 hours.'
+  if (msg.includes('maxcounteroffersreached')) return 'This order already has the maximum number of active offers.'
+  if (msg.includes('notlender')) return 'Only the lender can do this.'
+  if (msg.includes('oracleinvalidprice')) return 'The price oracle returned an invalid price. Try again later.'
+  if (msg.includes('insufficientallowance') || msg.includes('insufficient allowance')) return 'Approval too low. Approve the amount first.'
   if (msg.includes('reverted')) return 'Transaction failed. Check your balances and approvals.'
   if (msg.includes('network') || msg.includes('timeout') || msg.includes('unable to fetch'))
-    return 'Network/RPC issue. Please verify your wallet network is Arc Testnet or Arc Mainnet.'
+    return 'Network/RPC issue. Please check that your wallet is on Arc Mainnet.'
   return 'Something went wrong. Please try again.'
 }

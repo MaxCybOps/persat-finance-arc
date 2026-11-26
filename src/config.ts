@@ -8,7 +8,8 @@
 import { http, createConfig } from 'wagmi'
 import { defineChain } from 'viem'
 import { injected, walletConnect } from 'wagmi/connectors'
-import { registerChain } from './tracing'
+
+export const ARC_RPC_URL = (import.meta.env.VITE_ARC_RPC_URL as string | undefined) ?? 'https://rpc.mainnet.arc.io'
 
 /** Arc Mainnet (Chain ID 5042) — no Multicall3 */
 export const arcMainnet = defineChain({
@@ -16,7 +17,7 @@ export const arcMainnet = defineChain({
   name: 'Arc',
   nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.mainnet.arc.io'] },
+    default: { http: [ARC_RPC_URL] },
   },
   blockExplorers: {
     default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' },
@@ -39,8 +40,12 @@ export const arcTestnet = defineChain({
   contracts: {}, // no multicall3
 })
 
-registerChain(arcTestnet.id, arcTestnet.rpcUrls.default.http[0])
-registerChain(arcMainnet.id, arcMainnet.rpcUrls.default.http[0])
+if (import.meta.env.DEV) {
+  void import('./tracing').then(({ registerChain }) => {
+    registerChain(arcTestnet.id, arcTestnet.rpcUrls.default.http[0])
+    registerChain(arcMainnet.id, arcMainnet.rpcUrls.default.http[0])
+  })
+}
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined
 
@@ -69,7 +74,7 @@ export const config = createConfig({
   chains: [arcMainnet],
   connectors,
   transports: {
-    [arcMainnet.id]: http('https://rpc.mainnet.arc.io', { timeout: 30_000, retryCount: 3 }),
+    [arcMainnet.id]: http(ARC_RPC_URL, { timeout: 30_000, retryCount: 3 }),
   },
   batch: {
     multicall: false, // Arc has no Multicall3 — disabling prevents 10s timeouts
