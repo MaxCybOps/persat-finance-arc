@@ -81,7 +81,7 @@ export default function SplashScreen({ onFinish, minDuration = 1400 }: SplashScr
               PERSAT
             </h2>
             <p className="font-['Space_Grotesk'] text-[11px] font-semibold text-[#ffb77f] tracking-widest uppercase">
-              INSTITUTIONAL ESCROW PROTOCOL
+              PEER-TO-PEER BITCOIN LENDING
             </p>
           </motion.div>
 

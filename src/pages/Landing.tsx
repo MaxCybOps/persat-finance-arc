@@ -1,6 +1,6 @@
 // oxlint-disable
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -28,7 +28,6 @@ import {
   HelpCircle,
   Scale,
 } from 'lucide-react'
-import AuthModal from '../components/AuthModal'
 import SplashScreen from '../components/SplashScreen'
 import { ARC_MAINNET_CHAIN_ID, MAINNET_REGISTRY_ADDRESS, MAINNET_VAULT_ADDRESS } from '../contracts/addresses'
 import { useBtcPrice } from '../hooks/useBtcPrice'
@@ -151,8 +150,6 @@ export default function Landing() {
   const [copied, setCopied] = useState(false)
   const [portfolioTab, setPortfolioTab] = useState<'Home' | 'Borrow' | 'Lend'>('Home')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [isAuthOpen, setIsAuthOpen] = useState(false)
-  const [authDestination, setAuthDestination] = useState('/dashboard')
 
   // Interactive Loan Agreement State
   const [btcAmount, setBtcAmount] = useState<string>('1.25')
@@ -167,10 +164,13 @@ export default function Landing() {
 
   // Interactive Loan Calculator State
   const [calcBtc, setCalcBtc] = useState<number>(1.0)
-  const [calcDuration, setCalcDuration] = useState<number>(30)
-  const calcMaxBorrow = (calcBtc * btcPrice * 0.65 / (1 + 0.082 * calcDuration / 365)).toFixed(0)
-  const calcInterest = ((parseFloat(calcMaxBorrow) * 0.082 * calcDuration) / 365).toFixed(0)
-  const calcLiquidationPrice = (parseFloat(calcMaxBorrow) / (calcBtc * 0.8)).toFixed(0)
+  const [calcDuration, setCalcDuration] = useState<number>(6)
+  const [calcRate, setCalcRate] = useState<number>(8)
+  const calcYearFraction = calcRate / 100 * calcDuration / 12
+  const calcMaxBorrow = (calcBtc * btcPrice * 0.65 / (1 + calcYearFraction)).toFixed(0)
+  const calcInterest = (parseFloat(calcMaxBorrow) * calcYearFraction).toFixed(0)
+  const calcReceived = (parseFloat(calcMaxBorrow) * (1 - 0.0025)).toFixed(0)
+  const calcLiquidationPrice = ((parseFloat(calcMaxBorrow) + parseFloat(calcInterest)) / (calcBtc * 0.8)).toFixed(0)
 
   // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState<number | null>(null)
@@ -182,35 +182,27 @@ export default function Landing() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const { address, isConnected } = useAccount()
-  // Where to go once a connection started from this page succeeds.
-  const pendingDestination = useRef<string | null>(null)
+  const { isConnected } = useAccount()
+  const { hash } = useLocation()
 
+  // Links such as /#faq from other pages: wait for the section to render, then scroll to it.
   useEffect(() => {
-    if (isConnected && pendingDestination.current) {
-      const dest = pendingDestination.current
-      pendingDestination.current = null
-      setIsAuthOpen(false)
-      navigate(dest)
-    }
-  }, [isConnected, navigate])
+    if (!hash) return
+    let tries = 0
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(hash.slice(1))
+      if (el || ++tries > 30) {
+        window.clearInterval(timer)
+        const header = document.querySelector('header')?.getBoundingClientRect().height ?? 0
+        if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - header, behavior: 'smooth' })
+      }
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [hash])
 
-  const openAuth = (dest = '/dashboard') => {
-    if (isConnected) {
-      navigate(dest)
-      return
-    }
-    pendingDestination.current = dest
-    setAuthDestination(dest)
-    setIsAuthOpen(true)
-  }
+  // The app opens without a wallet; it asks to connect only where an action needs one.
+  const launchApp = () => navigate('/dashboard')
 
-  const openAccount = () => {
-    pendingDestination.current = null
-    setIsAuthOpen(true)
-  }
-
-  const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 
   return (
     <div className="min-h-screen bg-[#17120f] text-[#ebe0d9] font-['Geist',sans-serif] selection:bg-[#ff8a00] selection:text-[#17120f] relative overflow-hidden flex flex-col justify-between">
@@ -234,7 +226,7 @@ export default function Landing() {
 
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#241f1a] border border-[#564334]/40">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-              <span className="font-['Space_Grotesk'] text-[11px] font-bold tracking-widest text-[#ddc1ae] uppercase">
+              <span className="font-['Space_Grotesk'] text-[11px] font-bold tracking-widest text-[#ddc1ae] uppercase whitespace-nowrap">
                 BETA · NOT AUDITED
               </span>
             </div>
@@ -242,46 +234,33 @@ export default function Landing() {
 
           {/* Desktop Nav */}
           <nav className="hidden xl:flex items-center gap-7">
-            <a href="#how-it-works" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <a href="#how-it-works" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               How It Works
             </a>
-            <Link to="/deal/new?type=private" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <Link to="/deal/new?type=private" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               Direct Deals
             </Link>
-            <Link to="/marketplace" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <Link to="/marketplace" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               Marketplace
             </Link>
-            <a href="#calculator" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <a href="#calculator" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               Calculator
             </a>
-            <a href="#security" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
-              Security
+            <a href="#reputation" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+              Reputation
             </a>
-            <a href="#faq" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
+            <a href="#faq" className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase whitespace-nowrap text-[#ddc1ae] hover:text-[#ebe0d9] transition-colors no-underline">
               FAQ
             </a>
-            <button
-              onClick={() => openAuth('/dashboard')}
-              className="font-['Space_Grotesk'] text-[11px] font-bold tracking-wider uppercase text-[#ffb77f] hover:text-[#ff8a00] transition-colors no-underline cursor-pointer"
-            >
-              Dashboard
-            </button>
           </nav>
 
           {/* Desktop Right CTA */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3 ml-auto xl:ml-0">
             <button
-              onClick={isConnected ? openAccount : () => openAuth('/dashboard')}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#241f1a] hover:bg-[#2f2924] text-[#ddc1ae] font-['Space_Grotesk'] text-xs font-bold border border-[#564334]/40 transition-colors cursor-pointer"
+              onClick={() => launchApp()}
+              className="group relative inline-flex items-center whitespace-nowrap pl-4 pr-1.5 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0px_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0px_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
             >
-              {isConnected && <span className="w-2 h-2 rounded-full bg-[#10b981]" />}
-              {isConnected ? shortAddress : 'Sign In'}
-            </button>
-            <button
-              onClick={() => openAuth('/dashboard')}
-              className="group relative inline-flex items-center pl-4 pr-1.5 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[13px] font-bold shadow-[0px_4px_24px_rgba(255,138,0,0.35)] hover:shadow-[0px_6px_32px_rgba(255,138,0,0.55)] transition-all cursor-pointer"
-            >
-              <span className="uppercase mr-2 tracking-wide font-bold">{isConnected ? 'Open App' : 'Launch App'}</span>
+              <span className="uppercase mr-2 tracking-wide font-bold">Launch App</span>
               <span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-0.5 transition-transform">
                 <ArrowRight className="w-4 h-4" />
               </span>
@@ -291,10 +270,10 @@ export default function Landing() {
           {/* Mobile Hamburger Button */}
           <div className="flex xl:hidden items-center gap-2">
             <button
-              onClick={() => openAuth('/dashboard')}
+              onClick={() => launchApp()}
               className="sm:hidden px-3 py-1.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold whitespace-nowrap"
             >
-              {isConnected ? 'Open App' : 'Launch App'}
+              Launch App
             </button>
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -345,11 +324,11 @@ export default function Landing() {
                   Loan Calculator
                 </a>
                 <a
-                  href="#security"
+                  href="#reputation"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="font-['Space_Grotesk'] text-sm font-semibold uppercase text-[#ddc1ae] hover:text-[#ebe0d9]"
                 >
-                  Security & Escrow
+                  Reputation
                 </a>
                 <a
                   href="#faq"
@@ -361,7 +340,7 @@ export default function Landing() {
                 <button
                   onClick={() => {
                     setIsMobileMenuOpen(false)
-                    openAuth('/dashboard')
+                    launchApp()
                   }}
                   className="w-full py-3 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm font-bold shadow-lg"
                 >
@@ -423,7 +402,7 @@ export default function Landing() {
             className="mb-14 sm:mb-16"
           >
             <button
-              onClick={() => openAuth('/dashboard')}
+              onClick={() => launchApp()}
               className="group relative inline-flex items-center pl-6 sm:pl-8 pr-2.5 py-3 sm:py-3.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-sm sm:text-base font-bold shadow-[0px_8px_32px_rgba(255,138,0,0.45)] hover:shadow-[0px_10px_40px_rgba(255,138,0,0.7)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
             >
               <span className="uppercase mr-3 sm:mr-4 font-bold tracking-wide">
@@ -455,7 +434,7 @@ export default function Landing() {
                 </div>
                 <h3 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">Create a Direct Deal</h3>
                 <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
-                  I already have a counterparty. Generate an encrypted, single-use private deal link with atomic settlement on Arc.
+                  I already have a counterparty. Generate a single-use private deal link, protected by a secret key, with atomic settlement on Arc.
                 </p>
               </div>
               <button
@@ -487,7 +466,7 @@ export default function Landing() {
                 </div>
                 <h3 className="font-['Space_Grotesk'] text-lg text-[#ebe0d9] font-bold mb-2">Open Marketplace</h3>
                 <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
-                  Browse verified community loan requests or post structured, non-negotiable lending terms to match peer liquidity in USDC.
+                  Browse open borrow requests and lend offers, or post your own terms. Anyone can make an offer, and you choose the one you accept.
                 </p>
               </div>
               <button
@@ -866,10 +845,10 @@ export default function Landing() {
 
                   <div>
                     <label className="block font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-2">
-                      Loan Duration
+                      Loan Duration <span className="font-normal text-[#a58c7b]">(months)</span>
                     </label>
                     <div className="grid grid-cols-4 gap-2">
-                      {[7, 14, 30, 90].map((d) => (
+                      {[1, 3, 6, 12].map((d) => (
                         <button
                           key={d}
                           onClick={() => setCalcDuration(d)}
@@ -879,7 +858,28 @@ export default function Landing() {
                               : 'bg-[#241f1a] text-[#ddc1ae] hover:bg-[#2f2924] border border-[#564334]/30'
                           }`}
                         >
-                          {d} Days
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] mb-2">
+                      Annual Rate <span className="font-normal text-[#a58c7b]">(set by you and your counterparty)</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[6, 8, 10, 12].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setCalcRate(r)}
+                          className={`py-2 rounded-xl font-['Space_Grotesk'] text-xs font-bold transition-all cursor-pointer ${
+                            calcRate === r
+                              ? 'bg-[#ff8a00] text-[#17120f] shadow-md'
+                              : 'bg-[#241f1a] text-[#ddc1ae] hover:bg-[#2f2924] border border-[#564334]/30'
+                          }`}
+                        >
+                          {r}%
                         </button>
                       ))}
                     </div>
@@ -893,8 +893,8 @@ export default function Landing() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Fixed Protocol APR:</span>
-                      <span className="text-[#10b981] font-bold">8.20% Fixed</span>
+                      <span>Rate:</span>
+                      <span className="text-[#10b981] font-bold">{calcRate}% / year, fixed</span>
                     </div>
                   </div>
                 </div>
@@ -910,21 +910,27 @@ export default function Landing() {
                     </div>
 
                     <div className="space-y-3 py-3 border-y border-[#564334]/30 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-[#a58c7b]">Estimated Total Repayment:</span>
-                        <span className="font-['Space_Grotesk'] font-bold text-[#ebe0d9]">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[#a58c7b] min-w-0">Total due at maturity:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-right whitespace-nowrap tabular-nums shrink-0 text-[#ebe0d9]">
                           ${(parseInt(calcMaxBorrow) + parseInt(calcInterest)).toLocaleString()} USDC
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#a58c7b]">Fixed Borrow Cost:</span>
-                        <span className="font-['Space_Grotesk'] font-bold text-[#ff8a00]">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[#a58c7b] min-w-0">You receive (after 0.25% fee):</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-right whitespace-nowrap tabular-nums shrink-0 text-[#ebe0d9]">
+                          ${parseInt(calcReceived).toLocaleString()} USDC
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[#a58c7b] min-w-0">Interest if held to maturity:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-right whitespace-nowrap tabular-nums shrink-0 text-[#ff8a00]">
                           +${parseInt(calcInterest).toLocaleString()} USDC
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#a58c7b]">Liquidation Price Trigger:</span>
-                        <span className="font-['Space_Grotesk'] font-bold text-[#10b981]">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[#a58c7b] min-w-0">Liquidation if BTC falls below:</span>
+                        <span className="font-['Space_Grotesk'] font-bold text-right whitespace-nowrap tabular-nums shrink-0 text-[#10b981]">
                           ${parseInt(calcLiquidationPrice).toLocaleString()} / BTC
                         </span>
                       </div>
@@ -984,11 +990,11 @@ export default function Landing() {
                 <ul className="flex flex-col gap-3 text-sm text-[#ebe0d9] mb-8">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
-                    <span>Zero orderbook footprint, private encrypted URL exchange</span>
+                    <span>Not listed on the marketplace; the link holds a secret key (terms are still visible on-chain)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
-                    <span>Encrypted counterparty authorization check on connection</span>
+                    <span>Optionally reserved for one wallet address</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ff8a00] shrink-0" />
@@ -1028,13 +1034,13 @@ export default function Landing() {
                   Open Marketplace
                 </h3>
                 <p className="text-sm text-[#ddc1ae] mb-6 leading-relaxed">
-                  For when you need instant liquidity matching. Post your exact collateral-to-borrow parameters or fulfill vetted listings. Lenders can propose alternative terms — principal, rate, duration — and you choose the best offer.
+                  For when you need a counterparty. Post a borrow request or a lend offer with your terms. Anyone can answer with an offer — the same terms or a different amount, rate or duration — and you choose the one you accept. The loan then starts within 24 hours.
                 </p>
 
                 <ul className="flex flex-col gap-3 text-sm text-[#ebe0d9] mb-8">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
-                    <span>Deterministic terms matching without spam chat vectors</span>
+                    <span>Offers stay valid for 7 days; minimum loan 100 USDC</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#ffb86b] shrink-0" />
@@ -1084,8 +1090,8 @@ export default function Landing() {
                 },
                 {
                   step: '02',
-                  title: 'Receive Instant Stablecoins',
-                  desc: 'Once the loan-to-value is checked against the Chainlink BTC/USD oracle on Arc, the lender\'s USDC is sent to your wallet in the same transaction.',
+                  title: 'Receive USDC in the Same Transaction',
+                  desc: 'Once both sides have approved their funds, either one starts the loan. The loan-to-value is checked against the Chainlink BTC/USD oracle on Arc, and the lender\'s USDC (minus a 0.25% protocol fee) reaches your wallet in the same transaction as your collateral is locked.',
                   footerLabel: 'Execution Speed',
                   footerVal: '< 1s Finality',
                   valColor: 'text-[#ff8a00]',
@@ -1093,7 +1099,7 @@ export default function Landing() {
                 {
                   step: '03',
                   title: 'Repay & Auto-Unlock',
-                  desc: 'Return the borrowed USDC plus agreed-upon fixed interest prior to expiration. The smart contract automatically unlocks and returns 100% of your collateral.',
+                  desc: 'Repay the USDC plus the fixed interest, counted pro rata with a one-month minimum, so repaying early costs less. A 2% late fee applies after maturity. Your collateral is released in the same transaction.',
                   footerLabel: 'Settlement Output',
                   footerVal: 'Immediate Release',
                   valColor: 'text-[#10b981]',
@@ -1140,10 +1146,10 @@ export default function Landing() {
               Competitive Advantage
             </div>
             <h2 className="font-['Space_Grotesk'] text-3xl sm:text-4xl text-[#ebe0d9] font-bold">
-              Why Persat on Arc Leads Web3 Lending
+              How Persat Compares
             </h2>
             <p className="text-sm sm:text-base text-[#ddc1ae] mt-3">
-              How Persat's atomic peer-to-peer escrow outperforms both centralized lenders and pool lending protocols.
+              Peer-to-peer escrow next to centralized lenders and pool lending protocols.
             </p>
           </div>
 
@@ -1157,7 +1163,7 @@ export default function Landing() {
                     Persat on Arc
                   </th>
                   <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">
-                    Centralized (BlockFi/CeFi)
+                    Centralized lenders (CeFi)
                   </th>
                   <th className="p-4 sm:p-5 font-['Space_Grotesk'] text-[#a58c7b] uppercase text-xs">
                     Pool Lending (Aave/Compound)
@@ -1195,7 +1201,7 @@ export default function Landing() {
                     &lt; 1s Finality (Arc L1)
                   </td>
                   <td className="p-4 sm:p-5 text-red-400">24-48h Manual Review</td>
-                  <td className="p-4 sm:p-5">12s - 15m (Gas volatile)</td>
+                  <td className="p-4 sm:p-5">Depends on the chain</td>
                 </tr>
                 <tr>
                   <td className="p-4 sm:p-5 font-semibold text-[#ebe0d9]">Counterparty Options</td>
@@ -1211,7 +1217,7 @@ export default function Landing() {
         </motion.section>
 
         {/* ── SECTION 7: REPUTATION & AUDIT (3D Flip Entrance) ── */}
-        <section id="security" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-16 md:py-32 relative z-10" style={{ perspective: 1200 }}>
+        <section id="reputation" className="w-full bg-[#120d0a]/80 border-t border-[#564334]/30 py-16 md:py-32 relative z-10" style={{ perspective: 1200 }}>
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <motion.div
@@ -1274,20 +1280,20 @@ export default function Landing() {
                 </div>
 
                 {/* Proof Metrics Grid */}
-                <div className="grid grid-cols-3 gap-4 py-6">
+                <div className="grid grid-cols-3 gap-3 sm:gap-4 py-6">
                   <div>
                     <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Deals Completed</div>
-                    <div className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold">4 Loans</div>
+                    <div className="font-['Space_Grotesk'] text-lg sm:text-2xl whitespace-nowrap text-[#ebe0d9] font-bold">4 Loans</div>
                     <div className="text-[11px] text-[#10b981]">0 Defaults</div>
                   </div>
                   <div>
                     <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Repay Rate</div>
-                    <div className="font-['Space_Grotesk'] text-2xl text-[#ff8a00] font-bold">100.0%</div>
+                    <div className="font-['Space_Grotesk'] text-lg sm:text-2xl whitespace-nowrap text-[#ff8a00] font-bold">100.0%</div>
                     <div className="text-[11px] text-[#ddc1ae]">On-Time Execution</div>
                   </div>
                   <div>
                     <div className="font-['Space_Grotesk'] text-[11px] text-[#a58c7b] uppercase">Settled Volume</div>
-                    <div className="font-['Space_Grotesk'] text-2xl text-[#ebe0d9] font-bold">12.4 BTC</div>
+                    <div className="font-['Space_Grotesk'] text-lg sm:text-2xl whitespace-nowrap text-[#ebe0d9] font-bold">12.4 BTC</div>
                     <div className="text-[11px] text-[#a58c7b]">≈ $1.45M USD</div>
                   </div>
                 </div>
@@ -1334,11 +1340,15 @@ export default function Landing() {
               },
               {
                 q: 'Can anyone freeze or seize my funds?',
-                a: 'Persat cannot move your collateral. The contract owner (a multisig) can pause new deals and activations, but never repayments, liquidations or withdrawals, and fee changes only apply after a 4-day delay. Circle, the issuer of USDC and cirBTC, can freeze an address or pause its tokens. Persat is built so that a frozen party only blocks its own payment: everyone else is still paid, and a token pause gives borrowers extra time instead of triggering liquidation.',
+                a: 'Persat cannot move your collateral. The contract owner (a multisig) can pause new deals and activations, but never repayments or withdrawals. In an emergency it can pause liquidations for at most 24 hours (plus a 6-hour grace period, and not again for 3 days), and fee changes only apply after a 4-day delay. Circle, the issuer of USDC and cirBTC, can freeze an address or pause its tokens. Persat is built so that a frozen party only blocks its own payment: everyone else is still paid, and a token pause gives borrowers extra time instead of triggering liquidation.',
               },
               {
                 q: 'How do private deal links work for known counterparties?',
-                a: 'There are two kinds. A reserved link can only be accepted by the wallet you name. An open link can be accepted by whoever holds it, so treat it like a password. Links expire 30 days after creation, and the borrower has 72 hours to activate once a deal is accepted. Private deals are not listed on the marketplace, but their terms are visible on-chain.',
+                a: 'There are two kinds. A reserved link can only be accepted by the wallet you name. An open link can be accepted by whoever holds it, so treat it like a password. Links expire 30 days after creation, and the loan must start within 24 hours once a deal is accepted. Private deals are not listed on the marketplace, but their terms are visible on-chain.',
+              },
+              {
+                q: 'How does a loan start once terms are agreed?',
+                a: 'Nothing moves when an order is posted, an offer is made or accepted. The lender approves the USDC and the borrower approves the cirBTC; whichever side is ready second starts the loan, within 24 hours of the deal being accepted. The collateral and the USDC move in the same transaction, so nobody sends funds first. Offers stay valid for 7 days, and the minimum loan is 100 USDC.',
               },
               {
                 q: 'What tokens are supported on Arc?',
@@ -1393,7 +1403,7 @@ export default function Landing() {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#ff8a00]/15 rounded-full blur-[100px] pointer-events-none" />
             <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
               <span className="font-['Space_Grotesk'] text-[11px] text-[#ff8a00] uppercase tracking-widest font-bold mb-2">
-                Ready to Experience True Disintermediation?
+                Peer-to-peer, on Arc
               </span>
               <h2 className="font-['Space_Grotesk'] text-3xl sm:text-5xl text-[#ebe0d9] font-bold mb-4">
                 Start Lending on Your Own Terms.
@@ -1403,10 +1413,10 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <button
-                  onClick={() => openAuth('/dashboard')}
+                  onClick={() => launchApp()}
                   className="group relative inline-flex items-center pl-6 pr-2 py-2 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-[14px] font-bold shadow-[0px_4px_28px_rgba(255,138,0,0.45)] hover:shadow-[0px_6px_36px_rgba(255,138,0,0.65)] transition-all cursor-pointer"
                 >
-                  <span className="uppercase mr-3 font-bold tracking-wide">{isConnected ? 'Open App' : 'Launch App Now'}</span>
+                  <span className="uppercase mr-3 font-bold tracking-wide">Launch App Now</span>
                   <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#ff8a00] shadow-sm group-hover:translate-x-1 transition-transform">
                     <ArrowRight className="w-4 h-4" />
                   </span>
@@ -1469,7 +1479,7 @@ export default function Landing() {
                 Marketplace
               </Link>
               <button
-                onClick={() => openAuth('/dashboard')}
+                onClick={() => launchApp()}
                 className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline cursor-pointer"
               >
                 Dashboard
@@ -1480,18 +1490,11 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#ddc1ae]">
             <p>© 2026 Persat Finance. Built on Circle's Arc L1.</p>
             <p className="font-['Space_Grotesk'] text-[#a58c7b]">
-              Zero-Latency Institutional Escrow Protocol
+              Peer-to-peer Bitcoin-backed lending on Arc
             </p>
           </div>
         </div>
       </footer>
-
-      {/* Web3 Authentication Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        destination={authDestination}
-      />
     </div>
   )
 }
