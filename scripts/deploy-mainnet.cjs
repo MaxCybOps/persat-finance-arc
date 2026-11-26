@@ -16,9 +16,10 @@
  *   ARC_RPC_URL=https://...         (optional) RPC endpoint, defaults to the public Arc Mainnet RPC
  *   DRY_RUN=1                       (optional) run every safety check, send no transaction
  *
- * The script aborts if the collateral token can be minted by an arbitrary address,
- * does not have 8 decimals, if the oracle is not a fresh BTC/USD feed, if the owner is not
- * a contract (multisig), or if the pool's TWAP is not within 2% of the oracle.
+ * The script rebuilds the contracts from source first, then aborts if the collateral token can be
+ * minted by an arbitrary address, does not have 8 decimals, if the oracle is not a fresh BTC/USD feed,
+ * if the owner is not a contract (multisig), or if the pool's 30-minute TWAP is not within 2% of the
+ * oracle. All checks run before any transaction is sent, including in DRY_RUN mode.
  *
  * Ownership is transferred with Ownable2Step: the multisig must call acceptOwnership()
  * on the registry and on the vault to complete the handover.
@@ -26,6 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { createWalletClient, createPublicClient, http, getAddress, isAddress } = require('viem');
 const { privateKeyToAccount } = require('viem/accounts');
 const { arc } = require('viem/chains');
@@ -53,7 +55,11 @@ const ARC_MAINNET_CIRBTC_USDC_POOL = '0x82916bee18fCEF517B26C72d7Cb5F13694E1dB41
 const TWAP_WINDOW = 1800;
 
 // Protocol parameters
-const STALENESS_THRESHOLD = 93600n; // 26h: 24h Chainlink heartbeat + 2h margin (N-13)
+// Arc BTC/USD (Chainlink directory): 0.1% deviation, 24h heartbeat. Measured Nov 2026 over 6 days and
+// 2,774 consecutive rounds: ~3 minutes on average, longest gap 52.5 minutes. Three hours is more than
+// three times that gap and still refuses a price that stopped moving. Immutable once the vault is live.
+const STALENESS_THRESHOLD = 10800n;
+const MAX_PEG_DEVIATION_BPS = 200n;
 const LIQUIDATION_THRESHOLD_BPS = 8000n; // 80%
 const MAX_INITIAL_LTV_BPS = 6500n; // 65% (F-05)
 const FEE_BPS = 25n; // 0.25%
@@ -84,6 +90,11 @@ const FEED_ABI = [
 const POOL_ABI = [
   { name: 'token0', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
   { name: 'token1', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+  {
+    name: 'observe', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'secondsAgos', type: 'uint32[]' }],
+    outputs: [{ name: 'tickCumulatives', type: 'int56[]' }, { name: 'secondsPerLiquidityCumulativeX128s', type: 'uint160[]' }],
+  },
 ];
 const OWNABLE_ABI = [
   { name: 'transferOwnership', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'newOwner', type: 'address' }], outputs: [] },
@@ -159,6 +170,42 @@ async function assertPool(publicClient, pool, cirBtc) {
   const pair = [getAddress(t0), getAddress(t1)].sort().join();
   if (pair !== [cirBtc, getAddress(ARC_MAINNET_USDC)].sort().join()) fail(`pool ${pool} is not a cirBTC/USDC pool.`);
   console.log('✔ Peg-guard pool is cirBTC/USDC');
+
+  const [cumulatives] = await publicClient.readContract({ address: pool, abi: POOL_ABI, functionName: 'observe', args: [[TWAP_WINDOW, 0]] });
+  const tick = Number(cumulatives[1] - cumulatives[0]) / TWAP_WINDOW;
+  const cirBtcIsToken0 = getAddress(t0) === cirBtc;
+  // raw token1/token0 ratio, then USDC per cirBTC adjusted for decimals (cirBTC 8, USDC 6)
+  const ratio = Math.pow(1.0001, tick);
+  const usdcPerCirBtc = (cirBtcIsToken0 ? ratio : 1 / ratio) * 1e8 / 1e6;
+
+  const [, answer] = await publicClient.readContract({ address: ARC_MAINNET_CHAINLINK_FEED, abi: FEED_ABI, functionName: 'latestRoundData' });
+  const feedDecimals = await publicClient.readContract({ address: ARC_MAINNET_CHAINLINK_FEED, abi: FEED_ABI, functionName: 'decimals' });
+  const oracle = Number(answer) / 10 ** Number(feedDecimals);
+  const deviationBps = Math.abs(usdcPerCirBtc - oracle) / oracle * 10_000;
+  console.log(`cirBTC 30-min TWAP $${usdcPerCirBtc.toFixed(2)} vs oracle $${oracle.toFixed(2)} (${(deviationBps / 100).toFixed(2)}%)`);
+  if (deviationBps > Number(MAX_PEG_DEVIATION_BPS)) fail('cirBTC pool TWAP is more than 2% away from the BTC/USD oracle.');
+  console.log('✔ cirBTC is within 2% of BTC/USD');
+}
+
+/** M6: deploy only what the current source compiles to. */
+function rebuildAndLoadArtifacts() {
+  console.log('Rebuilding contracts from source (forge build --force)...');
+  try {
+    execSync('forge build --force', { stdio: 'inherit' });
+  } catch {
+    fail('forge build failed. Fix the compilation errors before deploying.');
+  }
+  const load = (name) => JSON.parse(fs.readFileSync(`contracts/out/${name}.sol/${name}.json`, 'utf8'));
+  const artifacts = { registry: load('PersatDealRegistry'), vault: load('PersatEscrowVault'), twap: load('CirBtcPoolTwap') };
+  const has = (abi, fn) => abi.some((e) => e.type === 'function' && e.name === fn);
+  if (!has(artifacts.registry.abi, 'MAX_DURATION_MONTHS') || !has(artifacts.registry.abi, 'getActiveCounterOffers')) {
+    fail('registry artifact is not the current version.');
+  }
+  if (!has(artifacts.vault.abi, 'addCollateral') || !has(artifacts.vault.abi, 'pauseLiquidations')) {
+    fail('vault artifact is not the current version.');
+  }
+  console.log('✔ Artifacts rebuilt from the current source\n');
+  return artifacts;
 }
 
 async function main() {
@@ -183,7 +230,8 @@ async function main() {
   const ownerAddress = getAddress(rawOwner);
   const poolAddress = getAddress(process.env.CIRBTC_USDC_POOL || ARC_MAINNET_CIRBTC_USDC_POOL);
 
-  // ── Safety checks (F-01, N-10) ──
+  // ── Safety checks (F-01, N-10, M6) ──
+  const artifacts = rebuildAndLoadArtifacts();
   await assertSafeCollateral(publicClient, cirBtcAddress);
   await assertSafeOracle(publicClient, ARC_MAINNET_CHAINLINK_FEED);
   await assertMultisigOwner(publicClient, ownerAddress);
@@ -206,10 +254,9 @@ async function main() {
   console.log(`Gas Balance (Native USDC): ${(Number(balanceWei) / 1e18).toFixed(4)} USDC\n`);
   if (balanceWei === 0n) fail('deployer wallet has 0 USDC for gas on Arc Mainnet.');
 
-  // Load contract artifacts
-  const registryJson = JSON.parse(fs.readFileSync('contracts/out/PersatDealRegistry.sol/PersatDealRegistry.json', 'utf8'));
-  const vaultJson = JSON.parse(fs.readFileSync('contracts/out/PersatEscrowVault.sol/PersatEscrowVault.json', 'utf8'));
-  const twapJson = JSON.parse(fs.readFileSync('contracts/out/CirBtcPoolTwap.sol/CirBtcPoolTwap.json', 'utf8'));
+  const registryJson = artifacts.registry;
+  const vaultJson = artifacts.vault;
+  const twapJson = artifacts.twap;
 
   // ── Step 0: Deploy the cirBTC peg guard (B-3) ──
   console.log('Step 0: Deploying CirBtcPoolTwap (peg guard)...');
@@ -299,6 +346,8 @@ async function main() {
   fs.writeFileSync('src/contracts/addresses.mainnet.json', JSON.stringify(deployedAddresses, null, 2), 'utf8');
   console.log('Saved deployment record to src/contracts/addresses.mainnet.json');
   console.log('Next: update MAINNET_* addresses and the deployment block in the frontend (see README).');
+  console.log('Then verify the source on the Arc explorer (forge verify-contract) for the peg guard, registry and vault,');
+  console.log('using the constructor arguments printed above, so anyone can check the deployed code.');
 }
 
 main().catch((err) => {

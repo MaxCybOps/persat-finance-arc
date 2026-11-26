@@ -48,7 +48,7 @@ Regression tests: `contracts/test/SecurityFixes.t.sol`. **Contracts must be rede
 | B-4 / N-12 | Lender paid in cirBTC after liquidation | A liquidator repays the lender in USDC (up to the collateral value / 1.03) and receives the matching cirBTC plus 3%; surplus goes to the borrower. The lender can still liquidate alone and take the cirBTC |
 | N-10 | Single key; fee could change between confirmation and activation | Fee changes are queued for `FEE_CHANGE_DELAY` (4 days, longer than the activation window); the deploy script requires `OWNER_ADDRESS` to be a contract (multisig) and hands ownership over with Ownable2Step |
 | N-11 | Full-term interest on early repayment | Interest accrues pro rata with a one-month minimum; activation LTV still uses full-term interest |
-| N-13 | Staleness limit equal to the 24 h heartbeat | Deploy script uses 26 h (93,600 s) |
+| N-13 | Staleness limit equal to the 24 h heartbeat | Deploy script uses 3 h (10,800 s): the Arc feed moves on 0.1% deviation, ~3 minutes on average, longest gap 52.5 minutes over 6 days (measured Nov 2026) |
 | Info | Unused fee settings in the registry | Removed; the registry constructor is now `(usdc, cirBtc, owner)` |
 
 ### Review round 3 — November 2026
@@ -64,6 +64,21 @@ Regression tests: `contracts/test/SecurityFixes.t.sol`. **Contracts must be rede
 `contracts/test/InvariantAccounting.t.sol` fuzzes activations, repayments, liquidations, Circle freezes and pauses, price moves, time jumps and withdrawals (80,000 calls) and checks that the vault's cirBTC equals locked collateral plus credits, that it holds no USDC beyond credits, and that closed loans hold nothing.
 
 Regression tests: `contracts/test/AuditRound2.t.sol` (tokens mimic Circle's blacklist and pause). `CirBtcPoolTwapForkTest` checks the TWAP against Chainlink on a local fork of Arc Mainnet when `ARC_FORK_RPC` is set.
+### Audit round 4 — November 2026 (branch `fix/audit-round4`)
+
+| ID | Finding | Change |
+|----|---------|--------|
+| R4-01 | 50 throwaway addresses could fill an order's offer slots | Minimum offer of 100 USDC, offers expire after 7 days, the creator can decline an offer and that address cannot offer again on the order |
+| R4-02 | Offer/cancel loops grew the offer array without bound, eventually breaking reads | `getActiveCounterOffers` returns only live offers (at most 50); history is read with `getCounterOffersPage` |
+| R4-03 | Cheap public orders and reserved invitations pushed real deals out of the windows the UI reads | Minimum deal of 100 USDC; open orders have their own index (`getOpenPublicDeals`), invitations their own (`getInvitations`) |
+| R4-04 | Borrowers could not defend a position | `addCollateral` on active loans |
+| R4-05 | No way to stop liquidations during an oracle incident | `pauseLiquidations`: at most 24 h, plus a 6 h grace, then a 3-day cooldown |
+| R4-06 | Renouncing ownership while paused froze the protocol | `renounceOwnership` reverts on both contracts |
+| R4-07 | The vault accepted a 26 h old price while the Arc feed updates every ~3 minutes | Deploy script sets 3 h (longest measured gap: 52.5 minutes) |
+| R4-08 | The deploy script used whatever was in `contracts/out` and did not run the TWAP check it described | It rebuilds, checks the artifacts, and compares the pool TWAP with the oracle before sending anything (also in dry run) |
+| R4-09 | cirBTC is valued with BTC/USD during a loan; a depeg is not detected | Accepted and disclosed to lenders (deal form, offers, Security page). Checked Nov 2026: none of the 36 Chainlink feeds on Arc prices cirBTC; `cirBTC Reserves` (proof of reserve) covers all chains and cannot be compared with the Arc supply. Revisit if a cirBTC price feed appears |
+
+Frontend: approvals add to the existing allowance instead of replacing it; the claim key leaves the address bar once read (kept for the tab only); Vercel installs with `npm ci`; unused packages removed; public Security page. Regression tests: `contracts/test/AuditRound4.t.sol`.
 
 ---
 
@@ -182,7 +197,7 @@ No raw ETH/native value is transferred to `address(0)` (Arc reverts on this).
 
 **Oracle strategy:**
 - **Arc Testnet:** Pyth BTC/USD (only BTC/USD feed is kept fresh on Arc testnet as of 2026-09-14; staleness threshold set conservatively at 3600s).
-- **Arc Mainnet:** Chainlink BTC/USD proxy `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De`, 8 decimals, 86400s heartbeat, 0.5% deviation.
+- **Arc Mainnet:** Chainlink BTC/USD proxy `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De`, 8 decimals, 0.1% deviation and 24 h heartbeat (Chainlink directory); ~3 minutes on average, longest gap 52.5 minutes over 6 days (measured Nov 2026).
 - **Design decision:** The oracle address and staleness threshold are constructor-injectable (immutable post-deploy). The contract calls `decimals()` and normalises the price to 8 decimals internally. Mainnet deployment will pass the Chainlink proxy; testnet will pass the Pyth adapter address.
 - Contracts import a minimal `IPriceFeed` interface (`latestRoundData` compatible with Chainlink AggregatorV3Interface). A Pyth adapter contract wraps Pyth's `getPriceUnsafe` to expose the same interface. **Always call `decimals()`; never hardcode 8.**
 

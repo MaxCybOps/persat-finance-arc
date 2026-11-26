@@ -40,6 +40,12 @@ Audit round 2 + bridge analysis (branch `fix/audit-round2-bridge`, see the desig
 - Mainnet deploy: `CIRBTC_ADDRESS=0x171A4217b86A807A64eB94757Db6849fb4bDbAA0 OWNER_ADDRESS=<Safe> node scripts/deploy-mainnet.cjs` (run with `DRY_RUN=1` first). The Safe must then call `acceptOwnership()` on both contracts.
 - Admin: `/admin` in the app (nav link "Admin"). Anyone can read the protocol state; actions are enforced by `onlyOwner` on-chain. With a Safe owner, each signer clicks Approve (`approveHash` on the Safe) and any signer clicks Execute once the threshold is reached (`execTransaction` with pre-validated signatures); no Safe web app or transaction service is needed. `acceptOwnership()` after deployment can be done from this page.
 
+Audit round 4 (branch `fix/audit-round4`, see the design doc):
+- Minimum deal and offer: 100 USDC. Offers expire after 7 days; creators can decline an offer (`rejectCounterOffer`), which also bars that address from the order.
+- Bounded reads: `getActiveCounterOffers`, `getCounterOffersPage`, `getOpenPublicDeals`, `getInvitations` (reserved deals are no longer added to the invitee's `getUserDeals` until claimed).
+- Vault: `addCollateral` for borrowers; `pauseLiquidations(duration)` (max 24 h + 6 h grace, 3-day cooldown); `renounceOwnership` disabled on both contracts.
+- Deploy script rebuilds the contracts and checks the cirBTC pool TWAP against the oracle before any transaction; staleness threshold 3 h.
+
 ## IMPORTANT: Wiring Step Required
 
 The Registry's `setVault(address)` function must be called ONCE to wire the vault into the registry.
@@ -52,8 +58,9 @@ Call: `PersatDealRegistry.setVault(0x59241023610c71c56154e5c6d56821a750ff2e76)`
 
 For Arc Mainnet, redeploy with:
 - cirBTC: real cirBTC ERC-20 address on Arc mainnet
-- priceFeed: Chainlink BTC/USD proxy `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De` (8 decimals, 86400s heartbeat)
-- stalenessThreshold: 93600 (26 hours: 24 h heartbeat + 2 h margin)
+- priceFeed: Chainlink BTC/USD proxy `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De` (8 decimals, 0.1% deviation, 24 h heartbeat per the Chainlink directory; measured Nov 2026: ~3 minutes on average, longest gap 52.5 minutes over 6 days)
+- stalenessThreshold: 10800 (3 hours). Immutable in the vault.
+- No cirBTC price feed exists on Arc (Nov 2026). Only `cirBTC Reserves` (proof of reserve, `0xEB0884a871ea1f6483B5FC10fd3D7dC5806411fc`), which reports total reserves across chains and cannot be compared with the Arc supply on-chain.
 - MockPriceFeed and MockERC20 are NOT used on mainnet
 
 ---
@@ -97,4 +104,4 @@ SPA routing rewrite: `vercel.json`
 ## Oracle Notes
 
 - Arc Testnet: No Chainlink Data Feeds. Pyth is available at `0x2880aB155794e7179c9eE2e38200202908C17B43` but uses a different interface (not AggregatorV3). A Pyth adapter wrapping `getPriceUnsafe` to expose `latestRoundData` + `decimals()` is required for a production testnet oracle.
-- Arc Mainnet: Chainlink BTC/USD proxy at `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De`, 8 decimals, 86400s heartbeat.
+- Arc Mainnet: Chainlink BTC/USD proxy at `0xa109B535C70C8Be9995be64Bb6751AcDB27e03De`, 8 decimals, updates every few minutes (measured Nov 2026).
