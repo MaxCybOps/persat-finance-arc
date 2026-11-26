@@ -8,6 +8,7 @@ import NewDeal from './pages/NewDeal'
 import ClaimDeal from './pages/ClaimDeal'
 import Marketplace from './pages/Marketplace'
 import ManageDeal from './pages/ManageDeal'
+import Security from './pages/Security'
 import AdminGate from './components/AdminGate'
 import { StudioWatermark } from './components/StudioBadge'
 
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/marketplace" element={<Layout><Marketplace /></Layout>} />
           <Route path="/deal/:id/manage" element={<Layout><ManageDeal /></Layout>} />
           <Route path="/deal/manage/:id" element={<Layout><ManageDeal /></Layout>} />
+          <Route path="/security" element={<Layout><Security /></Layout>} />
           <Route path="/admin" element={<Layout><AdminGate><Suspense fallback={null}><Admin /></Suspense></AdminGate></Layout>} />
         </Routes>
         <StudioWatermark />

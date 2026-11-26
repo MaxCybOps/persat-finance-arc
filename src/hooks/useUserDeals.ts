@@ -85,6 +85,22 @@ export function useUserDeals() {
           args: [address, offset, PAGE],
         })) as readonly `0x${string}`[]
         for (const id of ids) dealIdSet.add(normalizeDealId(id).toLowerCase())
+
+        // Invitations reserved for this wallet live in their own index, so strangers cannot flood the deal list.
+        const invCount = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'invitationCount',
+          args: [address],
+        })) as bigint
+        const invOffset = invCount > PAGE ? invCount - PAGE : 0n
+        const invitations = (await client.readContract({
+          address: addresses.registry,
+          abi: REGISTRY_ABI,
+          functionName: 'getInvitations',
+          args: [address, invOffset, PAGE],
+        })) as readonly `0x${string}`[]
+        for (const id of invitations) dealIdSet.add(normalizeDealId(id).toLowerCase())
       }
 
       for (const s of stored) {

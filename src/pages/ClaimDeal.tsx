@@ -30,21 +30,29 @@ import { getStoredDeals, saveStoredDeal } from '../lib/dealStorage'
 import { keccak256, encodeAbiParameters, parseAbiParameters, isHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-function readClaimKey(): `0x${string}` | null {
+// The claim key travels in the link. Once read, it moves to this tab's session storage and leaves the
+// address bar and history, so it is not exposed by screenshots, history sync or a shared screen.
+function readClaimKey(dealId: string | undefined): `0x${string}` | null {
   if (typeof window === 'undefined') return null
+  const slot = `persat_claim_key_${(dealId ?? '').toLowerCase()}`
   const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('key')
-  if (fromHash && isHex(fromHash)) return fromHash as `0x${string}`
   const legacy = new URLSearchParams(window.location.search).get('salt')
-  if (legacy && isHex(legacy)) {
-    window.history.replaceState(null, '', `${window.location.pathname}#key=${legacy}`)
-    return legacy as `0x${string}`
+  const fromUrl = fromHash && isHex(fromHash) ? fromHash : legacy && isHex(legacy) ? legacy : null
+  if (fromUrl) {
+    try { sessionStorage.setItem(slot, fromUrl) } catch { /* storage unavailable: keep the key in memory only */ }
+    window.history.replaceState(null, '', window.location.pathname)
+    return fromUrl as `0x${string}`
   }
+  try {
+    const kept = sessionStorage.getItem(slot)
+    if (kept && isHex(kept)) return kept as `0x${string}`
+  } catch { /* storage unavailable */ }
   return null
 }
 
 export default function ClaimDeal() {
   const { token: dealIdParam } = useParams<{ token: string }>()
-  const saltParam = readClaimKey()
+  const [saltParam] = useState(() => readClaimKey(dealIdParam))
 
   const { address, isConnected, isWrongChain, chain, addresses, chainId, isMainnet } = useArcNetwork()
 

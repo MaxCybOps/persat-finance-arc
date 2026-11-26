@@ -24,6 +24,7 @@ import {
   isValidDealId,
   deriveSaltForCounterparty,
   computeRltv,
+  parseBtc,
 } from '../lib/utils'
 import { getStoredDeals } from '../lib/dealStorage'
 import ShareDealCard from '../components/ShareDealCard'
@@ -72,7 +73,7 @@ export default function ManageDeal() {
 
   const isOpenLoan = deal?.state === DealState.Active || deal?.state === DealState.Defaulted
 
-  const { data: lockedCollateral } = useReadContract({
+  const { data: lockedCollateral, refetch: refetchLocked } = useReadContract({
     address: addresses.vault,
     abi: VAULT_ABI,
     functionName: 'lockedCollateral',
@@ -177,7 +178,7 @@ export default function ManageDeal() {
     functionName: 'allowance',
     args: [address ?? ZERO, addresses.vault],
     chainId,
-    query: { enabled: !!address && deal?.state === DealState.Confirmed },
+    query: { enabled: !!address && (deal?.state === DealState.Confirmed || deal?.state === DealState.Active) },
   })
 
   const { data: usdcAllowance, refetch: refetchUsdcAllowance } = useReadContract({
@@ -192,7 +193,7 @@ export default function ManageDeal() {
   const { data: counterOffers, refetch: refetchOffers } = useReadContract({
     address: addresses.registry,
     abi: REGISTRY_ABI,
-    functionName: 'getCounterOffers',
+    functionName: 'getActiveCounterOffers',
     args: [normalizedDealId],
     chainId,
     query: { enabled: hasValidId && deal?.state === DealState.Proposed },
@@ -202,6 +203,7 @@ export default function ManageDeal() {
   const [confirmOfferId, setConfirmOfferId] = useState<bigint | null>(null)
   const { balance: walletCirBtc } = useCirBtcBalance()
   const [expandedOfferId, setExpandedOfferId] = useState<bigint | null>(null)
+  const [topUp, setTopUp] = useState('')
 
   // Simulate first so a call that would revert shows its real reason instead of failing on-chain.
   const writeContract = (params: any) => {
@@ -238,6 +240,7 @@ export default function ManageDeal() {
       void refetchCirBtcAllowance()
       void refetchClaimUsdc()
       void refetchClaimBtc()
+      void refetchLocked()
       toast.success('Transaction confirmed')
     }
   }, [isSuccess, refetch, refetchOffers, refetchDue, refetchUsdcAllowance, refetchCirBtcAllowance, refetchClaimUsdc, refetchClaimBtc])
@@ -386,13 +389,40 @@ export default function ManageDeal() {
   function approveToken(token: 'cirBtc' | 'usdc', amount: bigint) {
     if (!address) return
     reset()
+    const current = (token === 'cirBtc' ? cirBtcAllowance : usdcAllowance) ?? 0n
     writeContract({
       address: token === 'cirBtc' ? addresses.cirBtc : addresses.usdc,
       abi: ERC20_APPROVE_ABI,
       functionName: 'approve',
-      args: [addresses.vault, amount],
+      args: [addresses.vault, current + amount],
       chainId,
       gas: 100_000n,
+    })
+  }
+
+  function rejectOffer(offerId: bigint) {
+    if (!hasValidId || !address) return
+    reset()
+    writeContract({
+      address: addresses.registry,
+      abi: REGISTRY_ABI,
+      functionName: 'rejectCounterOffer',
+      args: [normalizedDealId, offerId],
+      chainId,
+      gas: 150_000n,
+    })
+  }
+
+  function addCollateral(amount: bigint) {
+    if (!hasValidId || !address || amount <= 0n) return
+    reset()
+    writeContract({
+      address: addresses.vault,
+      abi: VAULT_ABI,
+      functionName: 'addCollateral',
+      args: [normalizedDealId, amount],
+      chainId,
+      gas: 200_000n,
     })
   }
 
@@ -494,7 +524,15 @@ export default function ManageDeal() {
         </p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat label="Principal" value={`$${formatUsdc(deal.principal)}`} />
-          <Stat label="Collateral" value={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} cirBTC`} />
+          {isOpenLoan && lockedCollateral !== undefined && lockedCollateral > deal.collateral ? (
+            <Stat
+              label="Collateral"
+              value={`${formatBtc(lockedCollateral).replace(/\.?0+$/, '')} cirBTC`}
+              sub={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} at start, then added`}
+            />
+          ) : (
+            <Stat label="Collateral" value={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} cirBTC`} />
+          )}
           <Stat label="Rate" value={formatBps(deal.rateBps)} sub="per year" />
           <Stat label="Duration" value={`${deal.durationMonths}mo`} />
           <div className="col-span-2 md:col-span-1">
@@ -555,6 +593,7 @@ export default function ManageDeal() {
 
       {(() => {
         if (!(deal.state === DealState.Proposed && (isBorrower || isLender) && deal.visibility === 1)) return null
+        const nowSec = BigInt(Math.floor(Date.now() / 1000))
         const active = (counterOffers ?? []).filter((o) => o.active)
         const terms = (o: { principal: bigint; collateral: bigint; rateBps: bigint; durationMonths: number }) => [
           { k: 'Amount', v: `$${formatUsdc(o.principal).replace(/\.00$/, '')} USDC`, was: o.principal !== deal.principal ? `$${formatUsdc(deal.principal).replace(/\.00$/, '')}` : null },
@@ -613,15 +652,19 @@ export default function ManageDeal() {
                               {changes.length === 0 ? 'Same terms as your order' : changes.map((t) => `${t.k} ${t.v}`).join(' · ')}
                             </p>
                           </button>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="shrink-0 flex items-center gap-1"
-                            disabled={isPending || isConfirming}
-                            onClick={() => { setExpandedOfferId(o.offerId); setConfirmOfferId(o.offerId) }}
-                          >
-                            <Check size={12} /> Accept
-                          </Button>
+                          {o.expiresAt < nowSec ? (
+                            <span className="shrink-0 text-[11px] px-2 py-1 rounded-full" style={{ background: 'var(--surface-muted)', color: 'var(--subtle)' }}>Expired</span>
+                          ) : (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="shrink-0 flex items-center gap-1"
+                              disabled={isPending || isConfirming}
+                              onClick={() => { setExpandedOfferId(o.offerId); setConfirmOfferId(o.offerId) }}
+                            >
+                              <Check size={12} /> Accept
+                            </Button>
+                          )}
                         </div>
                         {open && (
                           <div className="mt-2 rounded-lg p-2.5" style={{ background: 'var(--surface-muted)' }}>
@@ -642,6 +685,22 @@ export default function ManageDeal() {
                                 until the price rises or the deal is cancelled.
                               </p>
                             )}
+                            <div className="flex items-center justify-between gap-2 mt-2 text-[11px]" style={{ color: 'var(--subtle)' }}>
+                              <span>
+                                {o.expiresAt < nowSec
+                                  ? 'This offer has expired.'
+                                  : `Valid ${Math.max(1, Math.ceil(Number(o.expiresAt - nowSec) / 86400))} more day(s).`}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isPending || isConfirming}
+                                onClick={() => rejectOffer(o.offerId)}
+                                className="font-semibold cursor-pointer disabled:opacity-50"
+                                style={{ color: 'var(--danger)' }}
+                              >
+                                Decline offer
+                              </button>
+                            </div>
                             {confirmOfferId === o.offerId && (
                               <div className="mt-2 text-xs">
                                 <p className="mb-2" style={{ color: 'var(--ink)' }}>
@@ -739,6 +798,40 @@ export default function ManageDeal() {
             BTC price: {hasPrice ? `$${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'} ({priceSource}{priceStale ? ', stale' : ''}).
             Collateral is valued at the BTC price; new loans are blocked if cirBTC trades more than 2% away from it.
           </p>
+          {isBorrower && deal.state === DealState.Active && (() => {
+            const sats = parseBtc(topUp)
+            const allowanceOk = (cirBtcAllowance ?? 0n) >= sats
+            return (
+              <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-xs font-semibold mb-2" style={{ color: 'var(--ink)' }}>Add collateral</p>
+                <p className="text-[11px] mb-2" style={{ color: 'var(--subtle)' }}>
+                  Lower your LTV to avoid liquidation. The extra cirBTC is returned with the rest when you repay.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={topUp}
+                    onChange={(e) => setTopUp(e.target.value)}
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    placeholder="0.05"
+                    aria-label="cirBTC to add"
+                    className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm outline-none"
+                    style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', color: 'var(--ink)' }}
+                  />
+                  {allowanceOk ? (
+                    <Button variant="primary" size="sm" disabled={sats <= 0n || isPending || isConfirming} onClick={() => addCollateral(sats)}>
+                      Add cirBTC
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" size="sm" disabled={sats <= 0n || isPending || isConfirming} onClick={() => approveToken('cirBtc', sats - (cirBtcAllowance ?? 0n))}>
+                      Approve cirBTC
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
         </Card>
       )}
 

@@ -12,7 +12,8 @@ const STATUS: Record<OfferStatus, { label: string; className: string; note: stri
   pending: { label: 'Pending', className: 'bg-amber-900/40 text-amber-300', note: 'Waiting for the creator to choose an offer.' },
   accepted: { label: 'Accepted', className: 'bg-emerald-900/40 text-emerald-300', note: 'Your offer was chosen. Open the deal to continue.' },
   not_selected: { label: 'Not selected', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'The creator chose another offer.' },
-  expired: { label: 'Expired', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'The order expired before an offer was chosen.' },
+  expired: { label: 'Expired', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'The offer or the order expired before an offer was chosen.' },
+  declined: { label: 'Declined', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'The creator declined your offer.' },
   cancelled: { label: 'Order cancelled', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'The creator cancelled the order.' },
   withdrawn: { label: 'Cancelled by you', className: 'bg-[#2f2924] text-[#a58c7b]', note: 'You cancelled this offer.' },
 }
@@ -89,7 +90,7 @@ export default function MyOffersList({ offers, isLoading, reload }: { offers: My
       </div>
     )
   }
-  const order: OfferStatus[] = ['accepted', 'pending', 'not_selected', 'expired', 'cancelled', 'withdrawn']
+  const order: OfferStatus[] = ['accepted', 'pending', 'not_selected', 'declined', 'expired', 'cancelled', 'withdrawn']
   const sorted = [...offers].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))
   return (
     <div className="space-y-3">

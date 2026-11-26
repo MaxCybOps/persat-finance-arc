@@ -25,9 +25,10 @@ export function useReceivedOffers(deals: LiveDeal[]) {
     void Promise.all(open.map(async (d) => {
       try {
         const offers = (await client.readContract({
-          address: registry, abi: REGISTRY_ABI, functionName: 'getCounterOffers', args: [d.dealId],
-        } as any)) as readonly { active: boolean }[]
-        return [d.dealId.toLowerCase(), offers.filter((o) => o.active).length] as const
+          address: registry, abi: REGISTRY_ABI, functionName: 'getActiveCounterOffers', args: [d.dealId],
+        } as any)) as readonly { active: boolean; expiresAt: bigint }[]
+        const now = BigInt(Math.floor(Date.now() / 1000))
+        return [d.dealId.toLowerCase(), offers.filter((o) => o.active && o.expiresAt >= now).length] as const
       } catch {
         return [d.dealId.toLowerCase(), 0] as const
       }

@@ -24,6 +24,7 @@ import { getArcClient } from '../lib/arcClient'
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 const SCAN_PAGE = 100n
+const MIN_PRINCIPAL = 100_000_000n
 
 type RoleFilter = 'all' | 'borrow' | 'lend'
 
@@ -86,7 +87,8 @@ function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; 
   const collateralRaw = parseBtc(form.collateral)
   const rateBpsRaw = BigInt(Math.round(parseFloat(form.rateBps || '0') * 100))
   const duration = parseInt(form.durationMonths || '0')
-  const isValid = principalRaw > 0n && collateralRaw > 0n && rateBpsRaw > 0n && duration > 0 && duration <= 24
+  const isValid = principalRaw >= MIN_PRINCIPAL && collateralRaw > 0n && rateBpsRaw > 0n && duration > 0 && duration <= 24
+  const offerToLend = isBorrowRequest(order)
   const rltv = hasPrice ? computeRltv(collateralRaw, btcPrice, principalRaw, rateBpsRaw, duration) : 0
   const ltvTooHigh = hasPrice && rltv > maxPct
   const asPosted =
@@ -121,11 +123,12 @@ function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; 
         </div>
         <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
           Send the posted terms as they are, or change them. The creator of the order picks one offer. If yours is
-          chosen, the deal appears in your Dashboard, ready to activate.
+          chosen, the deal appears in your Dashboard, ready to activate. Your offer stays valid for 7 days unless you
+          cancel it.
         </p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
-            <Input label="Amount" suffix="USDC" placeholder="1000" value={form.principal} onChange={set('principal')} type="number" min="0" inputMode="decimal" />
+            <Input label="Amount" suffix="USDC" placeholder="1000" value={form.principal} onChange={set('principal')} type="number" min="100" inputMode="decimal" error={form.principal && principalRaw < MIN_PRINCIPAL ? 'Minimum 100 USDC.' : undefined} />
           </div>
           <div className="col-span-2 sm:col-span-1">
             <Input label="Collateral" suffix="cirBTC" placeholder="0.03" value={form.collateral} onChange={set('collateral')} type="number" min="0" inputMode="decimal" />
@@ -140,6 +143,13 @@ function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; 
               {hasPrice ? `${rltv.toFixed(1)}%` : 'BTC price unavailable'}
             </span>
           </div>
+        )}
+        {offerToLend && (
+          <p className="text-[11px] mb-3 p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd9a0' }}>
+            Binding offer: if the creator accepts it, the borrower can activate the loan right away. If your wallet has
+            already approved enough USDC for Persat, it is sent without another signature. The collateral is valued at the
+            BTC/USD price; a loss of cirBTC's 1:1 link to BTC during the loan would not be detected.
+          </p>
         )}
         {ltvTooHigh && (
           <p className="text-xs mb-3 p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
@@ -173,7 +183,7 @@ function OrderCard({ order, autoOpen = false }: { order: OpenOrder; autoOpen?: b
 
   const { data: offers, refetch: refetchOffers } = useReadContract({
     address: addresses.registry, abi: REGISTRY_ABI,
-    functionName: 'getCounterOffers', args: [order.dealId], chainId,
+    functionName: 'getActiveCounterOffers', args: [order.dealId], chainId,
   })
 
   // F-09: a proposer can withdraw their own counter-offer while the order is open
@@ -193,7 +203,8 @@ function OrderCard({ order, autoOpen = false }: { order: OpenOrder; autoOpen?: b
     void refetchOffers()
   }
 
-  const activeOffers = offers ? offers.filter((o) => o.active).length : 0
+  const nowSec = BigInt(Math.floor(Date.now() / 1000))
+  const activeOffers = offers ? offers.filter((o) => o.active && o.expiresAt >= nowSec).length : 0
   const me = address?.toLowerCase()
   const isOwn = !!me && (me === order.borrower.toLowerCase() || me === order.lender.toLowerCase())
   const myOffer = offers?.find((o) => o.active && me && o.proposer.toLowerCase() === me)
@@ -248,7 +259,11 @@ function OrderCard({ order, autoOpen = false }: { order: OpenOrder; autoOpen?: b
           ) : (
             myOffer ? (
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs" style={{ color: 'var(--success)' }}>Your offer is pending</span>
+                <span className="text-xs" style={{ color: myOffer.expiresAt < nowSec ? 'var(--subtle)' : 'var(--success)' }}>
+                  {myOffer.expiresAt < nowSec
+                    ? 'Your offer expired'
+                    : `Your offer is pending · ${Math.max(1, Math.ceil(Number(myOffer.expiresAt - nowSec) / 86400))} day(s) left`}
+                </span>
                 <Button variant="ghost" size="sm" className="flex items-center gap-1.5 border" style={{ borderColor: 'var(--border)' }} disabled={isWithdrawing} onClick={() => withdrawOffer(myOffer.offerId)}>
                   <X size={12} />
                   {isWithdrawing ? 'Cancelling…' : 'Cancel my offer'}
@@ -295,10 +310,11 @@ export default function Marketplace() {
     try {
       const read = (functionName: string, args: unknown[] = []) =>
         arcClient.readContract({ address: addresses.registry, abi: REGISTRY_ABI, functionName, args } as any) as Promise<any>
-      const count = (await read('publicDealCount')) as bigint
-      const offset = count > SCAN_PAGE ? count - SCAN_PAGE : 0n
-      const page = (await read('getPublicDeals', [offset, SCAN_PAGE])) as readonly `0x${string}`[]
-      const ids = [...new Set([...page].reverse().map((id) => normalizeDealId(id).toLowerCase()))] as `0x${string}`[]
+      const count = (await read('openPublicDealCount')) as bigint
+      const pages: Promise<readonly `0x${string}`[]>[] = []
+      for (let offset = 0n; offset < count; offset += SCAN_PAGE) pages.push(read('getOpenPublicDeals', [offset, SCAN_PAGE]))
+      const all = (await Promise.all(pages)).flat()
+      const ids = [...new Set(all.map((id) => normalizeDealId(id).toLowerCase()))] as `0x${string}`[]
 
       const rows = await Promise.all(ids.map(async (dealId) => {
         try {

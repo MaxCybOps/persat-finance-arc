@@ -42,6 +42,7 @@ interface Status {
     owner: `0x${string}`; pendingOwner: `0x${string}`; paused: boolean; feeBps: bigint; currentFeeBps: bigint
     pendingFeeBps: bigint; feeChangeEffectiveAt: bigint; feeRecipient: `0x${string}`; claimableUsdc: bigint
     claimableCirBtc: bigint; lastTokenPauseAt: bigint; pegGuard: `0x${string}`; stalenessThreshold: bigint
+    liquidationsPausedUntil: bigint
   }
   oracle: { price: number; age: number } | null
   peg: number | null
@@ -91,6 +92,16 @@ const ACTIONS: ActionDef[] = [
       const n = Number(v.bps)
       if (!Number.isInteger(n) || n < 0 || n > 50) return 'Enter a whole number between 0 and 50.'
       return { fn: `setFeeBps(${n})`, abi: VAULT_ABI, functionName: 'setFeeBps', args: [BigInt(n)] }
+    },
+  },
+  {
+    id: 'vault.pauseLiquidations', target: 'vault', actor: 'owner', title: 'Pause liquidations (emergency)',
+    help: 'For an oracle or market incident. At most 24 hours, followed by a 6-hour grace period so borrowers can repay or add collateral. A new pause is only possible 3 days after the previous one ends.',
+    fields: [{ key: 'hours', label: 'Duration (hours)', placeholder: '4', hint: '1 to 24 hours' }],
+    build: (v) => {
+      const h = Number(v.hours)
+      if (!Number.isInteger(h) || h < 1 || h > 24) return 'Enter a whole number of hours between 1 and 24.'
+      return { fn: `pauseLiquidations(${h * 3600})`, abi: VAULT_ABI, functionName: 'pauseLiquidations', args: [BigInt(h * 3600)] }
     },
   },
   {
@@ -207,13 +218,14 @@ export default function Admin() {
       const v = addresses.vault
       const rd = (address: `0x${string}`, abi: any, functionName: string, args: any[] = []) =>
         client.readContract({ address, abi, functionName, args } as any) as Promise<any>
-      const [rOwner, rPending, rPaused, rVault, vOwner, vPending, vPaused, fee, curFee, pendFee, feeAt, feeTo, clU, clC, lastPause, peg, stale] =
+      const [rOwner, rPending, rPaused, rVault, vOwner, vPending, vPaused, fee, curFee, pendFee, feeAt, feeTo, clU, clC, lastPause, peg, stale, liqUntil] =
         await Promise.all([
           rd(r, REGISTRY_ABI, 'owner'), rd(r, OWNABLE2STEP_ABI, 'pendingOwner'), rd(r, REGISTRY_ABI, 'paused'), rd(r, REGISTRY_ABI, 'vault'),
           rd(v, VAULT_ABI, 'owner'), rd(v, OWNABLE2STEP_ABI, 'pendingOwner'), rd(v, VAULT_ABI, 'paused'),
           rd(v, VAULT_ABI, 'feeBps'), rd(v, VAULT_ABI, 'currentFeeBps'), rd(v, VAULT_ABI, 'pendingFeeBps'), rd(v, VAULT_ABI, 'feeChangeEffectiveAt'),
           rd(v, VAULT_ABI, 'feeRecipient'), rd(v, VAULT_ABI, 'totalClaimable', [addresses.usdc]), rd(v, VAULT_ABI, 'totalClaimable', [addresses.cirBtc]),
           rd(v, VAULT_ABI, 'lastTokenPauseAt'), rd(v, VAULT_ABI, 'pegGuard'), rd(v, VAULT_ABI, 'stalenessThreshold'),
+          rd(v, VAULT_ABI, 'liquidationsPausedUntil'),
         ])
       let oracle: Status['oracle'] = null
       try {
@@ -229,7 +241,7 @@ export default function Admin() {
         registry: { owner: rOwner, pendingOwner: rPending, paused: rPaused, vault: rVault },
         vault: {
           owner: vOwner, pendingOwner: vPending, paused: vPaused, feeBps: fee, currentFeeBps: curFee, pendingFeeBps: pendFee,
-          feeChangeEffectiveAt: feeAt, feeRecipient: feeTo, claimableUsdc: clU, claimableCirBtc: clC, lastTokenPauseAt: lastPause,
+          feeChangeEffectiveAt: feeAt, feeRecipient: feeTo, claimableUsdc: clU, claimableCirBtc: clC, lastTokenPauseAt: lastPause, liquidationsPausedUntil: liqUntil,
           pegGuard: peg, stalenessThreshold: stale,
         },
         oracle,
@@ -389,6 +401,12 @@ export default function Admin() {
             <Row k="USDC credited" v={formatUnits(status.vault.claimableUsdc, 6)} />
             <Row k="cirBTC credited" v={formatUnits(status.vault.claimableCirBtc, 8)} />
             <Row k="Last token pause recorded" v={fmtTime(status.vault.lastTokenPauseAt)} />
+            <Row
+              k="Liquidations"
+              v={status.vault.liquidationsPausedUntil > BigInt(Math.floor(Date.now() / 1000))
+                ? `Paused until ${fmtTime(status.vault.liquidationsPausedUntil)} (grace included)`
+                : 'Open'}
+            />
             <p className="text-xs mt-2" style={{ color: 'var(--subtle)' }}>
               Payments that could not be delivered (freeze or pause). They belong to users and cannot be recovered by the owner.
             </p>

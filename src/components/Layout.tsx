@@ -2,7 +2,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ConnectKitButton } from 'connectkit'
 import { useAccount, useChainId } from 'wagmi'
-import { LayoutDashboard, Plus, ShoppingCart, Settings, Wifi, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Plus, ShoppingCart, Settings, Wifi, Menu, X, ShieldCheck } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { addArcNetwork } from '../lib/networkUtils'
 import { useEffect, useState } from 'react'
@@ -166,6 +166,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {addingNetwork ? 'Adding...' : 'Add Arc Network'}
               </button>
             )}
+            <Link
+              to="/security"
+              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-['Space_Grotesk'] font-bold no-underline text-[#ddc1ae] hover:bg-[#241f1a]"
+            >
+              <ShieldCheck size={18} />
+              Security
+            </Link>
             <a
               href={STUDIO_URL}
               target="_blank"

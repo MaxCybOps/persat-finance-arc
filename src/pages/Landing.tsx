@@ -1435,6 +1435,12 @@ export default function Landing() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <Link
+                to="/security"
+                className="font-['Space_Grotesk'] text-xs text-[#ddc1ae] hover:text-[#ff8a00] transition-colors no-underline"
+              >
+                Security
+              </Link>
               <a
                 href={`https://explorer.arc.io/address/${MAINNET_REGISTRY_ADDRESS}`}
                 target="_blank"

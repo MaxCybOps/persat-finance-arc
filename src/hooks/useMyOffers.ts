@@ -6,8 +6,9 @@ import { getAddresses, ARC_MAINNET_CHAIN_ID } from '../contracts/addresses'
 import { DealState, normalizeDealId } from '../lib/utils'
 
 const SCAN_PAGE = 100n
+const OFFER_PAGE = 200n
 
-export type OfferStatus = 'pending' | 'accepted' | 'not_selected' | 'expired' | 'cancelled' | 'withdrawn'
+export type OfferStatus = 'pending' | 'accepted' | 'not_selected' | 'expired' | 'cancelled' | 'withdrawn' | 'declined'
 
 export interface MyOffer {
   dealId: `0x${string}`
@@ -44,18 +45,25 @@ export function useMyOffers() {
 
       const perDeal = await Promise.all(ids.map(async (dealId) => {
         try {
-          const list = (await read('getCounterOffers', [dealId])) as any[]
+          const total = (await read('counterOfferCount', [dealId])) as bigint
+          const from = total > OFFER_PAGE ? total - OFFER_PAGE : 0n
+          const list = (await read('getCounterOffersPage', [dealId, from, OFFER_PAGE])) as any[]
           const mine = list.filter((o) => o.proposer.toLowerCase() === me)
           if (mine.length === 0) return []
-          const [deal, expired] = await Promise.all([read('getDeal', [dealId]), read('isExpired', [dealId])])
+          const [deal, expired, declined] = await Promise.all([
+            read('getDeal', [dealId]), read('isExpired', [dealId]), read('rejectedProposer', [dealId, address]),
+          ])
+          const now = BigInt(Math.floor(Date.now() / 1000))
           const iAmParty = deal.borrower.toLowerCase() === me || deal.lender.toLowerCase() === me
           const side: 'lend' | 'borrow' = deal.borrower !== '0x0000000000000000000000000000000000000000' ? 'lend' : 'borrow'
           return mine.map((o): MyOffer => {
             let status: OfferStatus
-            if (deal.state === DealState.Cancelled) status = 'cancelled'
+            if (declined && !o.active && !iAmParty) status = 'declined'
+            else if (deal.state === DealState.Cancelled) status = 'cancelled'
             else if (deal.state !== DealState.Proposed) status = iAmParty ? 'accepted' : 'not_selected'
-            else if (expired) status = 'expired'
-            else status = o.active ? 'pending' : 'withdrawn'
+            else if (expired || (o.active && o.expiresAt < now)) status = 'expired'
+            else if (o.active) status = 'pending'
+            else status = 'withdrawn'
             return {
               dealId, offerId: o.offerId, principal: o.principal, collateral: o.collateral,
               rateBps: o.rateBps, durationMonths: Number(o.durationMonths), side, status,

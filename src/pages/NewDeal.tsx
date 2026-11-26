@@ -190,7 +190,7 @@ export default function NewDeal() {
   const ltvTooHigh = hasPrice && rltvEst > maxInitPct
 
   const isValid =
-    principalRaw > 0n &&
+    principalRaw >= 100_000_000n &&
     collateralRaw > 0n &&
     rateBpsRaw > 0n &&
     duration > 0 &&
@@ -339,7 +339,7 @@ export default function NewDeal() {
         <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
           {role === 'borrower'
             ? 'You lock cirBTC as collateral and receive USDC.'
-            : "You provide USDC and earn interest. Your loan is secured by the borrower's cirBTC."}
+            : "You provide USDC and earn interest. Your loan is secured by the borrower's cirBTC, valued at the BTC/USD price: a loss of cirBTC's 1:1 link to BTC during the loan would not be detected."}
         </p>
       </Card>
 
@@ -347,7 +347,7 @@ export default function NewDeal() {
       <Card className="mb-4 flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
           <div className="col-span-2 sm:col-span-1">
-            <Input label={role === 'borrower' ? 'Amount to borrow' : 'Amount to lend'} placeholder="1000" suffix="USDC" value={form.principal} onChange={set('principal')} type="number" min="0" inputMode="decimal" />
+            <Input label={role === 'borrower' ? 'Amount to borrow' : 'Amount to lend'} placeholder="1000" suffix="USDC" value={form.principal} onChange={set('principal')} type="number" min="100" inputMode="decimal" error={form.principal && principalRaw > 0n && principalRaw < 100_000_000n ? 'Minimum 100 USDC.' : undefined} />
           </div>
           <div className="col-span-2 sm:col-span-1">
             <Input label={role === 'borrower' ? 'Your collateral' : 'Collateral required'} placeholder="0.03" suffix="cirBTC" value={form.collateral} onChange={set('collateral')} type="number" min="0" inputMode="decimal" hint={role === 'borrower' ? 'cirBTC is Bitcoin issued by Circle on Arc, backed 1:1. Only have BTC? The app helps you convert it.' : 'cirBTC is Bitcoin issued by Circle on Arc, backed 1:1. The borrower locks it in escrow.'} />
