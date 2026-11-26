@@ -25,7 +25,6 @@ export function isBitcoinMainnetAddress(a: string): boolean {
   return /^[13][1-9A-HJ-NP-Za-km-z]{25,34}$/.test(v)
 }
 
-const trimBtc = (raw: bigint) => formatBtc(raw).replace(/\.?0+$/, '')
 
 export function useCirBtcBalance() {
   const { address, addresses } = useArcNetwork()
@@ -44,7 +43,7 @@ export function useCirBtcBalance() {
 function ConvertModal({ balance, onClose, onCompleted }: { balance: bigint; onClose: () => void; onCompleted: () => void }) {
   const { addresses } = useArcNetwork()
   const maxSats = balance < ROUTE_CAP_SATS ? balance : ROUTE_CAP_SATS
-  const [amount, setAmount] = useState(trimBtc(maxSats))
+  const [amount, setAmount] = useState(formatBtc(maxSats))
   const [btcAddress, setBtcAddress] = useState('')
   const [checked, setChecked] = useState(false)
   const [step, setStep] = useState<'form' | 'route'>('form')
@@ -53,8 +52,8 @@ function ConvertModal({ balance, onClose, onCompleted }: { balance: bigint; onCl
   const addressOk = isBitcoinMainnetAddress(btcAddress)
   const amountError =
     sats <= 0n ? null
-    : sats > balance ? `You only have ${trimBtc(balance)} cirBTC available.`
-    : sats > ROUTE_CAP_SATS ? `At most ${trimBtc(ROUTE_CAP_SATS)} cirBTC per conversion. Convert the rest in another step.`
+    : sats > balance ? `You only have ${formatBtc(balance)} cirBTC available.`
+    : sats > ROUTE_CAP_SATS ? `At most ${formatBtc(ROUTE_CAP_SATS)} cirBTC per conversion. Convert the rest in another step.`
     : null
   const canContinue = sats > 0n && !amountError && addressOk && checked
 
@@ -77,15 +76,15 @@ function ConvertModal({ balance, onClose, onCompleted }: { balance: bigint; onCl
               <button onClick={onClose} aria-label="Close" className="p-1 cursor-pointer"><X size={16} style={{ color: 'var(--subtle)' }} /></button>
             </div>
             <p className="text-xs mb-4" style={{ color: 'var(--subtle)' }}>
-              Receive native bitcoin on the Bitcoin network. Available in your wallet: <strong style={{ color: 'var(--ink)' }}>{trimBtc(balance)} cirBTC</strong>.
+              Receive native bitcoin on the Bitcoin network. Available in your wallet: <strong style={{ color: 'var(--ink)' }}>{formatBtc(balance)} cirBTC</strong>.
               Collateral locked in a loan is not included.
             </p>
 
             <div className="flex flex-col gap-4 mb-4">
               <div>
                 <Input label="Amount" suffix="cirBTC" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" inputMode="decimal" error={amountError ?? undefined} />
-                <button type="button" onClick={() => setAmount(trimBtc(maxSats))} className="mt-1 text-[11px] font-semibold cursor-pointer" style={{ color: 'var(--accent)' }}>
-                  Use max ({trimBtc(maxSats)})
+                <button type="button" onClick={() => setAmount(formatBtc(maxSats))} className="mt-1 text-[11px] font-semibold cursor-pointer" style={{ color: 'var(--accent)' }}>
+                  Use max ({formatBtc(maxSats)})
                 </button>
               </div>
               <Input

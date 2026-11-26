@@ -190,6 +190,16 @@ export default function ManageDeal() {
     query: { enabled: !!address && (deal?.state === DealState.Confirmed || isOpenLoan) },
   })
 
+  const isConfirmedDeal = deal?.state === DealState.Confirmed
+  const partyRead = (token: `0x${string}`, functionName: 'allowance' | 'balanceOf', args: readonly unknown[]) => ({
+    address: token, abi: ERC20_APPROVE_ABI, functionName, args, chainId,
+    query: { enabled: isConfirmedDeal, refetchInterval: 15_000 },
+  }) as any
+  const { data: lenderUsdcAllowance, refetch: refetchLenderAllowance } = useReadContract(partyRead(addresses.usdc, 'allowance', [deal?.lender ?? ZERO, addresses.vault]))
+  const { data: lenderUsdcBalance } = useReadContract(partyRead(addresses.usdc, 'balanceOf', [deal?.lender ?? ZERO]))
+  const { data: borrowerBtcAllowance, refetch: refetchBorrowerAllowance } = useReadContract(partyRead(addresses.cirBtc, 'allowance', [deal?.borrower ?? ZERO, addresses.vault]))
+  const { data: borrowerBtcBalance } = useReadContract(partyRead(addresses.cirBtc, 'balanceOf', [deal?.borrower ?? ZERO]))
+
   const { data: counterOffers, refetch: refetchOffers } = useReadContract({
     address: addresses.registry,
     abi: REGISTRY_ABI,
@@ -241,6 +251,8 @@ export default function ManageDeal() {
       void refetchClaimUsdc()
       void refetchClaimBtc()
       void refetchLocked()
+      void refetchLenderAllowance()
+      void refetchBorrowerAllowance()
       toast.success('Transaction confirmed')
     }
   }, [isSuccess, refetch, refetchOffers, refetchDue, refetchUsdcAllowance, refetchCirBtcAllowance, refetchClaimUsdc, refetchClaimBtc])
@@ -304,11 +316,6 @@ export default function ManageDeal() {
     return undefined
   })()
 
-  const needsCirBtcApproval = isBorrower && deal.state === DealState.Confirmed &&
-    (cirBtcAllowance === undefined || cirBtcAllowance < deal.collateral)
-  const needsUsdcApproval = isLender && deal.state === DealState.Confirmed &&
-    (usdcAllowance === undefined || usdcAllowance < deal.principal)
-
   const dueNow = amountDue ?? total
   const repayApprovalAmount = total + (deal.principal * LATE_FEE_BPS) / 10_000n
   const needsRepayApproval = isBorrower && isOpenLoan &&
@@ -343,6 +350,20 @@ export default function ManageDeal() {
   const isPastGrace = opensAt !== null && PAGE_LOAD_SEC > opensAt
   const deadlineTs = activationDeadline !== undefined && activationDeadline > 0n ? Number(activationDeadline) : null
   const activationClosed = deadlineTs !== null && PAGE_LOAD_SEC > deadlineTs
+
+  const lenderApproved = ((lenderUsdcAllowance as bigint | undefined) ?? 0n) >= deal.principal
+  const lenderFunded = ((lenderUsdcBalance as bigint | undefined) ?? 0n) >= deal.principal
+  const borrowerApproved = ((borrowerBtcAllowance as bigint | undefined) ?? 0n) >= deal.collateral
+  const borrowerFunded = ((borrowerBtcBalance as bigint | undefined) ?? 0n) >= deal.collateral
+  const lenderReady = lenderApproved && lenderFunded
+  const borrowerReady = borrowerApproved && borrowerFunded
+  const deadlineText = (() => {
+    if (deadlineTs === null) return ''
+    const left = Math.max(0, deadlineTs - Math.floor(Date.now() / 1000))
+    const h = Math.floor(left / 3600)
+    const m = Math.floor((left % 3600) / 60)
+    return `${h > 0 ? `${h} h ` : ''}${m} min left, until ${new Date(deadlineTs * 1000).toLocaleString()}`
+  })()
 
   const hasClaimable = (claimableUsdc ?? 0n) > 0n || (claimableCirBtc ?? 0n) > 0n
 
@@ -473,7 +494,7 @@ export default function ManageDeal() {
           </div>
         </div>
         <Badge className={`shrink-0 ${dealStateColor(deal.state)}`}>
-          {isExpired ? 'Expired' : dealStateLabel(deal.state)}
+          {isExpired || (isConfirmedDeal && activationClosed) ? 'Expired' : dealStateLabel(deal.state)}
         </Badge>
       </div>
 
@@ -527,11 +548,11 @@ export default function ManageDeal() {
           {isOpenLoan && lockedCollateral !== undefined && lockedCollateral > deal.collateral ? (
             <Stat
               label="Collateral"
-              value={`${formatBtc(lockedCollateral).replace(/\.?0+$/, '')} cirBTC`}
-              sub={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} at start, then added`}
+              value={`${formatBtc(lockedCollateral)} cirBTC`}
+              sub={`${formatBtc(deal.collateral)} at start, then added`}
             />
           ) : (
-            <Stat label="Collateral" value={`${formatBtc(deal.collateral).replace(/\.?0+$/, '')} cirBTC`} />
+            <Stat label="Collateral" value={`${formatBtc(deal.collateral)} cirBTC`} />
           )}
           <Stat label="Rate" value={formatBps(deal.rateBps)} sub="per year" />
           <Stat label="Duration" value={`${deal.durationMonths}mo`} />
@@ -582,7 +603,7 @@ export default function ManageDeal() {
           )}
           {deal.state === DealState.Confirmed && deadlineTs !== null && (
             <div className="flex justify-between items-center">
-              <span style={{ color: 'var(--subtle)' }}>Activate before</span>
+              <span style={{ color: 'var(--subtle)' }}>Start before</span>
               <span className="text-xs" style={{ color: activationClosed ? 'var(--danger)' : 'var(--muted)' }}>
                 {new Date(deadlineTs * 1000).toLocaleString()} {activationClosed ? '(window closed)' : ''}
               </span>
@@ -597,7 +618,7 @@ export default function ManageDeal() {
         const active = (counterOffers ?? []).filter((o) => o.active)
         const terms = (o: { principal: bigint; collateral: bigint; rateBps: bigint; durationMonths: number }) => [
           { k: 'Amount', v: `$${formatUsdc(o.principal).replace(/\.00$/, '')} USDC`, was: o.principal !== deal.principal ? `$${formatUsdc(deal.principal).replace(/\.00$/, '')}` : null },
-          { k: 'Collateral', v: `${formatBtc(o.collateral).replace(/\.?0+$/, '')} cirBTC`, was: o.collateral !== deal.collateral ? formatBtc(deal.collateral).replace(/\.?0+$/, '') : null },
+          { k: 'Collateral', v: `${formatBtc(o.collateral)} cirBTC`, was: o.collateral !== deal.collateral ? formatBtc(deal.collateral) : null },
           { k: 'Annual rate', v: formatBps(o.rateBps), was: o.rateBps !== deal.rateBps ? formatBps(deal.rateBps) : null },
           { k: 'Duration', v: `${o.durationMonths} month${o.durationMonths > 1 ? 's' : ''}`, was: o.durationMonths !== deal.durationMonths ? `${deal.durationMonths}` : null },
         ]
@@ -824,8 +845,8 @@ export default function ManageDeal() {
                       Add cirBTC
                     </Button>
                   ) : (
-                    <Button variant="secondary" size="sm" disabled={sats <= 0n || isPending || isConfirming} onClick={() => approveToken('cirBtc', sats - (cirBtcAllowance ?? 0n))}>
-                      Approve cirBTC
+                    <Button variant="primary" size="sm" disabled={sats <= 0n || isPending || isConfirming} onClick={() => approveToken('cirBtc', sats - (cirBtcAllowance ?? 0n))}>
+                      Step 1 of 2 · Approve
                     </Button>
                   )}
                 </div>
@@ -865,7 +886,7 @@ export default function ManageDeal() {
             onClick={cancelDeal}
           >
             <XCircle size={13} />
-            Cancel Deal
+            {isConfirmedDeal && activationClosed ? 'Close this deal' : 'Cancel Deal'}
           </Button>
         )}
         {isCreatorWaiting && (
@@ -876,89 +897,140 @@ export default function ManageDeal() {
           </Link>
         )}
 
-        {deal.state === DealState.Confirmed && isBorrower && (
+        {deal.state === DealState.Confirmed && (isBorrower || isLender) && activationClosed && (
+          <Card>
+            <p className="font-semibold text-sm mb-1" style={{ color: 'var(--ink)' }}>Not started in time</p>
+            <p className="text-xs" style={{ color: 'var(--subtle)' }}>
+              The loan had to start within 24 hours of the deal being accepted. No funds moved. Close this deal, then create
+              a new one if you still want this loan.
+            </p>
+          </Card>
+        )}
+
+        {deal.state === DealState.Confirmed && (isBorrower || isLender) && !activationClosed && (
+          <Card>
+            <p className="font-semibold text-sm" style={{ color: 'var(--ink)' }}>Start the loan</p>
+            <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>{deadlineText}</p>
+            <ol className="flex flex-col gap-2 mb-3">
+              {[
+                {
+                  who: isLender ? 'You (lender)' : 'Lender',
+                  what: `${isLender ? 'approve' : 'approves'} $${formatUsdc(deal.principal).replace(/\.00$/, '')} USDC`,
+                  done: lenderReady,
+                  note: lenderApproved && !lenderFunded ? 'approved, but the wallet holds less than this amount' : 'waiting',
+                },
+                {
+                  who: isBorrower ? 'You (borrower)' : 'Borrower',
+                  what: `${isBorrower ? 'approve' : 'approves'} ${formatBtc(deal.collateral)} cirBTC`,
+                  done: borrowerReady,
+                  note: borrowerApproved && !borrowerFunded ? 'approved, but the wallet holds less than this amount' : 'waiting',
+                },
+              ].map((step) => (
+                <li key={step.who} className="flex items-start gap-2 text-xs">
+                  <span
+                    className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                    style={{ background: step.done ? 'var(--success)' : 'transparent', border: step.done ? 'none' : '1px solid var(--border)' }}
+                  >
+                    {step.done && <Check size={10} color="#17120f" />}
+                  </span>
+                  <span style={{ color: 'var(--muted)' }}>
+                    <strong style={{ color: 'var(--ink)' }}>{step.who}</strong> {step.what}
+                    {!step.done && <span style={{ color: 'var(--subtle)' }}> · {step.note}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs" style={{ color: 'var(--subtle)' }}>
+              Approving moves nothing. Once both are done, either of you can start the loan: the cirBTC goes to escrow and
+              the USDC goes to the borrower in the same transaction, so nobody sends funds first.
+            </p>
+          </Card>
+        )}
+
+        {deal.state === DealState.Confirmed && isLender && !activationClosed && !lenderApproved && (
           <>
-            <GetFundsPanel
-              need="cirBtc"
-              required={deal.collateral}
-              title="Need cirBTC for the collateral?"
-            />
-            {needsCirBtcApproval && (
-              <Button
-                variant="secondary"
-                size="lg"
-                className="w-full"
-                disabled={isPending || isConfirming || activationClosed}
-                onClick={() => approveToken('cirBtc', deal.collateral)}
-              >
-                <ShieldCheck size={15} />
-                Approve cirBTC for Vault
-              </Button>
-            )}
-            {!needsCirBtcApproval && needsUsdcApproval && (
+            <GetFundsPanel need="usdc" required={deal.principal} title="Need USDC on Arc to fund this loan?" />
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={isPending || isConfirming}
+              onClick={() => approveToken('usdc', deal.principal)}
+            >
+              <ShieldCheck size={15} />
+              Step 1 of 2 · Approve ${formatUsdc(deal.principal).replace(/\.00$/, '')} USDC
+            </Button>
+          </>
+        )}
+
+        {deal.state === DealState.Confirmed && isBorrower && !activationClosed && !borrowerApproved && (
+          <>
+            <GetFundsPanel need="cirBtc" required={deal.collateral} title="Need cirBTC for the collateral?" />
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={isPending || isConfirming}
+              onClick={() => approveToken('cirBtc', deal.collateral)}
+            >
+              <ShieldCheck size={15} />
+              Step 1 of 2 · Approve {formatBtc(deal.collateral)} cirBTC
+            </Button>
+          </>
+        )}
+
+        {deal.state === DealState.Confirmed && !activationClosed && ((isLender && lenderApproved) || (isBorrower && borrowerApproved)) && (
+          <>
+            {!(lenderReady && borrowerReady) && (
               <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
-                Waiting for lender to approve USDC...
+                {(isLender ? lenderReady : borrowerReady)
+                  ? `Done on your side. Nothing leaves your wallet until the loan starts. Waiting for the ${isLender ? 'borrower to approve the cirBTC' : 'lender to approve the USDC'}; you can cancel until then.`
+                  : 'Your approval is in place, but your wallet holds less than the amount needed. Top it up to start the loan.'}
               </p>
             )}
             <Button
               variant="primary"
               size="lg"
               className="w-full"
-              disabled={needsCirBtcApproval || isPending || isConfirming || activationClosed}
+              disabled={!(lenderReady && borrowerReady) || isPending || isConfirming}
               onClick={() => dispatch('activateLoan')}
             >
               <Zap size={15} />
-              {activationClosed ? 'Activation window closed' : 'Activate Loan'}
+              Step 2 of 2 · Start the loan
             </Button>
             <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
-              Activation requires a loan-to-value of at most {maxInitPct}% at the current BTC price and must happen within
-              72 hours of the deal being confirmed. The principal (minus the protocol fee) is sent straight to your wallet.
+              {isBorrower
+                ? 'The principal (minus the protocol fee) is sent straight to your wallet.'
+                : `$${formatUsdc(deal.principal).replace(/\.00$/, '')} USDC leaves your wallet; the borrower receives it minus the protocol fee.`}
+              {` The loan-to-value must be at most ${maxInitPct}% at the current BTC price.`}
             </p>
             {feeLine && <p className="text-xs text-center" style={{ color: feeChanging ? '#f59e0b' : 'var(--subtle)' }}>{feeLine}</p>}
           </>
         )}
 
-        {deal.state === DealState.Confirmed && isLender && (
-          <>
-            <GetFundsPanel need="usdc" required={deal.principal} title="Need USDC on Arc to fund this loan?" />
-            {needsUsdcApproval && (
-              <Button
-                variant="secondary"
-                size="lg"
-                className="w-full"
-                disabled={isPending || isConfirming || activationClosed}
-                onClick={() => approveToken('usdc', deal.principal)}
-              >
-                <ShieldCheck size={15} />
-                Approve USDC for Vault
-              </Button>
-            )}
-          </>
-        )}
-
         {needsRepayApproval && (
           <Button
-            variant="secondary"
+            variant="primary"
             size="lg"
             className="w-full"
             disabled={isPending || isConfirming}
             onClick={() => approveToken('usdc', repayApprovalAmount)}
           >
             <ShieldCheck size={15} />
-            Approve USDC for Repayment
+            Step 1 of 2 · Approve USDC for repayment
           </Button>
         )}
 
         {isOpenLoan && isBorrower && (
           <Button
-            variant={deal.state === DealState.Defaulted ? 'danger' : 'secondary'}
+            variant={deal.state === DealState.Defaulted ? 'danger' : 'primary'}
             size="lg"
             className="w-full"
             disabled={needsRepayApproval || isPending || isConfirming}
             onClick={() => dispatch('repayLoan')}
           >
             <RotateCcw size={15} />
-            Repay ${formatUsdc(dueNow)}{isPastMaturity ? ' (incl. late fee if due)' : ''}
+            {needsRepayApproval ? 'Step 2 of 2 · ' : ''}Repay ${formatUsdc(dueNow)}{isPastMaturity ? ' (incl. late fee if due)' : ''}
           </Button>
         )}
 
@@ -977,14 +1049,14 @@ export default function ManageDeal() {
 
         {isOpenLoan && needsLiquidationApproval && (
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             className="w-full"
             disabled={isPending || isConfirming}
             onClick={() => approveToken('usdc', dueNow)}
           >
             <ShieldCheck size={13} />
-            Approve up to ${formatUsdc(dueNow)} USDC to liquidate
+            Step 1 of 2 · Approve up to ${formatUsdc(dueNow)} USDC to liquidate
           </Button>
         )}
 

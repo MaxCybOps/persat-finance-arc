@@ -42,13 +42,14 @@ export function Button({
   size = 'md',
   className,
   disabled,
+  style,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
 }) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all disabled:cursor-not-allowed'
   const sizes = { sm: 'px-3 py-1.5 text-xs sm:text-sm whitespace-nowrap', md: 'px-4 py-2 text-sm text-center', lg: 'px-5 py-2.5 text-sm sm:px-6 sm:py-3 sm:text-base text-center' }
   const variants = {
     primary: 'text-[#0d1b2f]',
@@ -62,10 +63,12 @@ export function Button({
     danger: { background: 'var(--danger)', color: '#fff' },
     ghost: { background: 'transparent', color: 'var(--subtle)' },
   }
+  // A disabled button looks the same whatever its variant, so the one action you can take is the only coloured one.
+  const disabledStyle: React.CSSProperties = { background: 'transparent', border: '1px dashed var(--border)', color: 'var(--subtle)', opacity: 0.7 }
   return (
     <button
       className={cn(base, sizes[size], variants[variant], className)}
-      style={styles[variant]}
+      style={disabled ? { ...styles[variant], ...style, ...disabledStyle } : { ...styles[variant], ...style }}
       disabled={disabled}
       {...props}
     >

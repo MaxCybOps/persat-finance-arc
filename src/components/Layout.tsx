@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { FloatingChatDrawer } from './FloatingChatDrawer'
 import { StudioLogo, STUDIO_URL } from './StudioBadge'
 import { useIsAdmin } from '../hooks/useIsAdmin'
+import { useArcNetwork } from '../hooks/useArcNetwork'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -27,6 +28,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [addingNetwork, setAddingNetwork] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const { isAdmin } = useIsAdmin()
+  const { addresses } = useArcNetwork()
   const links = isAdmin ? [...NAV, ADMIN_LINK] : NAV
 
   useEffect(() => { setMenuOpen(false) }, [pathname])
@@ -166,13 +168,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {addingNetwork ? 'Adding...' : 'Add Arc Network'}
               </button>
             )}
-            <Link
-              to="/security"
-              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-['Space_Grotesk'] font-bold no-underline text-[#ddc1ae] hover:bg-[#241f1a]"
-            >
-              <ShieldCheck size={18} />
-              Security
-            </Link>
             <a
               href={STUDIO_URL}
               target="_blank"
@@ -187,7 +182,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Content */}
-      <main className="flex-1 pb-20 md:pb-8">{children}</main>
+      <main className="flex-1 pb-8">{children}</main>
+
+      <footer className="border-t border-[#564334]/30 px-4 sm:px-6 pt-5 pb-24 md:pb-8">
+        <div className="max-w-6xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 text-xs text-[#a58c7b]">
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="Footer">
+            <Link to="/security" className="flex items-center gap-1.5 no-underline text-[#ddc1ae] hover:text-[#ff8a00]">
+              <ShieldCheck size={13} /> Security & risks
+            </Link>
+            <a href={`https://explorer.arc.io/address/${addresses.registry}`} target="_blank" rel="noopener noreferrer" className="no-underline text-[#ddc1ae] hover:text-[#ff8a00]">
+              Contracts on Arc
+            </a>
+            <Link to="/#faq" className="no-underline text-[#ddc1ae] hover:text-[#ff8a00]">FAQ</Link>
+          </nav>
+          <span>Persat Beta · not audited · Arc (chain ID 5042)</span>
+        </div>
+      </footer>
 
       <FloatingChatDrawer />
     </div>

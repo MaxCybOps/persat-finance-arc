@@ -42,8 +42,7 @@ export function parseUsdc(display: string): bigint {
 
 /** Format cirBTC amount (8 decimals) to display string */
 export function formatBtc(raw: bigint): string {
-  const n = Number(raw) / 1e8
-  return n.toFixed(8)
+  return (Number(raw) / 1e8).toFixed(8).replace(/\.?0+$/, '')
 }
 
 /** Parse cirBTC display string to raw bigint (8 decimals) */
@@ -204,6 +203,7 @@ export function parseOnchainError(error: unknown): string {
     return 'Insufficient balance to cover this transaction.'
   if (msg.includes('dealnotactive')) return 'Deal is not in the required state.'
   if (msg.includes('notborrower')) return 'Only the borrower can call this function.'
+  if (msg.includes('notdealparty')) return 'Only the borrower or the lender of this deal can start the loan.'
   if (msg.includes('termshash')) return 'Deal terms have changed — please refresh.'
   if (msg.includes('ltvhealthy')) return 'LTV is healthy — liquidation not available.'
   if (msg.includes('oraclestale')) return 'Price oracle is stale. Try again shortly.'
@@ -222,7 +222,7 @@ export function parseOnchainError(error: unknown): string {
   if (msg.includes('nothingtowithdraw')) return 'Nothing to withdraw.'
   if (msg.includes('blacklisted')) return 'This address is frozen by the token issuer. Funds stay credited and can be withdrawn once it is unfrozen.'
   if (msg.includes('dealexpired')) return 'This offer has expired (30 days). Ask for a new one.'
-  if (msg.includes('activationwindowclosed')) return 'The 72-hour activation window has closed. Cancel and create a new deal.'
+  if (msg.includes('activationwindowclosed')) return 'The 24-hour window to start the loan has closed. Cancel and create a new deal.'
   if (msg.includes('activeofferexists')) return 'You already have an active offer on this order. Cancel it first.'
   if (msg.includes('principaltoolow')) return 'The minimum amount is 100 USDC.'
   if (msg.includes('offerexpired')) return 'This offer expired (offers last 7 days). Ask for a new one.'

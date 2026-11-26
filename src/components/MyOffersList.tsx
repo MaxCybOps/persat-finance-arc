@@ -43,7 +43,7 @@ function OfferRow({ offer, onChanged }: { offer: MyOffer; onChanged: () => void 
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${s.className}`}>{s.label}</span>
         </div>
         <p className="text-xs text-[#a58c7b]">
-          {formatBps(offer.rateBps)} · {offer.durationMonths} month{offer.durationMonths > 1 ? 's' : ''} · {formatBtc(offer.collateral).replace(/\.?0+$/, '')} cirBTC
+          {formatBps(offer.rateBps)} · {offer.durationMonths} month{offer.durationMonths > 1 ? 's' : ''} · {formatBtc(offer.collateral)} cirBTC
         </p>
         <p className="text-xs text-[#ddc1ae] mt-1">{s.note}</p>
       </div>

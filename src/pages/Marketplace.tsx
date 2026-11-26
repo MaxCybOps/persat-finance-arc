@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { useModal } from 'connectkit'
 import { toast } from 'sonner'
-import { Filter, Plus, X, RefreshCw, ExternalLink, Send, ChevronDown } from 'lucide-react'
+import { Filter, Plus, X, RefreshCw, ExternalLink, Send, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { Card, Button, Badge, Input, TxStatus } from '../components/ui'
 import {
   formatUsdc,
@@ -24,9 +24,21 @@ import { getArcClient } from '../lib/arcClient'
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 const SCAN_PAGE = 100n
+// Cards are shown 24 at a time (full rows of 2 or 3), newest first; each card reads its own offers.
+const CARD_PAGE = 24
+const DETAIL_BATCH = 100
+const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as const
 const MIN_PRINCIPAL = 100_000_000n
 
 type RoleFilter = 'all' | 'borrow' | 'lend'
+type SortKey = 'newest' | 'rate_asc' | 'rate_desc' | 'amount_desc' | 'amount_asc'
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'newest', label: 'Newest' },
+  { key: 'rate_asc', label: 'Lowest rate' },
+  { key: 'rate_desc', label: 'Highest rate' },
+  { key: 'amount_desc', label: 'Largest amount' },
+  { key: 'amount_asc', label: 'Smallest amount' },
+]
 
 interface OpenOrder {
   dealId: `0x${string}`
@@ -46,7 +58,6 @@ interface OfferForm {
 }
 
 const usd = (raw: bigint) => `$${formatUsdc(raw).replace(/\.00$/, '')}`
-const btc = (raw: bigint) => formatBtc(raw).replace(/\.?0+$/, '')
 const isBorrowRequest = (o: OpenOrder) => o.borrower !== ZERO
 
 function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; onClose: () => void; onSubmitted: () => void }) {
@@ -59,7 +70,7 @@ function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; 
   const maxPct = maxInitialLtvBps !== undefined ? Number(maxInitialLtvBps) / 100 : 65
   const [form, setForm] = useState<OfferForm>({
     principal: formatUsdc(order.principal).replace(/,/g, '').replace(/\.00$/, ''),
-    collateral: btc(order.collateral),
+    collateral: formatBtc(order.collateral),
     rateBps: String(Number(order.rateBps) / 100),
     durationMonths: String(order.durationMonths),
   })
@@ -144,13 +155,11 @@ function CounterOfferModal({ order, onClose, onSubmitted }: { order: OpenOrder; 
             </span>
           </div>
         )}
-        {offerToLend && (
-          <p className="text-[11px] mb-3 p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd9a0' }}>
-            Binding offer: if the creator accepts it, the borrower can activate the loan right away. If your wallet has
-            already approved enough USDC for Persat, it is sent without another signature. The collateral is valued at the
-            BTC/USD price; a loss of cirBTC's 1:1 link to BTC during the loan would not be detected.
-          </p>
-        )}
+        <p className="text-[11px] mb-3 p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd9a0' }}>
+          {offerToLend
+            ? "Binding offer: if the creator accepts it, the loan can start right away. If your wallet has already approved enough USDC for Persat, it is sent without another signature. The collateral is valued at the BTC/USD price; a loss of cirBTC's 1:1 link to BTC during the loan would not be detected."
+            : 'Binding offer: if the creator accepts it, the loan can start right away. If your wallet has already approved enough cirBTC for Persat, the lender can start it and lock your collateral without another signature.'}
+        </p>
         {ltvTooHigh && (
           <p className="text-xs mb-3 p-2 rounded-lg" style={{ background: 'rgba(232,109,122,0.1)', color: 'var(--danger)' }}>
             Above {maxPct}%: this loan could not be activated at the current BTC price. Add collateral or lower the amount.
@@ -235,7 +244,7 @@ function OrderCard({ order, autoOpen = false }: { order: OpenOrder; autoOpen?: b
             ['Amount', `${usd(order.principal)} USDC`],
             ['Annual rate', formatBps(order.rateBps)],
             ['Duration', `${order.durationMonths} month${order.durationMonths > 1 ? 's' : ''}`],
-            ['Collateral', `${btc(order.collateral)} cirBTC`],
+            ['Collateral', `${formatBtc(order.collateral)} cirBTC`],
           ].map(([k, v]) => (
             <div key={k} className="min-w-0">
               <dt className="text-xs" style={{ color: 'var(--subtle)' }}>{k}</dt>
@@ -289,9 +298,11 @@ export default function Marketplace() {
   const { addresses, isMainnet } = useArcNetwork()
   const arcClient = getArcClient(isMainnet)
   const [filterRole, setFilterRole] = useState<RoleFilter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('newest')
   const [searchParams] = useSearchParams()
   const counterFor = searchParams.get('counter')?.toLowerCase()
   const [orders, setOrders] = useState<OpenOrder[]>([])
+  const [shown, setShown] = useState(CARD_PAGE)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [lastScanned, setLastScanned] = useState<Date | null>(null)
@@ -303,49 +314,99 @@ export default function Marketplace() {
     try { localStorage.setItem('persat_mkt_guide', open ? 'open' : 'closed') } catch { /* storage unavailable */ }
   }
 
+  const readRegistry = useCallback((functionName: string, args: unknown[] = []) =>
+    arcClient.readContract({ address: addresses.registry, abi: REGISTRY_ABI, functionName, args } as any) as Promise<any>,
+  [arcClient, addresses.registry])
+
+  // getDeal + isExpired for every open order, grouped through Multicall3 (one request per 100 orders).
+  const readOrders = useCallback(async (ids: `0x${string}`[]) => {
+    const toOrder = (dealId: `0x${string}`, deal: any, expired: boolean): OpenOrder | null => {
+      if (!deal || deal.state !== DealState.Proposed || deal.visibility !== 1 || expired) return null
+      return {
+        dealId, borrower: deal.borrower, lender: deal.lender, principal: deal.principal,
+        collateral: deal.collateral, rateBps: deal.rateBps, durationMonths: Number(deal.durationMonths),
+      }
+    }
+    const chunks: `0x${string}`[][] = []
+    for (let i = 0; i < ids.length; i += DETAIL_BATCH) chunks.push(ids.slice(i, i + DETAIL_BATCH))
+    const rows = await Promise.all(chunks.map(async (chunk) => {
+      try {
+        const res = await arcClient.multicall({
+          multicallAddress: MULTICALL3,
+          allowFailure: true,
+          contracts: chunk.flatMap((dealId) => [
+            { address: addresses.registry, abi: REGISTRY_ABI, functionName: 'getDeal', args: [dealId] },
+            { address: addresses.registry, abi: REGISTRY_ABI, functionName: 'isExpired', args: [dealId] },
+          ]) as any,
+        })
+        return chunk.map((dealId, i) => {
+          const d = res[2 * i]
+          const e = res[2 * i + 1]
+          return d.status === 'success' && e.status === 'success' ? toOrder(dealId, d.result, e.result as boolean) : null
+        })
+      } catch {
+        return Promise.all(chunk.map(async (dealId) => {
+          try {
+            const [deal, expired] = await Promise.all([readRegistry('getDeal', [dealId]), readRegistry('isExpired', [dealId])])
+            return toOrder(dealId, deal, expired)
+          } catch {
+            return null
+          }
+        }))
+      }
+    }))
+    return rows.flat().filter((r): r is OpenOrder => r !== null)
+  }, [arcClient, addresses.registry, readRegistry])
+
   const scanPublicDeals = useCallback(async () => {
     if (!addresses.registry) return
     setIsLoading(true)
     setLoadError(false)
     try {
-      const read = (functionName: string, args: unknown[] = []) =>
-        arcClient.readContract({ address: addresses.registry, abi: REGISTRY_ABI, functionName, args } as any) as Promise<any>
-      const count = (await read('openPublicDealCount')) as bigint
+      const count = (await readRegistry('openPublicDealCount')) as bigint
       const pages: Promise<readonly `0x${string}`[]>[] = []
-      for (let offset = 0n; offset < count; offset += SCAN_PAGE) pages.push(read('getOpenPublicDeals', [offset, SCAN_PAGE]))
+      for (let offset = 0n; offset < count; offset += SCAN_PAGE) pages.push(readRegistry('getOpenPublicDeals', [offset, SCAN_PAGE]))
       const all = (await Promise.all(pages)).flat()
-      const ids = [...new Set(all.map((id) => normalizeDealId(id).toLowerCase()))] as `0x${string}`[]
-
-      const rows = await Promise.all(ids.map(async (dealId) => {
-        try {
-          const [deal, expired] = await Promise.all([read('getDeal', [dealId]), read('isExpired', [dealId])])
-          if (deal.state !== DealState.Proposed || deal.visibility !== 1 || expired) return null
-          return {
-            dealId, borrower: deal.borrower, lender: deal.lender, principal: deal.principal,
-            collateral: deal.collateral, rateBps: deal.rateBps, durationMonths: Number(deal.durationMonths),
-          } as OpenOrder
-        } catch {
-          return null
-        }
-      }))
-      setOrders(rows.filter((r): r is OpenOrder => r !== null))
+      const ids = [...new Set(all.map((id) => normalizeDealId(id).toLowerCase()))].reverse() as `0x${string}`[]
+      setOrders(await readOrders(ids))
       setLastScanned(new Date())
     } catch {
       setLoadError(true)
     } finally {
       setIsLoading(false)
     }
-  }, [arcClient, addresses.registry])
+  }, [addresses.registry, readRegistry, readOrders])
 
   useEffect(() => { void scanPublicDeals() }, [scanPublicDeals])
+  useEffect(() => { setShown(CARD_PAGE) }, [filterRole, sortKey])
 
-  const counts = {
+  const counts: Record<RoleFilter, number> = {
     all: orders.length,
     borrow: orders.filter(isBorrowRequest).length,
     lend: orders.filter((o) => !isBorrowRequest(o)).length,
   }
-  const visible = orders.filter((o) =>
-    filterRole === 'all' || (filterRole === 'borrow' ? isBorrowRequest(o) : !isBorrowRequest(o)))
+  const cmp = (a: bigint, b: bigint) => (a < b ? -1 : a > b ? 1 : 0)
+  const filtered = orders
+    .filter((o) => filterRole === 'all' || (filterRole === 'borrow' ? isBorrowRequest(o) : !isBorrowRequest(o)))
+    .sort((a, b) =>
+      sortKey === 'rate_asc' ? cmp(a.rateBps, b.rateBps)
+      : sortKey === 'rate_desc' ? cmp(b.rateBps, a.rateBps)
+      : sortKey === 'amount_desc' ? cmp(b.principal, a.principal)
+      : sortKey === 'amount_asc' ? cmp(a.principal, b.principal)
+      : 0)
+  const summary = filtered.length === 0 ? null : (() => {
+    const total = filtered.reduce((n, o) => n + o.principal, 0n)
+    const rates = filtered.map((o) => o.rateBps)
+    const lo = rates.reduce((m, r) => (r < m ? r : m))
+    const hi = rates.reduce((m, r) => (r > m ? r : m))
+    const what = filterRole === 'borrow' ? 'requested' : filterRole === 'lend' ? 'offered' : 'in total'
+    return { total: `${usd(total)} USDC ${what}`, rates: lo === hi ? `${formatBps(lo)} / year` : `${formatBps(lo)} to ${formatBps(hi)} / year` }
+  })()
+  // A shared "make an offer" link must show its order even when it is not on the first page.
+  const linked = filtered.find((o) => o.dealId === counterFor)
+  const firstPage = filtered.slice(0, shown)
+  const visible = linked && !firstPage.includes(linked) ? [linked, ...firstPage] : firstPage
+  const remaining = Math.max(0, filtered.length - shown)
 
   const emptyText =
     filterRole === 'borrow' ? 'No open borrow requests right now.'
@@ -353,7 +414,7 @@ export default function Marketplace() {
     : 'No open orders yet. Be the first to post one.'
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
         <div className="min-w-0">
@@ -395,25 +456,31 @@ export default function Marketplace() {
           How it works & rules
           <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--subtle)' }} />
         </summary>
-        <div className="px-4 pb-4 -mt-1 space-y-3">
+        <div className="px-4 pb-4 -mt-1 grid gap-3 lg:grid-cols-2 lg:gap-8">
+          <div>
+          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink)' }}>How it works</p>
           <ul className="space-y-1 text-xs" style={{ color: '#ddc1ae' }}>
             <li>Borrowers post <span className="text-[#ff8a00] font-semibold">borrow requests</span>, lenders post <span className="text-[#ff8a00] font-semibold">lend offers</span>, each with their own terms.</li>
             <li>Interested? Click <strong>Make an offer</strong>: send the posted terms as they are, or propose different ones.</li>
-            <li>The creator picks one offer. The deal then appears in both Dashboards, ready to activate.</li>
+            <li>The creator picks one offer. The deal then appears in both Dashboards, ready to start.</li>
             <li>To publish your own order, click <strong>Post Order</strong> and choose Borrow USDC or Lend USDC.</li>
           </ul>
-          <p className="text-xs font-semibold pt-1" style={{ color: 'var(--ink)' }}>Rules</p>
+          </div>
+          <div>
+          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink)' }}>Rules</p>
           <ul className="text-xs space-y-1" style={{ color: 'var(--subtle)' }}>
-            <li>When the creator accepts an offer, its terms are locked on-chain. Funds only move when the loan is activated.</li>
+            <li>When the creator accepts an offer, its terms are locked on-chain. Funds only move when the loan starts.</li>
             <li>Once an offer is accepted, the other offers on that order can no longer be accepted.</li>
             <li>Each address can have one active offer per order, and can cancel it while the order is open. Orders expire 30 days after posting.</li>
-            <li>After the terms are locked, the borrower has 72 hours to activate the loan.</li>
+            <li>After the terms are locked, both sides approve their funds and either one starts the loan, within 24 hours.</li>
           </ul>
+          </div>
         </div>
       </details>
 
-      {/* Filters */}
-      <div className="flex rounded-xl p-1 mb-6 bg-[var(--surface-muted)] sm:p-0 sm:gap-2 sm:bg-transparent sm:rounded-none" role="radiogroup" aria-label="Filter orders">
+      {/* Filters and sort */}
+      <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex rounded-xl p-1 bg-[var(--surface-muted)] sm:p-0 sm:gap-2 sm:bg-transparent sm:rounded-none" role="radiogroup" aria-label="Filter orders">
         {([
           { key: 'all', short: 'All', long: 'All Orders' },
           { key: 'borrow', short: 'Borrow', long: 'Borrow Requests' },
@@ -435,14 +502,36 @@ export default function Marketplace() {
           </button>
         ))}
       </div>
+        <label className="relative flex items-center gap-2 text-xs self-start sm:self-auto" style={{ color: 'var(--subtle)' }}>
+          <ArrowUpDown size={13} className="shrink-0" />
+          <span className="sr-only">Sort orders</span>
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="appearance-none rounded-full pl-3 pr-8 py-1.5 text-xs font-semibold cursor-pointer outline-none"
+            style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', color: 'var(--ink)' }}
+          >
+            {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <ChevronDown size={13} className="pointer-events-none absolute right-2.5" />
+        </label>
+      </div>
+
+      {summary && (
+        <p className="text-xs mb-5 flex flex-wrap gap-x-2 gap-y-0.5" style={{ color: 'var(--subtle)' }}>
+          <span><strong style={{ color: 'var(--ink)' }}>{summary.total}</strong></span>
+          <span aria-hidden="true">·</span>
+          <span>Rates <strong style={{ color: 'var(--ink)' }}>{summary.rates}</strong></span>
+        </p>
+      )}
 
       {/* Orders grid */}
       {isLoading && orders.length === 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4].map((i) => <Card key={i} className="animate-pulse h-44" />)}
         </div>
       ) : visible.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visible.map((o) => <OrderCard key={o.dealId} order={o} autoOpen={o.dealId === counterFor} />)}
         </div>
       ) : (
@@ -456,6 +545,19 @@ export default function Marketplace() {
             </Button>
           </Link>
         </Card>
+      )}
+
+      {filtered.length > CARD_PAGE && (
+        <div className="flex flex-col items-center gap-2 mt-6">
+          <p className="text-xs" style={{ color: 'var(--subtle)' }}>
+            Showing {Math.min(shown, filtered.length)} of {filtered.length}
+          </p>
+          {remaining > 0 && (
+            <Button variant="secondary" size="md" onClick={() => setShown(shown + CARD_PAGE)}>
+              Show more
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )

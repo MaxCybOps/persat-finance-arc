@@ -43,6 +43,9 @@ import {
 import { useArcNetwork } from '../hooks/useArcNetwork'
 import { useUserDeals, LiveDeal } from '../hooks/useUserDeals'
 import { useBtcPrice } from '../hooks/useBtcPrice'
+import { useActivationStatus } from '../hooks/useActivationStatus'
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
 
 export default function Dashboard() {
   const { address, isConnected, isMainnet, chain, addresses } = useArcNetwork()
@@ -73,9 +76,11 @@ export default function Dashboard() {
   )
   // The deal list also holds invitations and deals other accounts created in this browser: keep only the wallet's own.
   const meLower = address?.toLowerCase() ?? ''
+  const activation = useActivationStatus(deals)
+  const isLapsed = (d: { dealId: string }) => activation.get(d.dealId.toLowerCase()) === 'expired'
   const partyDeals = deals.filter((d) => d.borrower.toLowerCase() === meLower || d.lender.toLowerCase() === meLower)
   const myDeals = partyDeals.filter((d) => d.state !== DealState.Cancelled)
-  const openDealsCount = myDeals.filter((d) => d.state === DealState.Proposed || d.state === DealState.Confirmed).length
+  const openDealsCount = myDeals.filter((d) => d.state === DealState.Proposed || (d.state === DealState.Confirmed && !isLapsed(d))).length
   const activeDealsCount = myDeals.filter((d) => d.state === DealState.Active || d.state === DealState.Defaulted).length
   const offersBadge = (d: { dealId: string; visibility: number; state: number }) => {
     const n = receivedOffers.get(d.dealId.toLowerCase()) ?? 0
@@ -89,6 +94,23 @@ export default function Dashboard() {
     if (d.visibility === 1 && d.state === DealState.Proposed) {
       return <span className="text-[10px] text-[#a58c7b] whitespace-nowrap">Waiting for offers</span>
     }
+    return null
+  }
+  const stateBadge = (d: { dealId: string; state: number }) => (
+    <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${isLapsed(d) ? 'bg-[#2f2924] text-[#a58c7b]' : dealStateColor(d.state)}`}>
+      {isLapsed(d) ? 'EXPIRED' : dealStateLabel(d.state).toUpperCase()}
+    </span>
+  )
+  const actionBadge = (d: { dealId: string }) => {
+    const s = activation.get(d.dealId.toLowerCase())
+    if (s === 'your_turn' || s === 'start') {
+      return (
+        <span className="px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold bg-[#ff8a00] text-[#17120f] whitespace-nowrap">
+          {s === 'start' ? 'Ready to start' : 'Your turn: approve'}
+        </span>
+      )
+    }
+    if (s === 'waiting') return <span className="text-[10px] text-[#a58c7b] whitespace-nowrap">Waiting for the other party</span>
     return null
   }
   // Phones: the tab bar scrolls sideways. Keep the selected tab in view and hint when more tabs are off-screen.
@@ -120,7 +142,7 @@ export default function Dashboard() {
   const { deals: allDeals } = useUserDeals()
   const activeBorrowedDeals = allDeals.filter(
     d => d.borrower.toLowerCase() === (address?.toLowerCase() ?? '') &&
-    (d.state === DealState.Active || d.state === DealState.Confirmed)
+    (d.state === DealState.Active || (d.state === DealState.Confirmed && !isLapsed(d)))
   )
   const aggregateRltvNum = (() => {
     if (activeBorrowedDeals.length === 0) return 0
@@ -305,7 +327,7 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <p className="text-xs text-[#ddc1ae]">
-                    Counterparty <strong className="text-[#ebe0d9]">{shortAddr(incomingDeals[0].borrower)}</strong> created a deal: <strong className="text-[#ff8a00]">${formatUsdc(incomingDeals[0].principal)} USDC</strong> principal at <strong className="text-[#10b981]">{formatBps(incomingDeals[0].rateBps)} fixed APR</strong> ({incomingDeals[0].durationMonths}mo) backed by <strong className="text-[#ebe0d9]">{formatBtc(incomingDeals[0].collateral)} cirBTC</strong> collateral.
+                    Counterparty <strong className="text-[#ebe0d9]">{shortAddr(incomingDeals[0].borrower !== ZERO_ADDR ? incomingDeals[0].borrower : incomingDeals[0].lender)}</strong> created a deal: <strong className="text-[#ff8a00]">${formatUsdc(incomingDeals[0].principal)} USDC</strong> principal at <strong className="text-[#10b981]">{formatBps(incomingDeals[0].rateBps)} fixed APR</strong> ({incomingDeals[0].durationMonths}mo) backed by <strong className="text-[#ebe0d9]">{formatBtc(incomingDeals[0].collateral)} cirBTC</strong> collateral.
                   </p>
                 </div>
               </div>
@@ -415,7 +437,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="font-['Space_Grotesk'] text-2xl font-bold text-[#ebe0d9]">
-                  {(Number(totalCollateralLocked) / 1e8).toFixed(4)} cirBTC
+                  {formatBtc(totalCollateralLocked)} cirBTC
                 </div>
                 <div className="text-xs text-[#a58c7b] mt-0.5">
                   ≈ ${(Number(totalCollateralLocked) / 1e8 * btcPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
@@ -493,7 +515,7 @@ export default function Dashboard() {
             <div className="min-w-0">
               <p className="font-['Space_Grotesk'] text-xs font-bold uppercase tracking-wider text-[#a58c7b] mb-1">Your wallet</p>
               <p className="font-['Space_Grotesk'] text-lg font-bold text-[#ebe0d9] tabular-nums">
-                {formatBtc(walletCirBtc).replace(/\.?0+$/, '')} cirBTC
+                {formatBtc(walletCirBtc)} cirBTC
               </p>
               <p className="text-xs text-[#a58c7b]">
                 {walletCirBtc > 0n ? 'Free to use as collateral, or to convert back to BTC.' : 'No free cirBTC. Collateral locked in loans is not counted here.'}
@@ -683,11 +705,10 @@ export default function Dashboard() {
                             <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
                               Deal {deal.dealId.slice(0, 10)}...
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
-                              {dealStateLabel(deal.state).toUpperCase()}
-                            </span>
+                            {stateBadge(deal)}
                             {typeBadge(deal)}
                             {offersBadge(deal)}
+                            {actionBadge(deal)}
                           </div>
                           <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
                             <span>Collateral: <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong></span>
@@ -764,11 +785,10 @@ export default function Dashboard() {
                             <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
                               Lending Deal {deal.dealId.slice(0, 10)}...
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold ${dealStateColor(deal.state)}`}>
-                              {dealStateLabel(deal.state).toUpperCase()}
-                            </span>
+                            {stateBadge(deal)}
                             {typeBadge(deal)}
                             {offersBadge(deal)}
+                            {actionBadge(deal)}
                           </div>
                           <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#a58c7b]">
                             <span>{deal.state === DealState.Proposed || deal.state === DealState.Confirmed ? 'Offering' : 'Supplied'}: <strong className="text-[#10b981]">${formatUsdc(deal.principal)} USDC</strong></span>
@@ -813,84 +833,53 @@ export default function Dashboard() {
             {activeTab === 'incoming' && (
               <div className="space-y-4">
                 {incomingDeals.length > 0 ? (
-                  incomingDeals.map((deal) => (
-                    <div
-                      key={deal.dealId}
-                      className="p-4 sm:p-5 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 hover:border-[#ff8a00] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,138,0,0.1)]"
-                    >
-                      <div className="flex items-start gap-4 min-w-0">
-                        <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-[#ff8a00]/20 border border-[#ff8a00]/40 items-center justify-center text-[#ff8a00] shrink-0">
-                          <Inbox className="w-6 h-6" />
-                        </div>
+                  incomingDeals.map((deal) => {
+                    const iLend = deal.borrower !== ZERO_ADDR
+                    const from = iLend ? deal.borrower : deal.lender
+                    const terms = [
+                      ['Amount', `$${formatUsdc(deal.principal).replace(/\.00$/, '')} USDC`],
+                      ['Rate', `${formatBps(deal.rateBps)} / year`],
+                      ['Duration', `${deal.durationMonths} month${deal.durationMonths > 1 ? 's' : ''}`],
+                      [iLend ? 'Their collateral' : 'Your collateral', `${formatBtc(deal.collateral)} cirBTC`],
+                    ]
+                    return (
+                      <div
+                        key={deal.dealId}
+                        className="p-4 sm:p-5 rounded-2xl bg-[#17120f] border border-[#ff8a00]/60 hover:border-[#ff8a00] transition-all flex flex-col md:flex-row md:items-center gap-4"
+                      >
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9] whitespace-nowrap">
-                              Loan Invitation
-                            </span>
+                            <span className="font-['Space_Grotesk'] text-base font-bold text-[#ebe0d9]">Loan invitation</span>
                             <span className="px-2 py-0.5 rounded-full font-['Space_Grotesk'] text-[10px] font-bold bg-[#ff8a00]/15 text-[#ff8a00] border border-[#ff8a00]/30">
-                              AWAITING YOUR REVIEW
+                              Awaiting your review
                             </span>
                           </div>
-
-                          {/* Human-readable contract summary */}
-                          <div className="mt-2 p-3 rounded-xl bg-[#120d0a] border border-[#564334]/30 text-xs text-[#ddc1ae] space-y-1.5">
-                            <p className="text-[#ebe0d9] font-semibold">📋 Proposed Loan Agreement Terms:</p>
-                            {deal.borrower !== '0x0000000000000000000000000000000000000000' ? (
-                              <>
-                                <p>
-                                  <strong className="text-[#ff8a00]">Borrower:</strong>{' '}
-                                  <code className="text-[#ebe0d9]">{shortAddr(deal.borrower)}</code> is requesting a loan
-                                  and will deposit <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral.
-                                </p>
-                                <p>
-                                  <strong className="text-[#ff8a00]">You (Lender):</strong> Would supply{' '}
-                                  <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> and earn a fixed{' '}
-                                  <strong className="text-[#10b981]">{formatBps(deal.rateBps)} APR</strong> over{' '}
-                                  <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
-                                </p>
-                                <p className="text-[#a58c7b]">
-                                  ⏱ If the borrower fails to repay, the loan can be liquidated: you are repaid in USDC by a liquidator, or you can take the{' '}
-                                  <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> collateral held in escrow. This is not insurance: if cirBTC loses value faster than liquidation happens, you can lose money.
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p>
-                                  <strong className="text-[#ff8a00]">Lender:</strong>{' '}
-                                  <code className="text-[#ebe0d9]">{shortAddr(deal.lender)}</code> offers to lend{' '}
-                                  <strong className="text-[#ebe0d9]">${formatUsdc(deal.principal)} USDC</strong> at a fixed{' '}
-                                  <strong className="text-[#10b981]">{formatBps(deal.rateBps)} APR</strong> over{' '}
-                                  <strong className="text-[#ebe0d9]">{deal.durationMonths} months</strong>.
-                                </p>
-                                <p>
-                                  <strong className="text-[#ff8a00]">You (Borrower):</strong> Would lock{' '}
-                                  <strong className="text-[#ebe0d9]">{formatBtc(deal.collateral)} cirBTC</strong> as collateral and receive the USDC.
-                                </p>
-                                <p className="text-[#a58c7b]">
-                                  ⏱ If you do not repay on time, or if the cirBTC price falls too far, your collateral can be liquidated.
-                                </p>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col items-start sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-2 text-xs text-[#a58c7b]">
-                            <span>Deal ID: <code className="text-[#ebe0d9]">{deal.dealId.slice(0, 10)}...</code></span>
-                            <span className="hidden sm:inline">•</span>
-                            <span>From: <strong className="text-[#ebe0d9]">{shortAddr(deal.borrower !== '0x0000000000000000000000000000000000000000' ? deal.borrower : deal.lender)}</strong></span>
-                          </div>
+                          <p className="mt-1 text-xs text-[#a58c7b]">
+                            From <code className="text-[#ebe0d9]">{shortAddr(from)}</code> · you would {iLend ? 'lend' : 'borrow'}
+                          </p>
+                          <dl className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+                            {terms.map(([k, v]) => (
+                              <div key={k} className="min-w-0">
+                                <dt className="text-[10px] uppercase tracking-wider font-bold text-[#a58c7b]">{k}</dt>
+                                <dd className={`font-['Space_Grotesk'] text-sm font-bold truncate ${k === 'Rate' ? 'text-[#10b981]' : 'text-[#ebe0d9]'}`}>{v}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                          <p className="mt-3 text-xs text-[#a58c7b]">
+                            {iLend
+                              ? 'If the borrower does not repay, the loan is liquidated and you are repaid from the collateral. This is not insurance: if cirBTC loses value faster than liquidation happens, you can lose money.'
+                              : 'If you do not repay on time, or if BTC falls too far, your collateral can be liquidated.'}
+                          </p>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 shrink-0">
                         <Link
                           to={`/deal/claim/${deal.dealId}${deal.salt ? `#key=${deal.salt}` : ''}`}
-                          className="flex-1 sm:flex-none text-center px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline"
+                          className="w-full md:w-auto shrink-0 text-center px-5 py-2.5 rounded-full bg-gradient-to-b from-[#ffaa45] to-[#ff8a00] text-[#17120f] font-['Space_Grotesk'] text-xs font-bold hover:shadow-[0_4px_16px_rgba(255,138,0,0.4)] transition-all no-underline"
                         >
-                          Review & Accept Deal →
+                          Review & accept →
                         </Link>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-12 text-[#a58c7b]">
                     <Inbox className="w-12 h-12 mx-auto mb-3 text-[#ff8a00]/40" />
@@ -945,7 +934,7 @@ export default function Dashboard() {
                   <li key={d.dealId} className="flex items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <p className="font-['Space_Grotesk'] text-sm font-bold text-[#ebe0d9] tabular-nums truncate">
-                        ${formatUsdc(d.principal).replace(/\.00$/, '')} USDC · {formatBtc(d.collateral).replace(/\.?0+$/, '')} cirBTC
+                        ${formatUsdc(d.principal).replace(/\.00$/, '')} USDC · {formatBtc(d.collateral)} cirBTC
                       </p>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-[#a58c7b]">
                         <span className={`px-1.5 py-0.5 rounded-full font-bold ${dealStateColor(d.state)}`}>{dealStateLabel(d.state)}</span>

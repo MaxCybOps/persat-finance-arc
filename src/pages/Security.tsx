@@ -33,7 +33,7 @@ export default function Security() {
         </p>
         <ul className="text-sm space-y-1.5 list-disc pl-5" style={{ color: 'var(--subtle)' }}>
           <li>Persat never holds your keys. Every transaction is signed in your own wallet.</li>
-          <li>Nothing leaves your wallet when you post an order, make an offer or accept one. Funds only move when the borrower activates the loan.</li>
+          <li>Nothing leaves your wallet when you post an order, make an offer or accept one. Funds only move when the loan starts, once both sides have approved.</li>
           <li>Approvals are requested for the exact amount a step needs, never unlimited.</li>
           <li>The team cannot move collateral or payments owed to users. The owner can pause new loans, queue a fee change (4-day delay, 0.5% maximum) and pause liquidations for at most 24 hours.</li>
           <li>Bridges and conversions (USDC via Circle CCTP, BTC and other tokens via LI.FI) run through those providers' contracts; Persat's contracts never hold funds in transit.</li>
