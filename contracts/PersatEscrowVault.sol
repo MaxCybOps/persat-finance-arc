@@ -34,6 +34,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
     error TermsHashMismatch();
     error NotBorrower();
     error NotLender();
+    error NotDealParty();
     error DealNotActive();
     error RepaymentFailed();
     error ZeroAddress();
@@ -163,7 +164,7 @@ contract PersatEscrowVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (deal.state != PersatDealRegistry.DealState.Confirmed) {
             revert DealNotActive();
         }
-        if (msg.sender != deal.borrower) revert NotBorrower();
+        if (msg.sender != deal.borrower && msg.sender != deal.lender) revert NotDealParty();
         if (_computeTermsHash(deal) != deal.termsHash) revert TermsHashMismatch();
 
         uint256 price = _readPrice();

@@ -236,9 +236,9 @@ contract VaultActivateLoanTest is VaultFixture {
         vault.activateLoan(DEAL_ID);
     }
 
-    function test_RevertActivateLoan_NotBorrower() public {
+    function test_RevertActivateLoan_NotParty() public {
         _confirmDeal(DEAL_ID);
-        vm.expectRevert(PersatEscrowVault.NotBorrower.selector);
+        vm.expectRevert(PersatEscrowVault.NotDealParty.selector);
         vm.prank(stranger);
         vault.activateLoan(DEAL_ID);
     }

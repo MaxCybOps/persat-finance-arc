@@ -175,4 +175,28 @@ contract AuditRound4Test is AuditRound2Test {
         assertEq(registry.owner(), owner);
         assertEq(vault.owner(), owner);
     }
+
+    function test_R4_LenderCanActivateOnceBorrowerApproved() public {
+        bytes16 id = _confirm("r4-lender-activates");
+        uint256 borrowerUsdc = usdc.balanceOf(borrower);
+
+        vm.prank(keeper);
+        vm.expectRevert(PersatEscrowVault.NotDealParty.selector);
+        vault.activateLoan(id);
+
+        vm.prank(borrower);
+        cirBtc.approve(address(vault), 0);
+        vm.prank(lender);
+        vm.expectRevert();
+        vault.activateLoan(id);
+
+        vm.prank(borrower);
+        cirBtc.approve(address(vault), COLLATERAL);
+        vm.prank(lender);
+        vault.activateLoan(id);
+
+        assertEq(uint8(registry.getDeal(id).state), uint8(PersatDealRegistry.DealState.Active));
+        assertEq(vault.lockedCollateral(id), COLLATERAL);
+        assertEq(usdc.balanceOf(borrower) - borrowerUsdc, PRINCIPAL - PRINCIPAL * FEE_BPS / 10_000);
+    }
 }

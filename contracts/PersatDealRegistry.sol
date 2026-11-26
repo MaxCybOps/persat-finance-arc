@@ -95,7 +95,7 @@ contract PersatDealRegistry is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public constant MIN_PRINCIPAL = 100e6;
     uint256 public constant OFFER_TTL = 7 days;
     uint256 public constant PROPOSAL_TTL = 30 days;
-    uint256 public constant ACTIVATION_WINDOW = 72 hours;
+    uint256 public constant ACTIVATION_WINDOW = 24 hours;
 
     mapping(bytes16 => uint256) public proposedAt;
     mapping(bytes16 => uint256) public confirmedAt;

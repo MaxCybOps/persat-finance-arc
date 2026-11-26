@@ -45,6 +45,7 @@ Audit round 4 (branch `fix/audit-round4`, see the design doc):
 - Bounded reads: `getActiveCounterOffers`, `getCounterOffersPage`, `getOpenPublicDeals`, `getInvitations` (reserved deals are no longer added to the invitee's `getUserDeals` until claimed).
 - Vault: `addCollateral` for borrowers; `pauseLiquidations(duration)` (max 24 h + 6 h grace, 3-day cooldown); `renounceOwnership` disabled on both contracts.
 - Deploy script rebuilds the contracts and checks the cirBTC pool TWAP against the oracle before any transaction; staleness threshold 3 h.
+- `activateLoan` can be called by the borrower or the lender: whoever approves last can start the loan, within 24 hours of the deal being accepted (`ACTIVATION_WINDOW`).
 
 ## IMPORTANT: Wiring Step Required
 

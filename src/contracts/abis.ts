@@ -33,6 +33,7 @@ export const PERSAT_ERRORS = [
   {"type":"error","name":"LTVHealthy","inputs":[]},
   {"type":"error","name":"MaxCounterOffersReached","inputs":[]},
   {"type":"error","name":"NotBorrower","inputs":[]},
+  {"type":"error","name":"NotDealParty","inputs":[]},
   {"type":"error","name":"NothingToWithdraw","inputs":[]},
   {"type":"error","name":"NotLender","inputs":[]},
   {"type":"error","name":"NotVault","inputs":[]},
